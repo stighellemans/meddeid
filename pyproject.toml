@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meddeid"
+version = "0.1.0"
+description = "Local inference API, CLI, and service for the MedDeID dual-head model"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "AGPL-3.0-only"
+authors = [{name = "Stig Hellemans"}]
+keywords = ["de-identification", "clinical-nlp", "privacy", "transformers"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Natural Language :: Dutch",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+    "numpy>=1.24",
+    "meddeid-core>=0.1,<0.2",
+    "meddeid-language-nl>=0.1,<0.2",
+    "torch>=2.2",
+    "transformers>=4.45,<5",
+    "huggingface-hub>=0.25",
+    "safetensors>=0.4",
+]
+
+[project.urls]
+"Model and datasets" = "https://huggingface.co/collections/stighellemans/meddeid"
+
+[project.optional-dependencies]
+server = ["fastapi>=0.115", "uvicorn>=0.30"]
+dev = ["fastapi>=0.115", "uvicorn>=0.30", "httpx>=0.27", "pytest>=8"]
+
+[project.scripts]
+meddeid = "meddeid.cli:main"
+meddeid-server = "meddeid.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

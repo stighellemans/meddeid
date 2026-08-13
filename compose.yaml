@@ -1,0 +1,76 @@
+name: meddeid
+
+x-api: &api
+  image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.0}
+  build:
+    context: .
+  volumes:
+    - model-cache:/var/cache/meddeid
+  environment:
+    MEDDEID_MODEL: ${MEDDEID_MODEL:-stighellemans/meddeid-dutch-synth}
+    MEDDEID_REVISION: ${MEDDEID_REVISION:-}
+    MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
+    MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
+    MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
+    MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
+  restart: unless-stopped
+
+services:
+  torch-api:
+    <<: *api
+    profiles: [torch]
+    ports:
+      - "${MEDDEID_PORT:-8000}:8000"
+    environment:
+      MEDDEID_MODEL: ${MEDDEID_MODEL:-stighellemans/meddeid-dutch-synth}
+      MEDDEID_REVISION: ${MEDDEID_REVISION:-}
+      MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
+      MEDDEID_BACKEND: torch
+      MEDDEID_DEVICE: ${MEDDEID_DEVICE:-cpu}
+      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-32}
+      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-1}
+      MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
+      MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
+      MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
+      MKL_NUM_THREADS: ${MKL_NUM_THREADS:-4}
+
+  triton:
+    image: ${MEDDEID_TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.02-py3}
+    profiles: [triton]
+    command: ["tritonserver", "--model-repository=/models", "--strict-readiness=true"]
+    volumes:
+      - ./deploy/triton/model_repository:/models:ro
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  triton-api:
+    <<: *api
+    profiles: [triton]
+    depends_on:
+      - triton
+    ports:
+      - "${MEDDEID_PORT:-8000}:8000"
+    environment:
+      MEDDEID_MODEL: ${MEDDEID_MODEL:-stighellemans/meddeid-dutch-synth}
+      MEDDEID_REVISION: ${MEDDEID_REVISION:-}
+      MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
+      MEDDEID_BACKEND: triton
+      MEDDEID_TRITON_URL: http://triton:8000
+      MEDDEID_TRITON_TIMEOUT: ${MEDDEID_TRITON_TIMEOUT:-30}
+      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-16}
+      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-2}
+      MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
+      MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
+      MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
+
+volumes:
+  model-cache:

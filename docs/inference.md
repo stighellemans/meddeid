@@ -1,0 +1,311 @@
+# Inference and deployment
+
+This is the operational reference for `meddeid-dutch-synth`. PyTorch and
+TensorRT/Triton use the same tokenizer, windowing, decoder, Dutch language
+profile, metadata recovery, and response contract. Only the neural runtime
+changes.
+
+## Model acquisition and offline use
+
+Normal use downloads the self-contained model bundle automatically on the first
+`from_pretrained` or CLI call and reuses the Hugging Face cache afterwards:
+
+```bash
+pip install meddeid
+meddeid deidentify note.txt
+```
+
+You do **not** need to run `hf download` first. Explicit download is useful only
+when the machine will be offline, when an administrator stages a shared model
+directory, or when TensorRT export needs a concrete directory:
+
+```bash
+hf download stighellemans/meddeid-dutch-synth \
+  --revision <immutable-hub-commit> \
+  --local-dir ./meddeid-dutch-synth
+meddeid model-info --model ./meddeid-dutch-synth
+```
+
+The ordinary Hub cache is likewise reused automatically without `--offline`.
+Use `--offline` only to enforce that MedDeID may not check the network and must
+fail if the requested snapshot is absent. When `--model` points to an existing
+local directory, the flag is unnecessary because Hub resolution is bypassed.
+
+For a reproducible deployment, pin the immutable Hub commit in `--revision`,
+`revision=`, or `MEDDEID_REVISION`. `meddeid model-info` reports the resolved
+revision, model bundle hash, backend, device, profile, versions, and offline
+readiness.
+
+## Python
+
+```python
+from meddeid import Deidentifier
+
+engine = Deidentifier.from_pretrained(
+    "stighellemans/meddeid-dutch-synth",
+    revision="<immutable-hub-commit>",
+    device="cpu",
+)
+result = engine(
+    "Patiënt Jan Peeters belde 0470 12 34 56.",
+    metadata={
+        "lang": "nl-BE",
+        "patient": {"given_name": "Jan", "family_name": "Peeters"},
+        "known_values": [
+            {"value": "0470 12 34 56", "label": "Contactdetails"}
+        ],
+    },
+)
+print(result.deid_text)
+print(result.spans)
+engine.close()
+```
+
+For throughput, batch documents explicitly. Model windows from all supplied
+documents are flattened into bounded runtime batches while decoding and
+metadata stay isolated per document:
+
+```python
+results = engine.deidentify_many([
+    ("Patiënt Jan Peeters.", {"patient": {
+        "given_name": "Jan", "family_name": "Peeters"
+    }}),
+    ("Dr. Noor Aerts.", {"caregivers": [
+        {"given_name": "Noor", "family_name": "Aerts"}
+    ]}),
+])
+```
+
+## What metadata does
+
+Metadata is implemented in the versioned `nl-BE@1` post-processing profile. It
+is not concatenated to the note and is not an input feature of the transformer.
+After neural spans are decoded, the profile can add or extend matches that the
+caller already knows:
+
+- `lang`: optional profile check; use `nl-BE` for this release.
+- `patient`: an object with `given_name`, `family_name`, and optional
+  patient-level fields such as `birth_date`.
+- `caregivers`: a list of objects with `given_name` and `family_name`. Common initials and clinical title
+  forms are handled by the Dutch profile.
+- `known_values`: a list of `{value, label}` assertions for identifiers,
+  contacts, names, or other canonical labels. Matching tolerates common
+  separators.
+
+The 14 canonical labels are:
+
+```text
+Address_Location:Caregiver  Address_Location:Other
+Address_Location:Patient    Age_Birthdate
+Contactdetails              Date
+ID:Caregiver                ID:Patient
+Name:Caregiver              Name:Other
+Name:Patient                Organization:Healthcare
+Organization:Other          Profession
+```
+
+Only send trusted record metadata. `known_values` is a caller assertion: an
+incorrect value or label can intentionally create a false-positive span. The
+HTTP service validates its shape, and the language profile merges injected
+spans deterministically with model spans. HTTP responses do not echo metadata,
+because names and identifiers should not be duplicated unnecessarily in logs;
+the canonical JSONL batch output does preserve it for controlled research
+workflows.
+
+### Measured effect
+
+On the 300-note hospital benchmark, `meddeid-dutch-synth` rose from **95.2% to
+96.7% core-PII recall** with patient/caregiver metadata. The non-PII redaction
+rate also rose from **0.780% to 0.846%**. On the open synthetic benchmark it was
+unchanged at 99.8%; on the 100-note primary-care set it rose from 89.9% to 90.3%
+with a 1.363% to 1.369% non-PII redaction change. These are character-level
+benchmark results, not a guarantee for a new institution. Metadata improves
+safety when accurate names are available, but it does not make the neural model
+faster and may reduce specificity.
+
+## Canonical JSONL batch input and output
+
+Input is one canonical document per line:
+
+```json
+{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"spans":[]}
+```
+
+Run:
+
+```bash
+meddeid batch input.jsonl --output predictions.jsonl
+```
+
+The default command uses `stighellemans/meddeid-dutch-synth` and selects CUDA
+when available, otherwise CPU. Pin `--revision` or set `--device` only when the
+run requires that explicit control.
+
+Output keeps ID, text, metadata, detected spans, and rendered text:
+
+```json
+{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails"}],"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]}}
+```
+
+The adjacent `.manifest.json` records hashes, immutable model identity, profile,
+runtime/device, dependency versions, document/span counts, and timing. Use
+`--resume` after interruption or `--overwrite` explicitly; existing output is
+never silently replaced.
+
+## HTTP API
+
+Install and start the embedded PyTorch service:
+
+```bash
+pip install 'meddeid[server]'
+MEDDEID_DEVICE=cpu meddeid-server
+```
+
+Single document:
+
+```bash
+curl --fail-with-body http://localhost:8000/deidentify \
+  -H 'content-type: application/json' \
+  -d '{
+    "text": "Patiënt Jan Peeters belde 0470 12 34 56.",
+    "metadata": {
+      "lang": "nl-BE",
+      "patient": {"given_name": "Jan", "family_name": "Peeters"},
+      "known_values": [{"value": "0470 12 34 56", "label": "Contactdetails"}]
+    }
+  }'
+```
+
+Response:
+
+```json
+{
+  "text": "Patiënt Jan Peeters belde 0470 12 34 56.",
+  "deid_text": "Patiënt [Name:Patient] belde [Contactdetails].",
+  "spans": [
+    {"begin": 8, "end": 19, "text": "Jan Peeters", "label": "Name:Patient"},
+    {"begin": 26, "end": 39, "text": "0470 12 34 56", "label": "Contactdetails"}
+  ]
+}
+```
+
+Batch endpoint (recommended when the caller can group work):
+
+```bash
+curl --fail-with-body http://localhost:8000/deidentify-batch \
+  -H 'content-type: application/json' \
+  -d '{"documents":[
+    {"document_id":"note-1","text":"Patiënt Jan Peeters.","metadata":{"patient":{"given_name":"Jan","family_name":"Peeters"}}},
+    {"document_id":"note-2","text":"Dr. Noor Aerts.","metadata":{"caregivers":[{"given_name":"Noor","family_name":"Aerts"}]}}
+  ]}'
+```
+
+`GET /health` includes model/profile/revision and runtime readiness. Validation
+errors are HTTP 422 with a structured `detail.code` and `detail.message`;
+oversized aggregate batches are HTTP 413; unavailable inference is HTTP 503.
+Defaults are 20,000 characters per document, 32 documents per request, and
+200,000 aggregate characters. Configure them with
+`MEDDEID_MAX_INPUT_CHARS`, `MEDDEID_MAX_BATCH_DOCUMENTS`, and
+`MEDDEID_MAX_BATCH_CHARS`.
+
+## Containers
+
+The regular API image is named
+`ghcr.io/stighellemans/meddeid-api:<release>`. The included GitHub Actions
+workflow publishes it from a version tag after the corresponding Python
+packages are available. The Dockerfile installs the checked-out `meddeid`
+source so the image matches its Git tag. You can also build it locally with the
+included Compose configuration.
+
+PyTorch CPU:
+
+```bash
+docker compose --profile torch up --build
+curl --fail http://localhost:8000/health
+```
+
+The model is downloaded automatically into the persistent `model-cache` volume
+on first start. To prevent network access at runtime, pre-populate and mount a
+model directory, set `MEDDEID_MODEL` to that container path, and set
+`MEDDEID_OFFLINE=true`.
+
+## TensorRT and Triton
+
+TensorRT plans are tied to the TensorRT/CUDA stack and GPU compatibility. Build
+the plan on the target GPU class, record the immutable model revision and bundle
+hash, and rebuild after any model, label-order, window, or runtime-stack change.
+
+1. Download an immutable model directory and install export requirements:
+
+   ```bash
+   hf download stighellemans/meddeid-dutch-synth \
+     --revision <immutable-hub-commit> \
+     --local-dir ./meddeid-dutch-synth
+   pip install 'meddeid[server]' onnx
+   ```
+
+2. Build the FP16 plan and Triton model repository on an NVIDIA Docker host:
+
+   ```bash
+   ./deploy/build_triton_repository.sh \
+     ./meddeid-dutch-synth deploy/triton/model_repository
+   ```
+
+   Defaults are min/opt/max shapes `1x8`, `16x256`, and `64x512`, with dynamic
+   batching at 8/16/32 windows and a 5 ms queue delay. The API sends INT32 token
+   tensors matching the generated `config.pbtxt`. Adjust profile environment
+   variables only if the client batch limit and model maximum remain compatible.
+
+3. Start the API gateway and Triton:
+
+   ```bash
+   MEDDEID_REVISION=<immutable-hub-commit> \
+     docker compose --profile triton up --build
+   curl --fail http://localhost:8000/health
+   ```
+
+4. Optionally package that exact plan. Use a GPU-specific image name, not a
+   universal `latest` tag:
+
+   ```bash
+   docker build -f deploy/triton-model.Dockerfile \
+     --build-arg MODEL_REVISION=<immutable-hub-commit> \
+     --build-arg BUNDLE_SHA256=<model-info-bundle-sha256> \
+     --build-arg GPU_TARGET=t4-sm75-trt-24.02 \
+     -t ghcr.io/stighellemans/meddeid-triton-t4-sm75:0.1.0 .
+   docker push ghcr.io/stighellemans/meddeid-triton-t4-sm75:0.1.0
+   ```
+
+The generic workflow intentionally does not publish TensorRT plans: a plan
+built for one GPU/runtime combination must not be presented as portable.
+
+### TensorRT publication policy
+
+- The portable PyTorch API image is the universal default.
+- Maintainers build, validate, benchmark, and publish GPU-specific TensorRT
+  images for supported targets, starting with NVIDIA T4.
+- Institutions use `build_triton_repository.sh` only for unsupported GPUs or a
+  deliberately different TensorRT/CUDA stack.
+- TensorRT compilation never happens during API or Triton startup. Startup only
+  loads a previously built, identified, and tested plan.
+
+## Throughput, sizing, and concurrency
+
+Use these as starting configurations, not benchmark claims:
+
+| Deployment | Starting point | Concurrency guidance |
+|---|---:|---|
+| PyTorch CPU | 4 vCPU, 8 GiB RAM | One API worker and 4 Torch threads. Prefer `/deidentify-batch`; adding workers duplicates model memory. |
+| PyTorch CUDA | 1 NVIDIA GPU with at least 8 GiB | One worker per GPU. Increase `MEDDEID_WINDOW_BATCH_SIZE` until memory or tail latency becomes limiting. |
+| Triton/TensorRT | T4 16 GiB or a plan rebuilt for the chosen GPU | Two lightweight API workers, one Triton model instance, 16-window client batches, Triton dynamic batching. |
+
+Within one `Deidentifier`, a lock protects model and pipeline state. A single
+request can still use all available batch capacity through `deidentify_many` /
+`/deidentify-batch`; independent HTTP requests do not get silently combined by
+the Python process. Triton can dynamically combine simultaneous window calls
+from multiple API workers.
+
+No release-grade latency, memory, or saturation table has been published yet.
+Measure on the actual note-length distribution and target hardware, report
+p50/p95/p99 latency plus documents and characters per second, and test both
+metadata-on and metadata-off payloads. Do not tune only on short example notes.
