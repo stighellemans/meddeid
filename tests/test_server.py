@@ -29,6 +29,13 @@ class FakeEngine:
 def test_server_validates_input_and_reports_model_health() -> None:
     engine = FakeEngine()
     with TestClient(create_app(engine=engine, max_input_chars=12)) as client:
+        assert client.get("/").json()["service"] == "MedDeID"
+        assert client.get("/").json()["ui"] == "/ui"
+        ui = client.get("/ui")
+        assert ui.status_code == 200
+        assert "De-identify one Dutch clinical note" in ui.text
+        assert "default-src 'none'" in ui.headers["content-security-policy"]
+        assert client.get("/live").json() == {"status": "ok"}
         health = client.get("/health")
         assert health.status_code == 200
         assert health.json()["model"]["resolved_revision"] == "abc123"
@@ -108,3 +115,66 @@ def test_server_rejects_oversized_batches() -> None:
             json={"documents": [{"document_id": "1", "text": "abcdef"}]},
         )
         assert too_large.status_code == 413
+
+
+def test_server_api_key_request_limits_and_security_headers() -> None:
+    engine = FakeEngine()
+    with TestClient(
+        create_app(
+            engine=engine,
+            api_key="correct-horse-battery-staple",
+            max_request_bytes=80,
+            docs_enabled=False,
+            ui_enabled=False,
+        )
+    ) as client:
+        health = client.get("/health", headers={"X-Request-ID": "health-check-1"})
+        assert health.status_code == 200
+        assert health.headers["x-request-id"] == "health-check-1"
+        assert health.headers["cache-control"] == "no-store"
+        assert health.headers["x-content-type-options"] == "nosniff"
+
+        assert client.get("/docs").status_code == 404
+        assert client.get("/ui").status_code == 404
+
+        unauthorized = client.post("/deidentify", json={"text": "Jan"})
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["detail"]["code"] == "unauthorized"
+
+        bearer = client.post(
+            "/deidentify",
+            json={"text": "Jan"},
+            headers={"Authorization": "Bearer correct-horse-battery-staple"},
+        )
+        assert bearer.status_code == 200
+
+        header = client.post(
+            "/deidentify",
+            json={"text": "Jan"},
+            headers={"X-API-Key": "correct-horse-battery-staple"},
+        )
+        assert header.status_code == 200
+
+        oversized = client.post(
+            "/deidentify",
+            content=b"x" * 81,
+            headers={
+                "content-type": "application/json",
+                "X-API-Key": "correct-horse-battery-staple",
+            },
+        )
+        assert oversized.status_code == 413
+        assert oversized.json()["detail"]["code"] == "request_too_large"
+        assert oversized.headers["cache-control"] == "no-store"
+        assert oversized.headers["x-frame-options"] == "DENY"
+
+
+def test_server_can_require_an_api_key_at_startup(monkeypatch) -> None:
+    monkeypatch.delenv("MEDDEID_API_KEY", raising=False)
+    monkeypatch.setenv("MEDDEID_REQUIRE_API_KEY", "true")
+    try:
+        create_app(engine=FakeEngine())
+    except ValueError as exc:
+        assert "MEDDEID_API_KEY is empty" in str(exc)
+    else:
+        raise AssertionError("create_app should reject an empty required API key")

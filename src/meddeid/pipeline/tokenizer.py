@@ -55,7 +55,7 @@ def build_prepared_window(tokenizer, ids_slice: list[int]) -> dict[str, Any]:
             return_special_tokens_mask=True,
             truncation=False,
         )
-    except (AssertionError, NotImplementedError, TypeError, ValueError):
+    except (AssertionError, AttributeError, NotImplementedError, TypeError, ValueError):
         build_inputs = getattr(tokenizer, "build_inputs_with_special_tokens", None)
         if callable(build_inputs):
             packed_ids = build_inputs(ids_slice)

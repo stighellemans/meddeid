@@ -1,0 +1,53 @@
+name: meddeid-triton
+
+services:
+  triton:
+    image: ${MEDDEID_TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.02-py3}
+    command: ["tritonserver", "--model-repository=/models", "--strict-readiness=true"]
+    volumes:
+      - ./deploy/triton/model_repository:/models:ro
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  meddeid:
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.0}
+    depends_on:
+      triton:
+        condition: service_started
+    ports:
+      - "${MEDDEID_BIND_ADDRESS:-127.0.0.1}:${MEDDEID_PORT:-8000}:8000"
+    environment:
+      MEDDEID_BACKEND: triton
+      MEDDEID_TRITON_URL: http://triton:8000
+      MEDDEID_TRITON_TIMEOUT: ${MEDDEID_TRITON_TIMEOUT:-30}
+      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-16}
+      MEDDEID_API_KEY: ${MEDDEID_API_KEY:-}
+      MEDDEID_REQUIRE_API_KEY: ${MEDDEID_REQUIRE_API_KEY:-false}
+      MEDDEID_DOCS_ENABLED: ${MEDDEID_DOCS_ENABLED:-false}
+      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-2}
+      MEDDEID_MAX_CONCURRENT_REQUESTS: ${MEDDEID_MAX_CONCURRENT_REQUESTS:-1}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    init: true
+    restart: unless-stopped

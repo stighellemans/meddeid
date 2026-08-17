@@ -2,23 +2,111 @@ name: Container
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: Container version matching pyproject.toml
-        required: true
-        default: 0.1.0
   push:
+    branches: [main]
     tags: ["v*"]
+  pull_request:
+    paths:
+      - Dockerfile
+      - compose*.yaml
+      - constraints/**
+      - pyproject.toml
+      - src/**
+      - scripts/**
+      - .github/workflows/container.yml
 
 permissions:
   contents: read
-  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/meddeid-api
 
 jobs:
-  api:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, tomllib
+          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          tag = os.environ["RELEASE_TAG"].removeprefix("v")
+          if tag != version:
+              raise SystemExit(f"tag {tag!r} does not match package version {version!r}")
+          PY
+      - name: Build local smoke image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: meddeid-api:ci
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run hardened offline smoke test
+        run: |
+          docker network create --internal meddeid-smoke
+          docker run --detach --name meddeid-smoke \
+            --network meddeid-smoke \
+            --read-only \
+            --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 256 \
+            --env MEDDEID_API_KEY=ci-smoke-secret \
+            --env MEDDEID_REQUIRE_API_KEY=true \
+            meddeid-api:ci
+          docker run --rm \
+            --network meddeid-smoke \
+            --volume "$PWD/scripts/container_smoke.py:/smoke.py:ro" \
+            --entrypoint python \
+            meddeid-api:ci \
+            /smoke.py \
+            --base-url http://meddeid-smoke:8000 \
+            --api-key ci-smoke-secret
+          test "$(docker inspect --format '{{.Config.User}}' meddeid-smoke)" = "10001:10001"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' meddeid-smoke)" = "true"
+      - name: Reject fixable high or critical vulnerabilities
+        run: |
+          docker run --rm \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --timeout 10m \
+            meddeid-api:ci
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs meddeid-smoke || true
+      - name: Clean up smoke resources
+        if: always()
+        run: |
+          docker rm --force meddeid-smoke 2>/dev/null || true
+          docker network rm meddeid-smoke 2>/dev/null || true
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -27,14 +115,28 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/${{ github.repository_owner }}/meddeid-api
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
-      - uses: docker/build-push-action@v6
+      - name: Build and publish multi-architecture image
+        id: push
+        uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          cache-from: type=gha
+          provenance: mode=max
+          sbom: true
+      - name: Attest published image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

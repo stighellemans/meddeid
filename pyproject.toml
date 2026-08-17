@@ -23,12 +23,16 @@ dependencies = [
     "meddeid-core>=0.1,<0.2",
     "meddeid-language-nl>=0.1,<0.2",
     "torch>=2.2",
-    "transformers>=4.45,<5",
+    "transformers>=5.5,<6",
     "huggingface-hub>=0.25",
     "safetensors>=0.4",
 ]
 
 [project.urls]
+Homepage = "https://meddeid.github.io/"
+Documentation = "https://meddeid.github.io/workflows/inference/"
+Source = "https://github.com/stighellemans/meddeid"
+Issues = "https://github.com/stighellemans/meddeid/issues"
 "Model and datasets" = "https://huggingface.co/collections/stighellemans/meddeid"
 
 [project.optional-dependencies]

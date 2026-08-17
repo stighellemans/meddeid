@@ -9,13 +9,53 @@ For cross-suite navigation and task-oriented guidance, see the
 [MedDeID documentation](https://meddeid.github.io/). This repository remains
 authoritative for inference APIs, CLI options, service settings, and deployment.
 
-## Installation
+## Easiest start: Docker
+
+Docker is the supported preview path until the first tagged package and
+container release. The image contains the pinned model, starts without Hub
+access, runs as a non-root user, and is exposed only on your own computer by
+default.
+
+1. Install and start Docker Desktop.
+2. Clone this repository and start MedDeID:
+
+   ```bash
+   git clone https://github.com/stighellemans/meddeid.git
+   cd meddeid
+   ./scripts/start-local.sh
+   ```
+
+The script generates a private API key, builds and starts the service, waits for
+the model to become ready, and prints the browser address. Open
+<http://127.0.0.1:8000/ui> and paste the `MEDDEID_API_KEY` value from `.env`.
+The page lets you de-identify and copy a note without writing code. Technical
+API documentation is at <http://127.0.0.1:8000/docs>. Stop the service with
+`./scripts/stop-local.sh`.
+
+See [Production deployment](docs/production.md) before exposing the service to
+another machine or processing real clinical data.
+
+## Python source preview
+
+The three Python projects are not on PyPI yet. Install the currently verified
+public source commits together:
 
 ```bash
-pip install meddeid
+python -m pip install \
+  'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@9b51c5b93aadfd9f59014e136a3f72ff38f7ad55' \
+  'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@886d102dcf36cec8d86173e8eb4d3471cde20f45' \
+  'meddeid[server] @ git+https://github.com/stighellemans/meddeid.git@f12fdbc38bd7b2f6fb4dc6c540b769b66ea410fa'
 ```
 
-Install the HTTP service with `pip install 'meddeid[server]'`.
+This installs the HTTP extra as well as the Python API, CLI, and batch runner.
+See [Inference and deployment](docs/inference.md) for the exact availability
+matrix and the remaining release work.
+
+After the coordinated PyPI release, the supported short form will be:
+
+```bash
+pip install 'meddeid[server]'
+```
 
 ## Quick start
 
@@ -76,6 +116,14 @@ PyTorch inference works on CPU, Apple MPS, and CUDA:
 MEDDEID_DEVICE=cpu meddeid-server
 ```
 
+For an authenticated service:
+
+```bash
+export MEDDEID_API_KEY='<random secret>'
+export MEDDEID_REQUIRE_API_KEY=true
+meddeid-server
+```
+
 The service provides:
 
 - `POST /deidentify` for one document;
@@ -94,6 +142,7 @@ meddeid-server
 
 See [Inference and deployment](docs/inference.md) for the complete Python,
 JSONL, metadata, HTTP, Docker, TensorRT/Triton, sizing, and concurrency guide.
+Operators should also read [Production deployment](docs/production.md).
 
 ## Language profile and metadata
 
@@ -117,7 +166,10 @@ and service logs according to your organization’s requirements.
 ## Development
 
 ```bash
-pip install -e '.[dev]'
+python -m pip install \
+  -e ../meddeid-core \
+  -e ../meddeid-language-nl \
+  -e '.[dev]'
 pytest
 ```
 

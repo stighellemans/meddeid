@@ -1,0 +1,8 @@
+services:
+  meddeid:
+    volumes:
+      - ${MEDDEID_MODEL_DIR:?set MEDDEID_MODEL_DIR to an absolute model directory}:/models/meddeid:ro
+    environment:
+      MEDDEID_MODEL: /models/meddeid
+      MEDDEID_REVISION: ""
+      MEDDEID_OFFLINE: "true"

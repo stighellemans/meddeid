@@ -1,76 +1,54 @@
 name: meddeid
 
-x-api: &api
-  image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.0}
-  build:
-    context: .
-  volumes:
-    - model-cache:/var/cache/meddeid
-  environment:
-    MEDDEID_MODEL: ${MEDDEID_MODEL:-stighellemans/meddeid-dutch-synth}
-    MEDDEID_REVISION: ${MEDDEID_REVISION:-}
-    MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
-    MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
-    MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
-    MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
-  restart: unless-stopped
-
 services:
-  torch-api:
-    <<: *api
-    profiles: [torch]
+  meddeid:
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.0}
+    build:
+      context: .
+      args:
+        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-9b51c5b93aadfd9f59014e136a3f72ff38f7ad55}
+        MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-886d102dcf36cec8d86173e8eb4d3471cde20f45}
+        MEDDEID_MODEL_REVISION: ${MEDDEID_MODEL_REVISION:-cbe68a93e808c919de97052dc6ef031d2dce4a61}
+    pull_policy: missing
     ports:
-      - "${MEDDEID_PORT:-8000}:8000"
+      - "${MEDDEID_BIND_ADDRESS:-127.0.0.1}:${MEDDEID_PORT:-8000}:8000"
     environment:
-      MEDDEID_MODEL: ${MEDDEID_MODEL:-stighellemans/meddeid-dutch-synth}
-      MEDDEID_REVISION: ${MEDDEID_REVISION:-}
-      MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
-      MEDDEID_BACKEND: torch
-      MEDDEID_DEVICE: ${MEDDEID_DEVICE:-cpu}
-      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-32}
-      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-1}
+      MEDDEID_API_KEY: ${MEDDEID_API_KEY:-}
+      MEDDEID_REQUIRE_API_KEY: ${MEDDEID_REQUIRE_API_KEY:-false}
+      MEDDEID_DOCS_ENABLED: ${MEDDEID_DOCS_ENABLED:-false}
+      MEDDEID_UI_ENABLED: ${MEDDEID_UI_ENABLED:-false}
       MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
       MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
       MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
+      MEDDEID_MAX_REQUEST_BYTES: ${MEDDEID_MAX_REQUEST_BYTES:-2000000}
+      MEDDEID_MAX_CONCURRENT_REQUESTS: ${MEDDEID_MAX_CONCURRENT_REQUESTS:-1}
+      MEDDEID_QUEUE_TIMEOUT_SECONDS: ${MEDDEID_QUEUE_TIMEOUT_SECONDS:-30}
+      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-1}
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
       MKL_NUM_THREADS: ${MKL_NUM_THREADS:-4}
-
-  triton:
-    image: ${MEDDEID_TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.02-py3}
-    profiles: [triton]
-    command: ["tritonserver", "--model-repository=/models", "--strict-readiness=true"]
-    volumes:
-      - ./deploy/triton/model_repository:/models:ro
-    expose:
-      - "8000"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    init: true
+    stop_grace_period: 30s
     restart: unless-stopped
-
-  triton-api:
-    <<: *api
-    profiles: [triton]
-    depends_on:
-      - triton
-    ports:
-      - "${MEDDEID_PORT:-8000}:8000"
-    environment:
-      MEDDEID_MODEL: ${MEDDEID_MODEL:-stighellemans/meddeid-dutch-synth}
-      MEDDEID_REVISION: ${MEDDEID_REVISION:-}
-      MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
-      MEDDEID_BACKEND: triton
-      MEDDEID_TRITON_URL: http://triton:8000
-      MEDDEID_TRITON_TIMEOUT: ${MEDDEID_TRITON_TIMEOUT:-30}
-      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-16}
-      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-2}
-      MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
-      MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
-      MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
-
-volumes:
-  model-cache:
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4))"
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

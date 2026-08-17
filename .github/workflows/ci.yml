@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install source dependencies and test requirements
+        run: |
+          python -m pip install \
+            'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@9b51c5b93aadfd9f59014e136a3f72ff38f7ad55' \
+            'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@886d102dcf36cec8d86173e8eb4d3471cde20f45'
+          python -m pip install '.[dev]' build twine
+          python -m pip check
+      - run: pytest -q
+      - name: Build and inspect distributions
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m build
+          python -m twine check dist/*
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet
+      - run: MEDDEID_MODEL_DIR=/tmp docker compose -f compose.yaml -f compose.offline.yaml config --quiet
+      - run: docker compose -f compose.triton.yaml config --quiet

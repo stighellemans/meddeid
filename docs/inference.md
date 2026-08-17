@@ -5,13 +5,60 @@ TensorRT/Triton use the same tokenizer, windowing, decoder, Dutch language
 profile, metadata recovery, and response contract. Only the neural runtime
 changes.
 
-## Model acquisition and offline use
+## What is available now
 
-Normal use downloads the self-contained model bundle automatically on the first
-`from_pretrained` or CLI call and reuses the Hugging Face cache afterwards:
+The code and the public model are usable today, but this is still a source
+preview rather than a packaged release.
+
+| Path | Status now | Notes |
+|---|---|---|
+| Public model bundle | Available | `stighellemans/meddeid-dutch-synth` can be downloaded without authentication. |
+| Python API | Available from source | PyTorch inference works after installing the three source repositories below. |
+| Single-file CLI | Available from source | `meddeid deidentify` uses the same local engine. |
+| Canonical JSONL batch | Available from source | `meddeid batch` and its sidecar manifest are implemented. |
+| HTTP API | Available from source | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
+| PyTorch devices | AMD64 and ARM64 CPU containers verified; MPS/CUDA source paths present | Device selection supports `cpu`, `mps`, and `cuda`; the production container is CPU-only. |
+| PyPI install | Not released | None of `meddeid`, `meddeid-core`, or `meddeid-language-nl` is on PyPI yet. |
+| PyTorch container | Buildable from a clean checkout | The standalone multi-stage Dockerfile pins source dependencies and bundles the pinned public model. The GHCR image is awaiting the first tag. |
+| Compose deployment | Available from source | `./scripts/start-local.sh` generates authentication, builds, starts, and health-checks the hardened local service with a browser UI. |
+| TensorRT/Triton deployment | Prototype source path only | The client, export scripts, and Compose shape exist, but no TensorRT plan, populated model repository, or GPU-specific image is published. |
+| Hosted demo or managed endpoint | Not available | No public compute-backed Space or hosted inference service is currently provided. |
+
+Install the verified public source commits together:
 
 ```bash
-pip install meddeid
+python -m pip install \
+  'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@9b51c5b93aadfd9f59014e136a3f72ff38f7ad55' \
+  'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@886d102dcf36cec8d86173e8eb4d3471cde20f45' \
+  'meddeid[server] @ git+https://github.com/stighellemans/meddeid.git@f12fdbc38bd7b2f6fb4dc6c540b769b66ea410fa'
+```
+
+The `server` extra is included here so every currently implemented inference
+interface is present. After installation, the Python, CLI, batch, and HTTP
+examples below work. The intended eventual release command is
+`pip install 'meddeid[server]'`.
+
+To turn the source preview into a released deployment, the remaining gates are:
+
+1. commit and tag the reviewed component revisions, then publish the three
+   wheels in dependency order;
+2. prove a clean install using only those immutable release artifacts;
+3. publish the already buildable CPU API image from a reviewed tag and record
+   its digest, SBOM, and provenance attestation;
+4. repeat the passing Compose smoke test against the pulled GHCR image; and
+5. separately build and validate each supported TensorRT target as described
+   below.
+
+A hosted demo or managed endpoint would be an additional product surface, not
+a prerequisite for local inference.
+
+## Model acquisition and offline use
+
+After the source installation above, normal use downloads the self-contained
+model bundle automatically on the first `from_pretrained` or CLI call and
+reuses the Hugging Face cache afterwards:
+
+```bash
 meddeid deidentify note.txt
 ```
 
@@ -154,10 +201,9 @@ never silently replaced.
 
 ## HTTP API
 
-Install and start the embedded PyTorch service:
+Start the embedded PyTorch service from the source installation above:
 
 ```bash
-pip install 'meddeid[server]'
 MEDDEID_DEVICE=cpu meddeid-server
 ```
 
@@ -208,28 +254,75 @@ Defaults are 20,000 characters per document, 32 documents per request, and
 `MEDDEID_MAX_INPUT_CHARS`, `MEDDEID_MAX_BATCH_DOCUMENTS`, and
 `MEDDEID_MAX_BATCH_CHARS`.
 
+Set `MEDDEID_API_KEY` to require either `Authorization: Bearer <key>` or
+`X-API-Key: <key>` on inference endpoints. Set
+`MEDDEID_REQUIRE_API_KEY=true` to make startup fail if the key is missing.
+`/health`, `/live`, and `/` remain unauthenticated for orchestration. Additional
+operational controls are:
+
+| Setting | Default | Purpose |
+|---|---:|---|
+| `MEDDEID_MAX_REQUEST_BYTES` | 2,000,000 | Reject oversized requests with HTTP 413 when `Content-Length` is present. Enforce the same limit at the reverse proxy. |
+| `MEDDEID_MAX_CONCURRENT_REQUESTS` | 1 | Bound inference work admitted per API worker. |
+| `MEDDEID_QUEUE_TIMEOUT_SECONDS` | 30 | Return HTTP 503 instead of waiting indefinitely for an inference slot. |
+| `MEDDEID_DOCS_ENABLED` | true from source; false in the image | Enable `/docs`, `/redoc`, and `/openapi.json`. |
+| `MEDDEID_UI_ENABLED` | follows docs from source; false in the image | Enable the simple single-note browser interface at `/ui`. |
+| `MEDDEID_ACCESS_LOG` | true | Log method/path/status only; request bodies and metadata are never intentionally logged. |
+
+Successful and error responses include `X-Request-ID`, `Cache-Control:
+no-store`, and `X-Content-Type-Options: nosniff`.
+
 ## Containers
 
-The regular API image is named
-`ghcr.io/stighellemans/meddeid-api:<release>`. The included GitHub Actions
-workflow publishes it from a version tag after the corresponding Python
-packages are available. The Dockerfile installs the checked-out `meddeid`
-source so the image matches its Git tag. You can also build it locally with the
-included Compose configuration.
-
-PyTorch CPU:
+The clean-checkout CPU container is usable today by building it locally:
 
 ```bash
-docker compose --profile torch up --build
-curl --fail http://localhost:8000/health
+./scripts/start-local.sh
 ```
 
-The model is downloaded automatically into the persistent `model-cache` volume
-on first start. To prevent network access at runtime, pre-populate and mount a
-model directory, set `MEDDEID_MODEL` to that container path, and set
-`MEDDEID_OFFLINE=true`.
+Open `http://127.0.0.1:8000/ui`, enter the generated API key from `.env`, and
+paste a note. The key remains in the browser tab rather than browser storage.
 
-## TensorRT and Triton
+Or run Compose directly:
+
+```bash
+cp .env.example .env
+# Set MEDDEID_API_KEY and MEDDEID_REQUIRE_API_KEY=true in .env.
+docker compose up --build --detach
+docker compose ps
+```
+
+The image pins the public core and Dutch-profile source revisions and embeds the
+pinned model under `/opt/meddeid-model`. Runtime network access is not needed.
+Compose binds to `127.0.0.1`, runs as UID/GID 10001, uses a read-only root
+filesystem and restricted temporary filesystem, drops every Linux capability,
+sets `no-new-privileges`, bounds process count, rotates logs, and performs a
+model-aware health check.
+
+To mount a different complete model bundle without allowing Hub resolution:
+
+```bash
+export MEDDEID_MODEL_DIR=/absolute/path/to/model
+docker compose -f compose.yaml -f compose.offline.yaml up --detach
+```
+
+The tagged release path will be `docker compose pull && docker compose up -d`
+after `ghcr.io/stighellemans/meddeid-api:0.1.0` is published. The tag workflow
+builds both `linux/amd64` and `linux/arm64`, produces an SBOM and provenance,
+and publishes only after authenticated offline smoke inference and the
+fixable-high/critical vulnerability gate pass.
+
+## TensorRT and Triton: prototype path
+
+TensorRT/Triton is not an end-user deployment option yet. What exists is a
+tested Triton V2 HTTP client plus source scripts that export ONNX, render a
+Triton configuration, and invoke `trtexec`. What is absent is the deployable
+artifact: `deploy/triton/model_repository` is intentionally empty/ignored and
+no TensorRT plan image has been published.
+
+The procedure below is therefore a maintainer prototype for an NVIDIA Docker
+host, not a released installation recipe. It additionally requires the source
+installation shown above.
 
 TensorRT plans are tied to the TensorRT/CUDA stack and GPU compatibility. Build
 the plan on the target GPU class, record the immutable model revision and bundle
@@ -241,7 +334,7 @@ hash, and rebuild after any model, label-order, window, or runtime-stack change.
    hf download stighellemans/meddeid-dutch-synth \
      --revision <immutable-hub-commit> \
      --local-dir ./meddeid-dutch-synth
-   pip install 'meddeid[server]' onnx
+   python -m pip install onnx
    ```
 
 2. Build the FP16 plan and Triton model repository on an NVIDIA Docker host:
@@ -258,9 +351,12 @@ hash, and rebuild after any model, label-order, window, or runtime-stack change.
 
 3. Start the API gateway and Triton:
 
+   This command remains a maintainer path until a target-specific plan has been
+   built and validated.
+
    ```bash
    MEDDEID_REVISION=<immutable-hub-commit> \
-     docker compose --profile triton up --build
+     docker compose -f compose.triton.yaml up
    curl --fail http://localhost:8000/health
    ```
 
@@ -288,6 +384,12 @@ built for one GPU/runtime combination must not be presented as portable.
   deliberately different TensorRT/CUDA stack.
 - TensorRT compilation never happens during API or Triton startup. Startup only
   loads a previously built, identified, and tested plan.
+
+For the first supported target, release work must build the plan on that GPU
+class, run PyTorch-versus-TensorRT output parity, validate startup/readiness and
+single/batch HTTP requests, benchmark representative notes, publish the
+GPU/runtime compatibility metadata and immutable image digest, and document
+the NVIDIA driver/container-toolkit prerequisites.
 
 ## Throughput, sizing, and concurrency
 
