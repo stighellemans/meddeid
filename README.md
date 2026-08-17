@@ -11,10 +11,9 @@ authoritative for inference APIs, CLI options, service settings, and deployment.
 
 ## Easiest start: Docker
 
-Docker is the supported preview path until the first tagged package and
-container release. The image contains the pinned model, starts without Hub
-access, runs as a non-root user, and is exposed only on your own computer by
-default.
+Docker is the recommended path for people who do not need the Python API. The
+published image contains the pinned model, starts without Hub access, runs as a
+non-root user, and is exposed only on your own computer by default.
 
 1. Install and start Docker Desktop.
 2. Clone this repository and start MedDeID:
@@ -25,8 +24,9 @@ default.
    ./scripts/start-local.sh
    ```
 
-The script generates a private API key, builds and starts the service, waits for
-the model to become ready, and prints the browser address. Open
+The script generates a private API key, pulls the published multi-architecture
+image, starts the service, waits for the model to become ready, and prints the
+browser address. Open
 <http://127.0.0.1:8000/ui> and paste the `MEDDEID_API_KEY` value from `.env`.
 The page lets you de-identify and copy a note without writing code. Technical
 API documentation is at <http://127.0.0.1:8000/docs>. Stop the service with
@@ -35,27 +35,16 @@ API documentation is at <http://127.0.0.1:8000/docs>. Stop the service with
 See [Production deployment](docs/production.md) before exposing the service to
 another machine or processing real clinical data.
 
-## Python source preview
+## Python install
 
-The three Python projects are not on PyPI yet. Install the currently verified
-public source commits together:
+Install the released Python API, CLI, batch runner, and HTTP service from PyPI:
 
 ```bash
-python -m pip install \
-  'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@9b51c5b93aadfd9f59014e136a3f72ff38f7ad55' \
-  'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@886d102dcf36cec8d86173e8eb4d3471cde20f45' \
-  'meddeid[server] @ git+https://github.com/stighellemans/meddeid.git@f12fdbc38bd7b2f6fb4dc6c540b769b66ea410fa'
+python -m pip install 'meddeid[server]'
 ```
 
-This installs the HTTP extra as well as the Python API, CLI, and batch runner.
 See [Inference and deployment](docs/inference.md) for the exact availability
-matrix and the remaining release work.
-
-After the coordinated PyPI release, the supported short form will be:
-
-```bash
-pip install 'meddeid[server]'
-```
+matrix and operational guidance.
 
 ## Quick start
 

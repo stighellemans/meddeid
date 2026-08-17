@@ -7,54 +7,45 @@ changes.
 
 ## What is available now
 
-The code and the public model are usable today, but this is still a source
-preview rather than a packaged release.
+Release `0.1.0`, the public model, and the production CPU container are
+available now.
 
 | Path | Status now | Notes |
 |---|---|---|
 | Public model bundle | Available | `stighellemans/meddeid-dutch-synth` can be downloaded without authentication. |
-| Python API | Available from source | PyTorch inference works after installing the three source repositories below. |
-| Single-file CLI | Available from source | `meddeid deidentify` uses the same local engine. |
-| Canonical JSONL batch | Available from source | `meddeid batch` and its sidecar manifest are implemented. |
-| HTTP API | Available from source | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
+| Python API | Available from PyPI | Install `meddeid==0.1.0`; dependencies resolve from PyPI. |
+| Single-file CLI | Available from PyPI | `meddeid deidentify` uses the same local engine. |
+| Canonical JSONL batch | Available from PyPI | `meddeid batch` writes results and a sidecar manifest. |
+| HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU containers verified; MPS/CUDA source paths present | Device selection supports `cpu`, `mps`, and `cuda`; the production container is CPU-only. |
-| PyPI install | Not released | None of `meddeid`, `meddeid-core`, or `meddeid-language-nl` is on PyPI yet. |
-| PyTorch container | Buildable from a clean checkout | The standalone multi-stage Dockerfile pins source dependencies and bundles the pinned public model. The GHCR image is awaiting the first tag. |
-| Compose deployment | Available from source | `./scripts/start-local.sh` generates authentication, builds, starts, and health-checks the hardened local service with a browser UI. |
+| PyPI install | Available | `meddeid`, `meddeid-core`, and `meddeid-language-nl` are released at `0.1.0`. |
+| PyTorch container | Available | `ghcr.io/stighellemans/meddeid-api:0.1.0` supports AMD64 and ARM64 and includes the pinned model, SBOM, and provenance. |
+| Compose deployment | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the hardened local service with a browser UI. |
 | TensorRT/Triton deployment | Prototype source path only | The client, export scripts, and Compose shape exist, but no TensorRT plan, populated model repository, or GPU-specific image is published. |
 | Hosted demo or managed endpoint | Not available | No public compute-backed Space or hosted inference service is currently provided. |
 
-Install the verified public source commits together:
+Install all Python interfaces from PyPI:
 
 ```bash
-python -m pip install \
-  'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@9b51c5b93aadfd9f59014e136a3f72ff38f7ad55' \
-  'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@886d102dcf36cec8d86173e8eb4d3471cde20f45' \
-  'meddeid[server] @ git+https://github.com/stighellemans/meddeid.git@f12fdbc38bd7b2f6fb4dc6c540b769b66ea410fa'
+python -m pip install 'meddeid[server]'
 ```
 
-The `server` extra is included here so every currently implemented inference
-interface is present. After installation, the Python, CLI, batch, and HTTP
-examples below work. The intended eventual release command is
-`pip install 'meddeid[server]'`.
+The `server` extra includes every implemented interface. Add `==0.1.0` when an
+exact package version is required. Docker users can pull the release directly:
 
-To turn the source preview into a released deployment, the remaining gates are:
+```bash
+docker pull ghcr.io/stighellemans/meddeid-api:0.1.0
+```
 
-1. commit and tag the reviewed component revisions, then publish the three
-   wheels in dependency order;
-2. prove a clean install using only those immutable release artifacts;
-3. publish the already buildable CPU API image from a reviewed tag and record
-   its digest, SBOM, and provenance attestation;
-4. repeat the passing Compose smoke test against the pulled GHCR image; and
-5. separately build and validate each supported TensorRT target as described
-   below.
+GPU-optimized TensorRT targets still require separate hardware-specific builds
+and validation as described below.
 
 A hosted demo or managed endpoint would be an additional product surface, not
 a prerequisite for local inference.
 
 ## Model acquisition and offline use
 
-After the source installation above, normal use downloads the self-contained
+After the PyPI installation above, normal use downloads the self-contained
 model bundle automatically on the first `from_pretrained` or CLI call and
 reuses the Hugging Face cache afterwards:
 
@@ -201,7 +192,7 @@ never silently replaced.
 
 ## HTTP API
 
-Start the embedded PyTorch service from the source installation above:
+Start the embedded PyTorch service from the PyPI installation above:
 
 ```bash
 MEDDEID_DEVICE=cpu meddeid-server
@@ -265,8 +256,8 @@ operational controls are:
 | `MEDDEID_MAX_REQUEST_BYTES` | 2,000,000 | Reject oversized requests with HTTP 413 when `Content-Length` is present. Enforce the same limit at the reverse proxy. |
 | `MEDDEID_MAX_CONCURRENT_REQUESTS` | 1 | Bound inference work admitted per API worker. |
 | `MEDDEID_QUEUE_TIMEOUT_SECONDS` | 30 | Return HTTP 503 instead of waiting indefinitely for an inference slot. |
-| `MEDDEID_DOCS_ENABLED` | true from source; false in the image | Enable `/docs`, `/redoc`, and `/openapi.json`. |
-| `MEDDEID_UI_ENABLED` | follows docs from source; false in the image | Enable the simple single-note browser interface at `/ui`. |
+| `MEDDEID_DOCS_ENABLED` | true for a local process; false in the image | Enable `/docs`, `/redoc`, and `/openapi.json`. |
+| `MEDDEID_UI_ENABLED` | follows docs for a local process; false in the image | Enable the simple single-note browser interface at `/ui`. |
 | `MEDDEID_ACCESS_LOG` | true | Log method/path/status only; request bodies and metadata are never intentionally logged. |
 
 Successful and error responses include `X-Request-ID`, `Cache-Control:
@@ -274,7 +265,7 @@ no-store`, and `X-Content-Type-Options: nosniff`.
 
 ## Containers
 
-The clean-checkout CPU container is usable today by building it locally:
+The released CPU container is the default Docker route:
 
 ```bash
 ./scripts/start-local.sh
@@ -288,7 +279,8 @@ Or run Compose directly:
 ```bash
 cp .env.example .env
 # Set MEDDEID_API_KEY and MEDDEID_REQUIRE_API_KEY=true in .env.
-docker compose up --build --detach
+docker compose pull
+docker compose up --detach
 docker compose ps
 ```
 
@@ -306,11 +298,11 @@ export MEDDEID_MODEL_DIR=/absolute/path/to/model
 docker compose -f compose.yaml -f compose.offline.yaml up --detach
 ```
 
-The tagged release path will be `docker compose pull && docker compose up -d`
-after `ghcr.io/stighellemans/meddeid-api:0.1.0` is published. The tag workflow
-builds both `linux/amd64` and `linux/arm64`, produces an SBOM and provenance,
-and publishes only after authenticated offline smoke inference and the
-fixable-high/critical vulnerability gate pass.
+Release `0.1.0` is published for both `linux/amd64` and `linux/arm64`. Its tag
+workflow produced an SBOM and provenance and published only after authenticated
+offline smoke inference and the fixable-high/critical vulnerability gate
+passed. Production operators should pin the immutable digest documented in the
+[production guide](production.md), not only the version tag.
 
 ## TensorRT and Triton: prototype path
 

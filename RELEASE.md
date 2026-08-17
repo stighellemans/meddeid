@@ -1,10 +1,13 @@
 # Release runbook
 
-The repository is release-ready but publishing is a credentialed maintainer
-operation. PyPI trusted publishers, the GitHub `pypi` environments, and GHCR
-package visibility must be configured before creating tags.
+Release `0.1.0` is public on PyPI for `meddeid-core`,
+`meddeid-language-nl`, and `meddeid`. Its CPU API image is published at
+`ghcr.io/stighellemans/meddeid-api:0.1.0` with multi-platform digest
+`sha256:8cee6d10f68adb432802e5da1e31651d215804e42549987645281a0a0d2ab5f6`.
 
-## One-time setup
+The steps below are the ongoing maintainer procedure for later releases.
+
+## Publisher setup
 
 For each of `meddeid-core`, `meddeid-language-nl`, and `meddeid`:
 
@@ -15,8 +18,8 @@ For each of `meddeid-core`, `meddeid-language-nl`, and `meddeid`:
 4. protect version tags and the `main` branch; and
 5. enable dependency, secret, and code scanning.
 
-After the first container push, set `ghcr.io/stighellemans/meddeid-api` to
-public visibility and link it to the source repository.
+Keep the GHCR package public and linked to the source repository. Recheck the
+trusted-publisher subjects whenever a repository or workflow is renamed.
 
 ## Release order
 
