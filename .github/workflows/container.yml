@@ -135,7 +135,7 @@ jobs:
           provenance: mode=max
           sbom: true
       - name: Attest published image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
