@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meddeid"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local inference API, CLI, and service for the MedDeID dual-head model"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://meddeid.github.io/"
-Documentation = "https://meddeid.github.io/workflows/inference/"
+Homepage = "https://stighellemans.github.io/meddeid.github.io/"
+Documentation = "https://stighellemans.github.io/meddeid.github.io/workflows/inference/"
 Source = "https://github.com/stighellemans/meddeid"
 Issues = "https://github.com/stighellemans/meddeid/issues"
 "Model and datasets" = "https://huggingface.co/collections/stighellemans/meddeid"

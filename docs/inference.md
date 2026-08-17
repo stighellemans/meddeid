@@ -7,18 +7,18 @@ changes.
 
 ## What is available now
 
-Release `0.1.0`, the public model, and the production CPU container are
+Python release `0.1.1`, the public model, and the production `0.1.0` CPU container are
 available now.
 
 | Path | Status now | Notes |
 |---|---|---|
 | Public model bundle | Available | `stighellemans/meddeid-dutch-synth` can be downloaded without authentication. |
-| Python API | Available from PyPI | Install `meddeid==0.1.0`; dependencies resolve from PyPI. |
+| Python API | Available from PyPI | Install `meddeid==0.1.1`; dependencies resolve from PyPI. |
 | Single-file CLI | Available from PyPI | `meddeid deidentify` uses the same local engine. |
 | Canonical JSONL batch | Available from PyPI | `meddeid batch` writes results and a sidecar manifest. |
 | HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU containers verified; MPS/CUDA source paths present | Device selection supports `cpu`, `mps`, and `cuda`; the production container is CPU-only. |
-| PyPI install | Available | `meddeid`, `meddeid-core`, and `meddeid-language-nl` are released at `0.1.0`. |
+| PyPI install | Available | `meddeid`, `meddeid-core`, and `meddeid-language-nl` are released at `0.1.1`. |
 | PyTorch container | Available | `ghcr.io/stighellemans/meddeid-api:0.1.0` supports AMD64 and ARM64 and includes the pinned model, SBOM, and provenance. |
 | Compose deployment | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the hardened local service with a browser UI. |
 | TensorRT/Triton deployment | Prototype source path only | The client, export scripts, and Compose shape exist, but no TensorRT plan, populated model repository, or GPU-specific image is published. |
@@ -30,7 +30,7 @@ Install all Python interfaces from PyPI:
 python -m pip install 'meddeid[server]'
 ```
 
-The `server` extra includes every implemented interface. Add `==0.1.0` when an
+The `server` extra includes every implemented interface. Add `==0.1.1` when an
 exact package version is required. Docker users can pull the release directly:
 
 ```bash

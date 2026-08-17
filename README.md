@@ -6,7 +6,7 @@ FastAPI service. Data generation, training, evaluation, and annotation packages
 are not required for inference.
 
 For cross-suite navigation and task-oriented guidance, see the
-[MedDeID documentation](https://meddeid.github.io/). This repository remains
+[MedDeID documentation](https://stighellemans.github.io/meddeid.github.io/). This repository remains
 authoritative for inference APIs, CLI options, service settings, and deployment.
 
 ## Easiest start: Docker

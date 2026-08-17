@@ -312,7 +312,7 @@ def create_app(
 
     app = FastAPI(
         title="MedDeID",
-        version="0.1.0",
+        version="0.1.1",
         lifespan=lifespan,
         docs_url="/docs" if expose_docs else None,
         redoc_url="/redoc" if expose_docs else None,
