@@ -22,11 +22,11 @@ central secret storage, monitoring, backup policy, and incident response.
 TensorRT/Triton is not a supported release target until a GPU-specific plan and
 parity evidence are published.
 
-Release `0.1.0` is available for AMD64 and ARM64. Pin this immutable
+Release `0.1.1` is available for AMD64 and ARM64. Pin this immutable
 multi-platform digest in production:
 
 ```text
-ghcr.io/stighellemans/meddeid-api@sha256:8cee6d10f68adb432802e5da1e31651d215804e42549987645281a0a0d2ab5f6
+ghcr.io/stighellemans/meddeid-api@sha256:14fab911f369162b3ccb465b1793693c132720dc638996b64c711a2bb4b8e3b1
 ```
 
 ## Minimum secure configuration

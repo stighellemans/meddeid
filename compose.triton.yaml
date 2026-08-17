@@ -25,7 +25,7 @@ services:
     restart: unless-stopped
 
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.0}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.1}
     depends_on:
       triton:
         condition: service_started

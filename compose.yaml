@@ -2,7 +2,7 @@ name: meddeid
 
 services:
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.0}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.1.1}
     build:
       context: .
       args:

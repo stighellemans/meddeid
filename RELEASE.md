@@ -3,8 +3,8 @@
 The current public PyPI release line is `meddeid-core==0.1.1`,
 `meddeid-language-nl==0.1.1`, `meddeid==0.1.1`, `meddeid-data==0.2.1`,
 `meddeid-eval==0.2.1`, and `meddeid-training==0.1.1`. The CPU API image is published at
-`ghcr.io/stighellemans/meddeid-api:0.1.0` with multi-platform digest
-`sha256:8cee6d10f68adb432802e5da1e31651d215804e42549987645281a0a0d2ab5f6`.
+`ghcr.io/stighellemans/meddeid-api:0.1.1` with multi-platform digest
+`sha256:14fab911f369162b3ccb465b1793693c132720dc638996b64c711a2bb4b8e3b1`.
 
 The steps below are the ongoing maintainer procedure for later releases.
 
@@ -61,8 +61,8 @@ python -m venv /tmp/meddeid-release-check
 /tmp/meddeid-release-check/bin/pip check
 /tmp/meddeid-release-check/bin/meddeid model-info
 
-docker pull ghcr.io/stighellemans/meddeid-api:0.1.0
-docker image inspect ghcr.io/stighellemans/meddeid-api:0.1.0
+docker pull ghcr.io/stighellemans/meddeid-api:0.1.1
+docker image inspect ghcr.io/stighellemans/meddeid-api:0.1.1
 ```
 
 Run `scripts/container_smoke.py` against the pulled image with an internal

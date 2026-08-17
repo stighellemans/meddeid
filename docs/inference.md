@@ -7,7 +7,7 @@ changes.
 
 ## What is available now
 
-Python release `0.1.1`, the public model, and the production `0.1.0` CPU container are
+Python release `0.1.1`, the public model, and the production `0.1.1` CPU container are
 available now.
 
 | Path | Status now | Notes |
@@ -19,7 +19,7 @@ available now.
 | HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU containers verified; MPS/CUDA source paths present | Device selection supports `cpu`, `mps`, and `cuda`; the production container is CPU-only. |
 | PyPI install | Available | `meddeid`, `meddeid-core`, and `meddeid-language-nl` are released at `0.1.1`. |
-| PyTorch container | Available | `ghcr.io/stighellemans/meddeid-api:0.1.0` supports AMD64 and ARM64 and includes the pinned model, SBOM, and provenance. |
+| PyTorch container | Available | `ghcr.io/stighellemans/meddeid-api:0.1.1` supports AMD64 and ARM64 and includes the pinned model, SBOM, and provenance. |
 | Compose deployment | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the hardened local service with a browser UI. |
 | TensorRT/Triton deployment | Prototype source path only | The client, export scripts, and Compose shape exist, but no TensorRT plan, populated model repository, or GPU-specific image is published. |
 | Hosted demo or managed endpoint | Not available | No public compute-backed Space or hosted inference service is currently provided. |
@@ -34,7 +34,7 @@ The `server` extra includes every implemented interface. Add `==0.1.1` when an
 exact package version is required. Docker users can pull the release directly:
 
 ```bash
-docker pull ghcr.io/stighellemans/meddeid-api:0.1.0
+docker pull ghcr.io/stighellemans/meddeid-api:0.1.1
 ```
 
 GPU-optimized TensorRT targets still require separate hardware-specific builds
@@ -298,7 +298,7 @@ export MEDDEID_MODEL_DIR=/absolute/path/to/model
 docker compose -f compose.yaml -f compose.offline.yaml up --detach
 ```
 
-Release `0.1.0` is published for both `linux/amd64` and `linux/arm64`. Its tag
+Release `0.1.1` is published for both `linux/amd64` and `linux/arm64`. Its tag
 workflow produced an SBOM and provenance and published only after authenticated
 offline smoke inference and the fixable-high/critical vulnerability gate
 passed. Production operators should pin the immutable digest documented in the
