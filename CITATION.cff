@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use MedDeID inference, cite this software and the MedDeID dataset or manuscript relevant to your work."
+title: "MedDeID inference"
+abstract: "Local inference API, CLI, batch runner, and HTTP service for MedDeID."
+type: software
+version: "0.1.1"
+date-released: 2026-08-17
+authors:
+  - family-names: Hellemans
+    given-names: Stig
+    orcid: https://orcid.org/0000-0001-9441-3882
+  - family-names: Stroobants
+    given-names: Tom
+    orcid: https://orcid.org/0009-0009-6983-5405
+  - family-names: Scheurwegs
+    given-names: Elyne
+    orcid: https://orcid.org/0000-0003-1560-7617
+  - family-names: Meysman
+    given-names: Pieter
+    orcid: https://orcid.org/0000-0001-5903-633X
+  - family-names: Jorens
+    given-names: Philippe
+    orcid: https://orcid.org/0000-0002-5434-957X
+  - family-names: Laukens
+    given-names: Kris
+    orcid: https://orcid.org/0000-0002-8217-2564
+repository-code: "https://github.com/stighellemans/meddeid"
+url: "https://stighellemans.github.io/meddeid.github.io/"
+license: AGPL-3.0-only
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21890964
+    description: MedDeID synthetic data and annotation-guideline archive
