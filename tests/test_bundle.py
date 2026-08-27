@@ -27,8 +27,8 @@ def write_bundle(path, **overrides) -> None:
             "min_entity_score": 0.0,
         },
         "postprocess": {
-            "profile_id": "nl-BE",
-            "profile_version": "1",
+            "profiles": [{"profile_id": "nl-BE"}],
+            "profile_selection": "bundle_default",
         },
     }
     payload.update(overrides)
@@ -47,12 +47,54 @@ def test_load_model_bundle_reads_contract_without_source_validation(tmp_path) ->
     assert bundle.entity_labels == list(BERT_ENTITY_LABELS)
     assert bundle.inference.max_length == 256
     assert bundle.postprocess.profile_id == "nl-BE"
-    assert bundle.postprocess.profile_version == "1"
     assert bundle.checkpoint_path == tmp_path / "model.pt"
     assert bundle.weights_format == "pt"
     assert bundle.encoder_config_path is None
     assert bundle.tokenizer_path is None
     assert len(bundle.contract_hash()) == 64
+
+
+def test_load_model_bundle_supports_two_explicit_postprocess_profiles(tmp_path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    write_bundle(bundle_path, postprocess={
+        "profiles": [
+            {"profile_id": "en-GB"},
+            {"profile_id": "en-US"},
+        ],
+        "profile_selection": "explicit",
+    })
+
+    bundle = load_model_bundle(bundle_path, validate_package=False)
+
+    assert bundle.postprocess.profile_id is None
+    assert [item.profile_id for item in bundle.postprocess.profiles] == ["en-GB", "en-US"]
+    assert bundle.postprocess.profile_selection == "explicit"
+
+
+def test_multi_profile_bundle_rejects_an_implicit_default(tmp_path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    write_bundle(bundle_path, postprocess={
+        "profiles": [
+            {"profile_id": "en-GB"},
+            {"profile_id": "en-US"},
+        ],
+        "profile_selection": "bundle_default",
+    })
+    with pytest.raises(ValueError, match="requires explicit profile selection"):
+        load_model_bundle(bundle_path, validate_package=False)
+
+
+def test_bundle_rejects_duplicate_normalized_locales(tmp_path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    write_bundle(bundle_path, postprocess={
+        "profiles": [
+            {"profile_id": "en-GB"},
+            {"profile_id": "en_GB"},
+        ],
+        "profile_selection": "explicit",
+    })
+    with pytest.raises(ValueError, match="duplicate normalized locales"):
+        load_model_bundle(bundle_path, validate_package=False)
 
 
 def test_source_model_dir_contract_allows_hub_documentation_files(tmp_path) -> None:

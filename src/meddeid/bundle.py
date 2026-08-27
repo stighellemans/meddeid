@@ -19,12 +19,22 @@ class InferenceConfig:
 
 
 @dataclass(frozen=True)
-class PostprocessConfig:
-    """Versioned language profile required for deterministic span correction."""
+class LanguageProfileRef:
+    """One supported postprocessing profile."""
 
     profile_id: str
-    profile_version: str
 
+
+@dataclass(frozen=True)
+class PostprocessConfig:
+    """Language profiles supported by one model bundle."""
+
+    profiles: tuple[LanguageProfileRef, ...]
+    profile_selection: str = "bundle_default"
+
+    @property
+    def profile_id(self) -> str | None:
+        return self.profiles[0].profile_id if len(self.profiles) == 1 else None
 
 @dataclass(frozen=True)
 class ModelBundle:
@@ -73,8 +83,11 @@ class ModelBundle:
             "max_length": self.inference.max_length,
             "overlap": self.inference.overlap,
             "min_entity_score": self.inference.min_entity_score,
-            "postprocess_profile": self.postprocess.profile_id,
-            "postprocess_profile_version": self.postprocess.profile_version,
+            "postprocess_profiles": [
+                {"profile_id": item.profile_id}
+                for item in self.postprocess.profiles
+            ],
+            "postprocess_profile_selection": self.postprocess.profile_selection,
         }
 
     def contract_hash(self) -> str:
@@ -224,6 +237,26 @@ def load_model_bundle(path: str | Path, *, validate_package: bool | None = None)
             "bundle entity labels must exactly match the canonical ordered 14-label head"
         )
 
+    if not isinstance(postprocess.get("profiles"), list):
+        raise ValueError("bundle postprocess.profiles must be a list")
+    profile_refs = tuple(
+        LanguageProfileRef(profile_id=str(item["profile_id"]))
+        for item in postprocess["profiles"]
+    )
+    if not profile_refs:
+        raise ValueError("bundle postprocess.profiles must not be empty")
+    if len({item.profile_id for item in profile_refs}) != len(profile_refs):
+        raise ValueError("bundle postprocess.profiles contains duplicates")
+    normalized_profile_ids = {
+        item.profile_id.strip().replace("_", "-").lower()
+        for item in profile_refs
+    }
+    if len(normalized_profile_ids) != len(profile_refs):
+        raise ValueError("bundle postprocess.profiles contains duplicate normalized locales")
+    profile_selection = str(postprocess.get("profile_selection", "explicit"))
+    if len(profile_refs) > 1 and profile_selection != "explicit":
+        raise ValueError("a multi-profile bundle requires explicit profile selection")
+
     return ModelBundle(
         manifest_path=manifest_path,
         bundle_version=str(payload["bundle_version"]),
@@ -258,8 +291,8 @@ def load_model_bundle(path: str | Path, *, validate_package: bool | None = None)
             min_entity_score=float(inference["min_entity_score"]),
         ),
         postprocess=PostprocessConfig(
-            profile_id=str(postprocess["profile_id"]),
-            profile_version=str(postprocess["profile_version"]),
+            profiles=profile_refs,
+            profile_selection=profile_selection,
         ),
     )
 

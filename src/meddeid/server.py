@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 import asyncio
 import os
+from pathlib import Path
 import secrets
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from .api import Deidentifier
@@ -31,7 +32,7 @@ LOCAL_UI = """<!doctype html>
     .notice { background: #fff5d7; border-left: 4px solid #a96b00; padding: .85rem 1rem; }
     .card { background: white; border: 1px solid #d7e0dd; border-radius: 12px; padding: 1rem; margin-top: 1rem; box-shadow: 0 2px 8px #10251c0d; }
     label { display: block; font-weight: 650; margin: .8rem 0 .35rem; }
-    textarea, input { box-sizing: border-box; width: 100%; padding: .75rem; border: 1px solid #93a39d; border-radius: 7px; font: inherit; }
+    textarea, input, select { box-sizing: border-box; width: 100%; padding: .75rem; border: 1px solid #93a39d; border-radius: 7px; font: inherit; }
     textarea { min-height: 190px; resize: vertical; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
     .actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
@@ -49,13 +50,18 @@ LOCAL_UI = """<!doctype html>
 <body>
 <main>
   <h1>MedDeID</h1>
-  <p>De-identify one Dutch clinical note on this server.</p>
+  <p>De-identify one clinical note using this server's model.</p>
   <p class="notice"><strong>Important:</strong> Model output can still contain identifying information. Validate it and use human review where an error could cause harm.</p>
   <section class="card" aria-labelledby="input-title">
     <h2 id="input-title">Note</h2>
     <label for="api-key">API key</label>
     <input id="api-key" type="password" autocomplete="off" spellcheck="false" aria-describedby="key-help">
     <div id="key-help" class="muted">Stored only in this browser tab and sent to this MedDeID server.</div>
+    <div id="language-field" hidden>
+      <label for="language">Document language and region</label>
+      <select id="language" aria-describedby="language-help"></select>
+      <div id="language-help" class="muted">This selects locale-specific post-processing. The model pins the rule version.</div>
+    </div>
     <div class="grid">
       <div><label for="given-name">Known patient given name (optional)</label><input id="given-name" autocomplete="off"></div>
       <div><label for="family-name">Known patient family name (optional)</label><input id="family-name" autocomplete="off"></div>
@@ -77,7 +83,42 @@ LOCAL_UI = """<!doctype html>
 <script>
   const byId = (id) => document.getElementById(id);
   const run = byId('run'), copy = byId('copy'), status = byId('status'), result = byId('result');
+  const languageField = byId('language-field'), language = byId('language');
   let output = '';
+  async function configureLanguages() {
+    try {
+      const response = await fetch('/health');
+      const body = await response.json();
+      if (!response.ok) return;
+      const contracts = body.contracts || {};
+      const profiles = contracts.language_profiles || [];
+      const profileLabels = {
+        'nl-BE': 'Dutch — Belgium',
+        'nl-NL': 'Dutch — Netherlands',
+        'en-GB': 'English — United Kingdom',
+        'en-US': 'English — United States',
+      };
+      if (profiles.length <= 1) return;
+      const defaultProfile = contracts.default_language_profile || '';
+      language.replaceChildren();
+      if (!defaultProfile) {
+        const prompt = document.createElement('option');
+        prompt.value = ''; prompt.textContent = 'Choose a language and region';
+        language.appendChild(prompt);
+      }
+      for (const profile of profiles) {
+        const option = document.createElement('option');
+        option.value = profile.profile_id;
+        option.textContent = profileLabels[profile.profile_id] || profile.profile_id;
+        option.selected = profile.profile_id === defaultProfile;
+        language.appendChild(option);
+      }
+      languageField.hidden = false;
+    } catch (_) {
+      // The inference request will return an actionable error if profile input is required.
+    }
+  }
+  configureLanguages();
   run.addEventListener('click', async () => {
     const text = byId('note').value;
     const key = byId('api-key').value;
@@ -85,7 +126,14 @@ LOCAL_UI = """<!doctype html>
     const patient = {};
     if (byId('given-name').value.trim()) patient.given_name = byId('given-name').value.trim();
     if (byId('family-name').value.trim()) patient.family_name = byId('family-name').value.trim();
-    const metadata = Object.keys(patient).length ? {patient} : {};
+    if (!languageField.hidden && !language.value) {
+      status.textContent = 'Choose the document language and region first.';
+      status.className = 'error';
+      return;
+    }
+    const metadata = {};
+    if (Object.keys(patient).length) metadata.patient = patient;
+    if (!languageField.hidden) metadata.lang = language.value;
     run.disabled = true; copy.disabled = true; status.className = ''; status.textContent = 'Processing locally…';
     try {
       const headers = {'Content-Type': 'application/json'};
@@ -99,7 +147,8 @@ LOCAL_UI = """<!doctype html>
       output = body.deid_text;
       result.textContent = output;
       copy.disabled = false;
-      status.textContent = `Done. ${body.spans.length} identifying span${body.spans.length === 1 ? '' : 's'} detected.`;
+      const usedProfile = body.language_profile && body.language_profile.profile_id;
+      status.textContent = `Done${usedProfile ? ` using ${usedProfile}` : ''}. ${body.spans.length} identifying span${body.spans.length === 1 ? '' : 's'} detected.`;
     } catch (error) {
       output = ''; result.textContent = 'No result.'; status.className = 'error'; status.textContent = error.message;
     } finally { run.disabled = false; }
@@ -129,6 +178,9 @@ def create_app(
     backend: str | None = None,
     device: str | None = None,
     triton_url: str | None = None,
+    language_profile: str | None = None,
+    age_granularity_config: str | Path | None = None,
+    min_recommended_date_shift_days: int | None = None,
     max_input_chars: int | None = None,
     max_batch_documents: int | None = None,
     max_batch_chars: int | None = None,
@@ -228,7 +280,13 @@ def create_app(
         family_name: str | None = None
 
     class PatientMetadata(PersonMetadata):
-        birth_date: str | None = None
+        birth_date: str | None = Field(
+            default=None,
+            description=(
+                "Trusted full patient birth date. The selected language profile locates "
+                "equivalent full-year representations as Age_Birthdate spans."
+            ),
+        )
 
     class KnownValueMetadata(FlexibleModel):
         value: str = Field(min_length=1)
@@ -247,8 +305,18 @@ def create_app(
         lang: str | None = None
         patient: PatientMetadata | None = None
         caregivers: list[PersonMetadata] | None = None
-        document_creation_date: str | None = None
-        date_shift_days: int | None = None
+        document_creation_date: str | None = Field(
+            default=None,
+            description="Reference date used to convert birthdates to generalized ages.",
+        )
+        date_shift_days: int | None = Field(
+            default=None,
+            strict=True,
+            description=(
+                "Explicit date shift in days. Omit for placeholders; zero also uses "
+                "placeholders and produces a warning."
+            ),
+        )
         known_values: list[KnownValueMetadata] | None = None
 
         @model_validator(mode="before")
@@ -262,16 +330,54 @@ def create_app(
                     raise ValueError(
                         f"retired metadata key(s) {retired}; use 'patient' and 'caregivers'"
                     )
+                deployment_only = [
+                    key
+                    for key in (
+                        "age_granularity_config",
+                        "age_granularity_policy",
+                        "min_recommended_date_shift_days",
+                    )
+                    if key in value
+                ]
+                if deployment_only:
+                    raise ValueError(
+                        f"deployment-only setting(s) {deployment_only} cannot be selected per request"
+                    )
             return value
 
     class DeidentifyRequest(BaseModel):
         text: str = Field(min_length=1, max_length=limit)
         metadata: RecordMetadata = Field(default_factory=RecordMetadata)
 
+    class ProcessingWarning(BaseModel):
+        code: str
+        message: str
+
+    class DateReplacementProcessing(BaseModel):
+        mode: Literal["placeholder", "shift"]
+        requested_shift_days: int | None
+        minimum_recommended_abs_shift_days: int
+        detected_spans: int
+        shifted_spans: int
+        age_generalized_spans: int
+        year_fallback_spans: int
+        placeholder_spans: int
+
+    class AgeGranularityPolicyProcessing(BaseModel):
+        policy_id: str
+        policy_version: str
+        sha256: str
+
+    class ProcessingInfo(BaseModel):
+        date_replacement: DateReplacementProcessing
+        age_granularity_policy: AgeGranularityPolicyProcessing
+
     class DeidentifyResponse(BaseModel):
-        text: str
         deid_text: str
         spans: list[dict[str, Any]]
+        language_profile: dict[str, str | None] | None = None
+        warnings: list[ProcessingWarning] = Field(default_factory=list)
+        processing: ProcessingInfo | None = None
 
     class BatchDocumentRequest(DeidentifyRequest):
         document_id: str = Field(min_length=1, max_length=200)
@@ -288,6 +394,21 @@ def create_app(
         documents: list[BatchDocumentResponse]
 
     if engine is None:
+        configured_language_profile = (
+            language_profile
+            if language_profile is not None
+            else os.environ.get("MEDDEID_LANGUAGE_PROFILE") or None
+        )
+        configured_age_policy = (
+            age_granularity_config
+            if age_granularity_config is not None
+            else os.environ.get("MEDDEID_AGE_GRANULARITY_CONFIG") or None
+        )
+        configured_shift_minimum = (
+            min_recommended_date_shift_days
+            if min_recommended_date_shift_days is not None
+            else int(os.environ.get("MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS", "366"))
+        )
         engine = Deidentifier.from_pretrained(
             model or os.environ.get("MEDDEID_MODEL", DEFAULT_MODEL),
             revision=os.environ.get("MEDDEID_REVISION") or None,
@@ -302,6 +423,9 @@ def create_app(
                 if os.environ.get("MEDDEID_WINDOW_BATCH_SIZE")
                 else None
             ),
+            language_profile=configured_language_profile,
+            age_granularity_config=configured_age_policy,
+            min_recommended_date_shift_days=configured_shift_minimum,
             on_status=lambda message: print(f"[meddeid] {message}", flush=True),
         )
 
@@ -312,7 +436,7 @@ def create_app(
 
     app = FastAPI(
         title="MedDeID",
-        version="0.1.1",
+        version="0.2.0",
         lifespan=lifespan,
         docs_url="/docs" if expose_docs else None,
         redoc_url="/redoc" if expose_docs else None,
@@ -479,9 +603,17 @@ def create_app(
                 detail={"code": "inference_unavailable", "message": str(exc)},
             ) from exc
         return {
-            "text": result.text,
             "deid_text": result.deid_text,
             "spans": result.spans,
+            "language_profile": (
+                {
+                    "profile_id": getattr(result, "language_profile", None),
+                }
+                if getattr(result, "language_profile", None) is not None
+                else None
+            ),
+            "warnings": getattr(result, "warnings", []),
+            "processing": getattr(result, "processing", None) or None,
         }
 
     @app.post(
@@ -537,9 +669,17 @@ def create_app(
             "documents": [
                 {
                     "document_id": document.document_id,
-                    "text": result.text,
                     "deid_text": result.deid_text,
                     "spans": result.spans,
+                    "language_profile": (
+                        {
+                            "profile_id": getattr(result, "language_profile", None),
+                        }
+                        if getattr(result, "language_profile", None) is not None
+                        else None
+                    ),
+                    "warnings": getattr(result, "warnings", []),
+                    "processing": getattr(result, "processing", None) or None,
                 }
                 for document, result in zip(payload.documents, results, strict=True)
             ]

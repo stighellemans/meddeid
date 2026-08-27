@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +10,7 @@ class FakeEngine:
     bundle = SimpleNamespace(
         name="test-model",
         model_version="1",
-        postprocess=SimpleNamespace(profile_id="nl-BE", profile_version="1"),
+        postprocess=SimpleNamespace(profile_id="nl-BE"),
         contract_hash=lambda: "a" * 64,
     )
 
@@ -18,7 +19,11 @@ class FakeEngine:
 
     def __call__(self, text, *, metadata):
         self.calls.append(text)
-        return SimpleNamespace(spans=[], deid_text=text)
+        return SimpleNamespace(
+            spans=[],
+            deid_text=text,
+            language_profile=metadata.get("lang", "nl-BE"),
+        )
 
     def model_info(self):
         return {
@@ -45,6 +50,16 @@ def test_batch_preserves_ids_order_and_writes_manifest(tmp_path):
     assert engine.calls == ["😀 note", "other"]
     assert [line.split('"')[3] for line in output.read_text(encoding="utf-8").splitlines()] == ["b", "a"]
     assert manifest["contracts"]["offset_unit"] == "unicode_codepoints"
+    rows = [
+        json.loads(line)
+        for line in output.read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows[0]["text"] == "😀 note"
+    assert rows[0]["warnings"] == []
+    assert rows[0]["processing"] == {}
+    assert manifest["counts"]["language_profiles"] == [
+        {"profile_id": "nl-BE", "documents": 2},
+    ]
     assert output.with_suffix(".jsonl.manifest.json").is_file()
 
 

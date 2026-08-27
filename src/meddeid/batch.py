@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable
@@ -83,6 +84,11 @@ def run_batch(
                     "spans": result.spans,
                     "deid_text": result.deid_text,
                     "metadata": row.get("metadata") or {},
+                    "language_profile": {
+                        "profile_id": getattr(result, "language_profile", None),
+                    },
+                    "warnings": getattr(result, "warnings", []),
+                    "processing": getattr(result, "processing", {}),
                 }
             )
             processed += 1
@@ -106,13 +112,29 @@ def run_batch(
     model_info = engine.model_info() if hasattr(engine, "model_info") else {}
     runtime = model_info.get("runtime", {})
     model_details = model_info.get("model", {})
+    postprocess_profiles = getattr(bundle.postprocess, "profiles", None)
+    if postprocess_profiles is None:  # compatibility with lightweight v1 test/adaptor bundles
+        postprocess_profiles = (bundle.postprocess,)
+    profile_counts = Counter(
+        profile.get("profile_id")
+        for row in outputs
+        if isinstance((profile := row.get("language_profile")), dict)
+    )
     manifest = {
         "manifest_version": "meddeid.inference-run.v1",
         "contracts": {
             "schema_version": SCHEMA_VERSION,
             "offset_unit": OFFSET_UNIT,
-            "language_profile": bundle.postprocess.profile_id,
-            "language_profile_version": bundle.postprocess.profile_version,
+            "language_profiles": [
+                {"profile_id": item.profile_id}
+                for item in postprocess_profiles
+            ],
+            "age_granularity_policy": model_info.get("contracts", {}).get(
+                "age_granularity_policy"
+            ),
+            "minimum_recommended_abs_date_shift_days": model_info.get(
+                "contracts", {}
+            ).get("minimum_recommended_abs_date_shift_days"),
         },
         "model": {
             "name": bundle.name,
@@ -134,6 +156,15 @@ def run_batch(
             "resumed": resumed,
             "failed": 0,
             "spans": sum(len(row["spans"]) for row in outputs),
+            "language_profiles": [
+                {
+                    "profile_id": profile_id,
+                    "documents": count,
+                }
+                for profile_id, count in sorted(
+                    profile_counts.items(), key=lambda item: str(item[0])
+                )
+            ],
         },
         "timing": {
             "elapsed_seconds": elapsed,

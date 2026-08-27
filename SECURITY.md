@@ -22,3 +22,9 @@ A successful de-identification run does not guarantee anonymity. Deployments
 processing clinical information require representative local validation,
 access controls, monitoring, incident response, and institutional privacy and
 security approval. Never attach real clinical text to a vulnerability report.
+
+The HTTP API does not echo the complete source note, but span objects retain
+the detected source fragments so callers can verify offsets. Treat the complete
+response as sensitive. Date shifting is deterministic and caller-supplied;
+missing or zero shifts use placeholders rather than generating or reproducing
+dates.

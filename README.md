@@ -46,6 +46,49 @@ python -m pip install 'meddeid[server]'
 See [Inference and deployment](docs/inference.md) for the exact availability
 matrix and operational guidance.
 
+For dataset review, benchmarking, evaluation, training, synthetic-data, and
+contributor workflows, install the suite front door with the matching extras:
+
+```bash
+python -m pip install 'meddeid[research]'
+# Language/profile and model-bundle contributors:
+python -m pip install 'meddeid[contributor]'
+```
+
+## Guided suite workflows
+
+Use one entry point when you know the outcome but do not yet know which suite
+components or optional stages apply:
+
+```bash
+meddeid start
+meddeid status ./my-workflow
+meddeid next ./my-workflow
+```
+
+`start` first groups the suite into six familiar goals: de-identify text,
+prepare data, train, evaluate, deploy, or contribute. A second menu appears only
+when that goal has several possible workflows. Choices are numbered and `?`
+explains why a scientific decision is being requested. `next` runs exactly one
+eligible stage and stops instead of guessing an unanswered branch. Hardware,
+browser runtime, and other operational choices are requested only when needed.
+
+Run `status` or `next` without a path from anywhere inside the workflow
+directory. Add `--details` for every technical stage and exclusion reason.
+
+Every workspace contains a checksummed `meddeid.workflow.v1` manifest. Inspect
+the rationale and the underlying component command at any time:
+
+```bash
+meddeid status ./my-workflow --details
+meddeid workflow explain ./my-benchmark
+meddeid workflow run ./my-benchmark score --dry-run
+```
+
+The existing `meddeid workflow ...` commands remain the advanced and automation
+interface. Changing a scientific decision after work begins shows which stages
+become invalid and requires `configure --yes` before outputs are archived.
+
 ## Quick start
 
 ```bash
@@ -60,6 +103,12 @@ result = deid("Patiënt Alex Voorbeeld kwam op controle.")
 print(result.deid_text)
 deid.close()
 ```
+
+Dates use placeholders unless the caller explicitly supplies
+`metadata.date_shift_days`. A nonzero shift produces deterministic shifted
+dates; zero produces placeholders and a structured warning. One declarative
+age-granularity JSON policy is loaded for the complete engine, independent of
+the selected language profile.
 
 The self-contained model bundle is downloaded and cached on first use. Document
 text is processed locally and is not sent to Hugging Face. Inspect the resolved
@@ -105,6 +154,19 @@ PyTorch inference works on CPU, Apple MPS, and CUDA:
 MEDDEID_DEVICE=cpu meddeid-server
 ```
 
+Multi-profile services can set a locale fallback once while still allowing
+trusted `metadata.lang` on a request to override it:
+
+```bash
+MEDDEID_MODEL=path/to/english-bundle \
+MEDDEID_LANGUAGE_PROFILE=en-GB \
+meddeid-server
+```
+
+The bundle declares its post-processing locales; users choose only the locale.
+The browser UI shows a locale selector only when the loaded model
+supports more than one profile.
+
 For an authenticated service:
 
 ```bash
@@ -135,10 +197,22 @@ Operators should also read [Production deployment](docs/production.md).
 
 ## Language profile and metadata
 
-The Dutch model bundle pins `meddeid-language-nl` profile `nl-BE@1`. Optional
-trusted metadata can recover known patient or caregiver names and other known
-values after neural inference. Metadata is not concatenated to the note or sent
-to the model as an input feature. Incorrect metadata can create false-positive
+The Dutch model bundle uses one set of model weights for both `nl-BE` and
+`nl-NL`; `metadata.lang` selects the locale-specific language resources and
+post-processing. Installed
+bundles may pin the separate `meddeid-language-en` profiles `en-GB` or
+`en-US`; bare `en` is rejected. Profile resolution uses installed
+`meddeid.language_profiles` entry points, with no source-tree fallback. This
+language-pack integration does not itself provide an English inference model.
+For a combined GB/US bundle, document metadata is used first, followed by an
+explicit load-time default and then a single-profile bundle default; MedDeID
+never guesses between multiple profiles. See
+[Language profile selection](docs/language-profile-selection.md).
+
+Optional trusted metadata can recover known patient or caregiver names and
+birth-date representations or other known values after neural inference.
+Metadata is not concatenated to the
+note or sent to the model as an input feature. Incorrect metadata can create false-positive
 redactions, so callers must validate it.
 
 Belgian DEDUCE is an independent comparison system and is not installed by this

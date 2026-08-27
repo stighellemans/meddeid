@@ -3,8 +3,8 @@ message: "If you use MedDeID inference, cite this software and the MedDeID datas
 title: "MedDeID inference"
 abstract: "Local inference API, CLI, batch runner, and HTTP service for MedDeID."
 type: software
-version: "0.1.1"
-date-released: 2026-08-17
+version: "0.2.0"
+date-released: 2026-08-27
 authors:
   - family-names: Hellemans
     given-names: Stig

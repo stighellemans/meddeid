@@ -21,11 +21,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install source dependencies and test requirements
+      - name: Install released dependencies and test requirements
         run: |
           python -m pip install \
-            'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@9b51c5b93aadfd9f59014e136a3f72ff38f7ad55' \
-            'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@886d102dcf36cec8d86173e8eb4d3471cde20f45'
+            'meddeid-core==0.2.0' \
+            'meddeid-language-en==0.2.0' \
+            'meddeid-language-nl==0.2.0'
           python -m pip install '.[dev]' build twine
           python -m pip check
       - run: pytest -q

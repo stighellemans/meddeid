@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from meddeid.server import create_app
@@ -20,7 +21,13 @@ class FakeEngine:
         }
 
     def __call__(self, text, *, metadata):
-        return SimpleNamespace(text=text, deid_text=text, spans=[])
+        profile = metadata.get("lang", "nl-BE")
+        return SimpleNamespace(
+            text=text,
+            deid_text=text,
+            spans=[],
+            language_profile=profile,
+        )
 
     def close(self):
         self.closed = True
@@ -33,7 +40,10 @@ def test_server_validates_input_and_reports_model_health() -> None:
         assert client.get("/").json()["ui"] == "/ui"
         ui = client.get("/ui")
         assert ui.status_code == 200
-        assert "De-identify one Dutch clinical note" in ui.text
+        assert "De-identify one clinical note" in ui.text
+        assert 'id="language-field" hidden' in ui.text
+        assert "profiles.length <= 1" in ui.text
+        assert "metadata.lang = language.value" in ui.text
         assert "default-src 'none'" in ui.headers["content-security-policy"]
         assert client.get("/live").json() == {"status": "ok"}
         health = client.get("/health")
@@ -45,7 +55,8 @@ def test_server_validates_input_and_reports_model_health() -> None:
         assert client.post("/deidentify", json={"text": "x" * 13}).status_code == 422
         response = client.post("/deidentify", json={"text": " Jan "})
         assert response.status_code == 200
-        assert response.json()["text"] == " Jan "
+        assert "text" not in response.json()
+        assert response.json()["language_profile"] == {"profile_id": "nl-BE"}
 
         invalid_label = client.post(
             "/deidentify",
@@ -80,6 +91,8 @@ def test_server_validates_input_and_reports_model_health() -> None:
             "note-1",
             "note-2",
         ]
+        assert batch.json()["documents"][0]["language_profile"] == {"profile_id": "nl-BE"}
+        assert "text" not in batch.json()["documents"][0]
 
         retired_identity_key = client.post(
             "/deidentify",
@@ -87,6 +100,49 @@ def test_server_validates_input_and_reports_model_health() -> None:
         )
         assert retired_identity_key.status_code == 422
     assert engine.closed
+
+
+def test_server_passes_configured_language_profile_to_engine(monkeypatch) -> None:
+    captured = {}
+
+    def fake_load(*args, **kwargs):
+        captured.update(kwargs)
+        return FakeEngine()
+
+    monkeypatch.setattr(
+        "meddeid.server.Deidentifier.from_pretrained", fake_load
+    )
+    monkeypatch.setenv("MEDDEID_LANGUAGE_PROFILE", "en-GB")
+    monkeypatch.setenv("MEDDEID_AGE_GRANULARITY_CONFIG", "/config/age.json")
+    monkeypatch.setenv("MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS", "500")
+
+    with TestClient(create_app(ui_enabled=False)):
+        pass
+
+    assert captured["language_profile"] == "en-GB"
+    assert captured["age_granularity_config"] == "/config/age.json"
+    assert captured["min_recommended_date_shift_days"] == 500
+
+
+def test_server_rejects_boolean_date_shift() -> None:
+    with TestClient(create_app(engine=FakeEngine())) as client:
+        response = client.post(
+            "/deidentify",
+            json={"text": "15/01/2025", "metadata": {"date_shift_days": True}},
+        )
+    assert response.status_code == 422
+
+
+def test_server_rejects_request_level_age_policy_selection() -> None:
+    with TestClient(create_app(engine=FakeEngine())) as client:
+        response = client.post(
+            "/deidentify",
+            json={
+                "text": "42 jaar",
+                "metadata": {"age_granularity_policy": "request-choice"},
+            },
+        )
+    assert response.status_code == 422
 
 
 def test_server_rejects_oversized_batches() -> None:

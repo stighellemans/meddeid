@@ -4,8 +4,9 @@ ARG PYTHON_IMAGE=python:3.12-slim@sha256:2c941e860699f878900b0edc2403613c234d4b3
 
 FROM ${PYTHON_IMAGE} AS builder
 
-ARG MEDDEID_CORE_COMMIT=9b51c5b93aadfd9f59014e136a3f72ff38f7ad55
-ARG MEDDEID_LANGUAGE_NL_COMMIT=886d102dcf36cec8d86173e8eb4d3471cde20f45
+ARG MEDDEID_CORE_COMMIT=13cd703eba34d92b128f54813741ac956258c213
+ARG MEDDEID_LANGUAGE_EN_COMMIT=cf624a922c83bcd0a53bc7ca284d191ded226282
+ARG MEDDEID_LANGUAGE_NL_COMMIT=7fad096fd40c138036db0835d4de4ffd5513ae1a
 ARG MEDDEID_MODEL_ID=stighellemans/meddeid-dutch-synth
 ARG MEDDEID_MODEL_REVISION=cbe68a93e808c919de97052dc6ef031d2dce4a61
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
@@ -35,6 +36,7 @@ RUN python -m pip install \
     --retries 5 \
     --timeout 60 \
     "meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@${MEDDEID_CORE_COMMIT}" \
+    "meddeid-language-en @ git+https://github.com/stighellemans/meddeid-language-en.git@${MEDDEID_LANGUAGE_EN_COMMIT}" \
     "meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@${MEDDEID_LANGUAGE_NL_COMMIT}"
 
 RUN python -m pip install \
@@ -55,8 +57,9 @@ RUN python -m pip install --constraint /tmp/container-constraints.txt '.[server]
 
 FROM ${PYTHON_IMAGE} AS runtime
 
-ARG MEDDEID_CORE_COMMIT=9b51c5b93aadfd9f59014e136a3f72ff38f7ad55
-ARG MEDDEID_LANGUAGE_NL_COMMIT=886d102dcf36cec8d86173e8eb4d3471cde20f45
+ARG MEDDEID_CORE_COMMIT=13cd703eba34d92b128f54813741ac956258c213
+ARG MEDDEID_LANGUAGE_EN_COMMIT=cf624a922c83bcd0a53bc7ca284d191ded226282
+ARG MEDDEID_LANGUAGE_NL_COMMIT=7fad096fd40c138036db0835d4de4ffd5513ae1a
 ARG MEDDEID_MODEL_ID=stighellemans/meddeid-dutch-synth
 ARG MEDDEID_MODEL_REVISION=cbe68a93e808c919de97052dc6ef031d2dce4a61
 ARG VCS_REF=unknown
@@ -69,6 +72,7 @@ LABEL org.opencontainers.image.title="MedDeID API" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       io.meddeid.core-revision="${MEDDEID_CORE_COMMIT}" \
+      io.meddeid.language-en-revision="${MEDDEID_LANGUAGE_EN_COMMIT}" \
       io.meddeid.language-nl-revision="${MEDDEID_LANGUAGE_NL_COMMIT}" \
       io.meddeid.model-id="${MEDDEID_MODEL_ID}" \
       io.meddeid.model-revision="${MEDDEID_MODEL_REVISION}"

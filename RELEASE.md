@@ -1,10 +1,11 @@
 # Release runbook
 
-The current public PyPI release line is `meddeid-core==0.1.1`,
-`meddeid-language-nl==0.1.1`, `meddeid==0.1.1`, `meddeid-data==0.2.1`,
-`meddeid-eval==0.2.1`, and `meddeid-training==0.1.1`. The CPU API image is published at
-`ghcr.io/stighellemans/meddeid-api:0.1.1` with multi-platform digest
-`sha256:14fab911f369162b3ccb465b1793693c132720dc638996b64c711a2bb4b8e3b1`.
+The current coordinated PyPI release line is `meddeid-core==0.2.0`,
+`meddeid-language-en==0.2.0`, `meddeid-language-nl==0.2.0`,
+`meddeid==0.2.0`, `meddeid-data==0.3.0`, `meddeid-eval==0.3.0`, and
+`meddeid-training==0.2.0`. The CPU API image is published at
+`ghcr.io/stighellemans/meddeid-api:0.2.0`; production deployments must resolve
+and pin its immutable multi-platform digest.
 
 The steps below are the ongoing maintainer procedure for later releases.
 
@@ -27,11 +28,12 @@ trusted-publisher subjects whenever a repository or workflow is renamed.
 Release exactly in dependency order. Do not create all tags simultaneously.
 
 1. `meddeid-core`
-2. `meddeid-language-nl`
-3. `meddeid`
-4. `meddeid-data`
-5. `meddeid-eval`
-6. `meddeid-training`
+2. `meddeid-language-en`
+3. `meddeid-language-nl`
+4. `meddeid`
+5. `meddeid-data`
+6. `meddeid-eval`
+7. `meddeid-training`
 
 For each repository:
 
@@ -53,16 +55,16 @@ SBOM and provenance attestations.
 
 ```bash
 python -m venv /tmp/meddeid-release-check
-/tmp/meddeid-release-check/bin/pip install 'meddeid[server]==0.1.1'
+/tmp/meddeid-release-check/bin/pip install 'meddeid[server]==0.2.0'
 /tmp/meddeid-release-check/bin/pip install \
-  'meddeid-data==0.2.1' \
-  'meddeid-eval==0.2.1' \
-  'meddeid-training==0.1.1'
+  'meddeid-data==0.3.0' \
+  'meddeid-eval==0.3.0' \
+  'meddeid-training==0.2.0'
 /tmp/meddeid-release-check/bin/pip check
 /tmp/meddeid-release-check/bin/meddeid model-info
 
-docker pull ghcr.io/stighellemans/meddeid-api:0.1.1
-docker image inspect ghcr.io/stighellemans/meddeid-api:0.1.1
+docker pull ghcr.io/stighellemans/meddeid-api:0.2.0
+docker image inspect ghcr.io/stighellemans/meddeid-api:0.2.0
 ```
 
 Run `scripts/container_smoke.py` against the pulled image with an internal

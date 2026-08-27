@@ -7,6 +7,9 @@ import sys
 
 from .api import Deidentifier
 from .batch import run_batch
+from .workflow import WorkflowError
+from .workflow_cli import add_parsers as add_workflow_parsers
+from .workflow_cli import dispatch as dispatch_workflow
 
 
 DEFAULT_MODEL = "stighellemans/meddeid-dutch-synth"
@@ -15,6 +18,21 @@ DEFAULT_MODEL = "stighellemans/meddeid-dutch-synth"
 def _add_model_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--model", default=DEFAULT_MODEL)
     command.add_argument("--revision", help="Hub branch, tag, or immutable commit SHA")
+    command.add_argument(
+        "--language-profile",
+        help="Default locale for a multi-profile model, for example en-GB or en-US",
+    )
+    command.add_argument(
+        "--age-granularity-config",
+        type=Path,
+        help="Suite-wide declarative age-granularity JSON policy",
+    )
+    command.add_argument(
+        "--min-recommended-date-shift-days",
+        type=int,
+        default=366,
+        help="Warn when the absolute nonzero date shift is below this value (default: 366)",
+    )
     command.add_argument("--cache-dir")
     command.add_argument(
         "--offline",
@@ -46,6 +64,9 @@ def _load_engine(args: argparse.Namespace) -> Deidentifier:
         triton_timeout_seconds=args.triton_timeout,
         max_windows_per_batch=args.window_batch_size,
         on_status=status,
+        language_profile=args.language_profile,
+        age_granularity_config=args.age_granularity_config,
+        min_recommended_date_shift_days=args.min_recommended_date_shift_days,
     )
 
 
@@ -73,7 +94,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     _add_model_arguments(model_info)
 
+    add_workflow_parsers(sub)
+
     args = parser.parse_args(argv)
+    if args.command in {"guide", "start", "status", "next", "doctor", "workflow"}:
+        try:
+            return dispatch_workflow(args)
+        except WorkflowError as exc:
+            print(f"meddeid: error: {exc}", file=sys.stderr)
+            return exc.code
     try:
         engine = _load_engine(args)
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
@@ -117,13 +146,27 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = (
         json.dumps(
-            {"text": result.text, "deid_text": result.deid_text, "spans": result.spans},
+            {
+                "deid_text": result.deid_text,
+                "spans": result.spans,
+                "language_profile": {
+                    "profile_id": result.language_profile,
+                },
+                "warnings": getattr(result, "warnings", []),
+                "processing": getattr(result, "processing", {}),
+            },
             ensure_ascii=False,
             indent=2,
         )
         if args.json
         else result.deid_text
     )
+    if not args.quiet:
+        for warning in getattr(result, "warnings", []):
+            print(
+                f"[meddeid] warning {warning['code']}: {warning['message']}",
+                file=sys.stderr,
+            )
     if args.output:
         Path(args.output).write_text(payload + "\n", encoding="utf-8")
     else:

@@ -17,13 +17,35 @@ def _providers():
         yield from discovered.get(ENTRY_POINT_GROUP, ())
 
 
-def resolve_language_profile(profile_id: str, *, version: str) -> LanguageProfile:
+def installed_language_profile_packages() -> dict[str, str | None]:
+    """Report distributions that provide installed language profiles.
+
+    Entry-point ownership is used instead of a hard-coded package list so
+    health and provenance output automatically includes new language packs.
+    Lightweight test entry points may not expose distribution metadata; those
+    providers are intentionally omitted rather than guessed from their name.
+    """
+
+    packages: dict[str, str | None] = {}
+    for entry_point in _providers():
+        distribution = getattr(entry_point, "dist", None)
+        if distribution is None:
+            continue
+        metadata = getattr(distribution, "metadata", {})
+        name = metadata.get("Name") if hasattr(metadata, "get") else None
+        if not name:
+            continue
+        packages[str(name)] = getattr(distribution, "version", None)
+    return dict(sorted(packages.items(), key=lambda item: item[0].lower()))
+
+
+def resolve_language_profile(profile_id: str) -> LanguageProfile:
     attempted: list[str] = []
     for entry_point in _providers():
         attempted.append(entry_point.name)
         provider = entry_point.load()
         try:
-            profile = provider(profile_id, version=version)
+            profile = provider(profile_id)
         except ValueError:
             continue
         if not isinstance(profile, LanguageProfile):
@@ -31,18 +53,15 @@ def resolve_language_profile(profile_id: str, *, version: str) -> LanguageProfil
                 f"language-profile plugin {entry_point.name!r} returned {type(profile).__name__}, "
                 "expected meddeid_core.LanguageProfile"
             )
+        if not profile.accepts_language(profile_id):
+            raise ValueError(
+                f"language-profile plugin {entry_point.name!r} returned "
+                f"{profile.profile_id}, which does not satisfy {profile_id!r}"
+            )
         return profile
 
-    # Source-tree development does not install entry-point metadata. Keep this
-    # fallback out of the normal installed path while retaining local ergonomics.
-    try:
-        from meddeid_language_nl import get_profile
-
-        return get_profile(profile_id, version=version)
-    except (ImportError, ValueError) as exc:
-        installed = ", ".join(attempted) or "none"
-        raise ValueError(
-            f"no installed language-profile plugin provides {profile_id!r}@{version}; "
-            f"discovered plugins: {installed}. Install the matching meddeid-language-* package."
-        ) from exc
-
+    installed = ", ".join(attempted) or "none"
+    raise ValueError(
+        f"no installed language-profile plugin provides {profile_id!r}; "
+        f"discovered plugins: {installed}. Install the matching meddeid-language-* package."
+    )

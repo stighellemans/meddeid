@@ -1,28 +1,29 @@
 # Inference and deployment
 
-This is the operational reference for `meddeid-dutch-synth`. PyTorch and
-TensorRT/Triton use the same tokenizer, windowing, decoder, Dutch language
-profile, metadata recovery, and response contract. Only the neural runtime
-changes.
+This is the operational reference for the public `meddeid-dutch-synth` and
+`meddeid-english-synth` model bundles. PyTorch and TensorRT/Triton use the same
+tokenizer, windowing, decoder, locale-selected post-processing, metadata
+recovery, and response contract. Only the neural runtime changes.
 
 ## What is available now
 
-Python release `0.1.1`, the public model, and the production `0.1.1` CPU container are
-available now.
+Python release `0.2.0`, the public Dutch and English models, the shared public
+demo, and the production `0.2.0` CPU container are available now.
 
 | Path | Status now | Notes |
 |---|---|---|
-| Public model bundle | Available | `stighellemans/meddeid-dutch-synth` can be downloaded without authentication. |
-| Python API | Available from PyPI | Install `meddeid==0.1.1`; dependencies resolve from PyPI. |
+| Public model bundles | Available | `stighellemans/meddeid-dutch-synth` and `stighellemans/meddeid-english-synth` can be downloaded without authentication. |
+| Python API | Available from PyPI | Install `meddeid==0.2.0`; dependencies resolve from PyPI. |
 | Single-file CLI | Available from PyPI | `meddeid deidentify` uses the same local engine. |
 | Canonical JSONL batch | Available from PyPI | `meddeid batch` writes results and a sidecar manifest. |
 | HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU containers verified; MPS/CUDA source paths present | Device selection supports `cpu`, `mps`, and `cuda`; the production container is CPU-only. |
-| PyPI install | Available | `meddeid`, `meddeid-core`, and `meddeid-language-nl` are released at `0.1.1`. |
-| PyTorch container | Available | `ghcr.io/stighellemans/meddeid-api:0.1.1` supports AMD64 and ARM64 and includes the pinned model, SBOM, and provenance. |
+| PyPI install | Available | `meddeid`, `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` are released at `0.2.0`. |
+| PyTorch container | Available | `ghcr.io/stighellemans/meddeid-api:0.2.0` supports AMD64 and ARM64 and includes the pinned default model, SBOM, and provenance. |
 | Compose deployment | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the hardened local service with a browser UI. |
 | TensorRT/Triton deployment | Prototype source path only | The client, export scripts, and Compose shape exist, but no TensorRT plan, populated model repository, or GPU-specific image is published. |
-| Hosted demo or managed endpoint | Not available | No public compute-backed Space or hosted inference service is currently provided. |
+| Hosted demo | Available for non-sensitive text | The [MedDeID interactive demo](https://huggingface.co/spaces/stighellemans/meddeid-demo) offers Dutch and English selection. Do not submit patient information. |
+| Managed clinical endpoint | Not available | No managed service for sensitive clinical text is provided. |
 
 Install all Python interfaces from PyPI:
 
@@ -30,18 +31,19 @@ Install all Python interfaces from PyPI:
 python -m pip install 'meddeid[server]'
 ```
 
-The `server` extra includes every implemented interface. Add `==0.1.1` when an
+The `server` extra includes every implemented interface. Add `==0.2.0` when an
 exact package version is required. Docker users can pull the release directly:
 
 ```bash
-docker pull ghcr.io/stighellemans/meddeid-api:0.1.1
+docker pull ghcr.io/stighellemans/meddeid-api:0.2.0
 ```
 
 GPU-optimized TensorRT targets still require separate hardware-specific builds
 and validation as described below.
 
-A hosted demo or managed endpoint would be an additional product surface, not
-a prerequisite for local inference.
+The hosted demo is a convenience for synthetic examples and is not a clinical
+deployment surface. A managed endpoint is not a prerequisite for local
+inference.
 
 ## Model acquisition and offline use
 
@@ -116,19 +118,54 @@ results = engine.deidentify_many([
 
 ## What metadata does
 
-Metadata is implemented in the versioned `nl-BE@1` post-processing profile. It
+Metadata is implemented in the `nl-BE` post-processing profile. It
 is not concatenated to the note and is not an input feature of the transformer.
 After neural spans are decoded, the profile can add or extend matches that the
 caller already knows:
 
 - `lang`: optional profile check; use `nl-BE` for this release.
 - `patient`: an object with `given_name`, `family_name`, and optional
-  patient-level fields such as `birth_date`.
+  `birth_date`. A valid full birth date is expanded into locale-equivalent,
+  full-year `Age_Birthdate` assertions.
 - `caregivers`: a list of objects with `given_name` and `family_name`. Common initials and clinical title
   forms are handled by the Dutch profile.
 - `known_values`: a list of `{value, label}` assertions for identifiers,
   contacts, names, or other canonical labels. Matching tolerates common
   separators.
+- `document_creation_date`: optional reference date used to convert a detected
+  birthdate into a generalized age.
+- `date_shift_days`: optional explicit integer shift. If omitted, `Date` and
+  `Age_Birthdate` become placeholders. Zero also produces placeholders and a
+  warning; MedDeID never generates an offset automatically.
+
+### Date and age replacement
+
+With a nonzero `date_shift_days`, parseable dates are shifted while preserving
+their source format. Age expressions and birthdates with a usable document
+date are generalized through one deployment-wide JSON policy shared by every
+language profile. Birthdates without a usable document date fall back to the
+shifted year. A configured absolute shift below the recommended minimum is
+applied but reported as a structured warning.
+
+Every output span has a `replacement` containing the exact bracketed text used
+in `deid_text`. Results also include deduplicated `warnings` and `processing`
+counters plus the age-policy ID, version, and SHA-256. Date shifts are measured
+in days; span `begin`/`end` offsets are Unicode code points.
+
+Load one custom policy and warning threshold when constructing an engine:
+
+```python
+deid = Deidentifier.from_pretrained(
+    "stighellemans/meddeid-dutch-synth",
+    age_granularity_config="age-policy.json",
+    min_recommended_date_shift_days=500,
+)
+```
+
+The equivalent CLI flags are `--age-granularity-config` and
+`--min-recommended-date-shift-days`. These are deployment/run settings, not
+request metadata; HTTP requests attempting to select them are rejected. See
+[Age-granularity policy](age-granularity.md) for the complete JSON contract.
 
 The 14 canonical labels are:
 
@@ -179,10 +216,11 @@ The default command uses `stighellemans/meddeid-dutch-synth` and selects CUDA
 when available, otherwise CPU. Pin `--revision` or set `--device` only when the
 run requires that explicit control.
 
-Output keeps ID, text, metadata, detected spans, and rendered text:
+Output keeps ID, text, metadata, detected spans, rendered text, and the exact
+language profile used for post-processing:
 
 ```json
-{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails"}],"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]}}
+{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"language_profile":{"profile_id":"nl-BE"},"warnings":[],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}}}
 ```
 
 The adjacent `.manifest.json` records hashes, immutable model identity, profile,
@@ -197,6 +235,17 @@ Start the embedded PyTorch service from the PyPI installation above:
 ```bash
 MEDDEID_DEVICE=cpu meddeid-server
 ```
+
+For a model bundle containing several locales, either send `metadata.lang` per
+document or configure a service fallback:
+
+```bash
+MEDDEID_MODEL=path/to/english-bundle \
+MEDDEID_LANGUAGE_PROFILE=en-GB \
+meddeid-server
+```
+
+The bundle declares the supported locale profiles.
 
 Single document:
 
@@ -217,14 +266,37 @@ Response:
 
 ```json
 {
-  "text": "Patiënt Jan Peeters belde 0470 12 34 56.",
   "deid_text": "Patiënt [Name:Patient] belde [Contactdetails].",
   "spans": [
-    {"begin": 8, "end": 19, "text": "Jan Peeters", "label": "Name:Patient"},
-    {"begin": 26, "end": 39, "text": "0470 12 34 56", "label": "Contactdetails"}
-  ]
+    {"begin": 8, "end": 19, "text": "Jan Peeters", "label": "Name:Patient", "replacement": "[Name:Patient]"},
+    {"begin": 26, "end": 39, "text": "0470 12 34 56", "label": "Contactdetails", "replacement": "[Contactdetails]"}
+  ],
+  "language_profile": {"profile_id": "nl-BE"},
+  "warnings": [],
+  "processing": {
+    "date_replacement": {
+      "mode": "placeholder",
+      "requested_shift_days": null,
+      "minimum_recommended_abs_shift_days": 366,
+      "detected_spans": 0,
+      "shifted_spans": 0,
+      "age_generalized_spans": 0,
+      "year_fallback_spans": 0,
+      "placeholder_spans": 0
+    },
+    "age_granularity_policy": {
+      "policy_id": "meddeid-default",
+      "policy_version": "1",
+      "sha256": "..."
+    }
+  }
 }
 ```
+
+HTTP and single-file CLI JSON omit the complete original note because the
+caller already has it. Span source fragments remain for offset verification.
+Python results and canonical research JSONL retain the note for validation,
+evaluation, and resumable batch integrity.
 
 Batch endpoint (recommended when the caller can group work):
 
@@ -253,6 +325,9 @@ operational controls are:
 
 | Setting | Default | Purpose |
 |---|---:|---|
+| `MEDDEID_LANGUAGE_PROFILE` | bundle default when unambiguous | Set a locale fallback for a multi-profile service. Trusted request `metadata.lang` still wins. |
+| `MEDDEID_AGE_GRANULARITY_CONFIG` | packaged `meddeid-default` policy | Load one validated age-granularity JSON policy for the complete service. |
+| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | 366 | Warn when a nonzero absolute date shift is smaller than this positive integer. |
 | `MEDDEID_MAX_REQUEST_BYTES` | 2,000,000 | Reject oversized requests with HTTP 413 when `Content-Length` is present. Enforce the same limit at the reverse proxy. |
 | `MEDDEID_MAX_CONCURRENT_REQUESTS` | 1 | Bound inference work admitted per API worker. |
 | `MEDDEID_QUEUE_TIMEOUT_SECONDS` | 30 | Return HTTP 503 instead of waiting indefinitely for an inference slot. |
@@ -298,7 +373,7 @@ export MEDDEID_MODEL_DIR=/absolute/path/to/model
 docker compose -f compose.yaml -f compose.offline.yaml up --detach
 ```
 
-Release `0.1.1` is published for both `linux/amd64` and `linux/arm64`. Its tag
+Release `0.2.0` is published for both `linux/amd64` and `linux/arm64`. Its tag
 workflow produced an SBOM and provenance and published only after authenticated
 offline smoke inference and the fixable-high/critical vulnerability gate
 passed. Production operators should pin the immutable digest documented in the

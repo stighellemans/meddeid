@@ -22,11 +22,12 @@ central secret storage, monitoring, backup policy, and incident response.
 TensorRT/Triton is not a supported release target until a GPU-specific plan and
 parity evidence are published.
 
-Release `0.1.1` is available for AMD64 and ARM64. Pin this immutable
-multi-platform digest in production:
+Release `0.2.0` is available for AMD64 and ARM64. Resolve the release tag to
+its current multi-platform digest, record that digest in the deployment
+manifest, and pin the immutable digest in production:
 
-```text
-ghcr.io/stighellemans/meddeid-api@sha256:14fab911f369162b3ccb465b1793693c132720dc638996b64c711a2bb4b8e3b1
+```bash
+docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.2.0
 ```
 
 ## Minimum secure configuration
@@ -47,6 +48,8 @@ ghcr.io/stighellemans/meddeid-api@sha256:14fab911f369162b3ccb465b1793693c132720d
    sensitive.
 9. Validate recall and unnecessary redaction on representative local notes
    before operational use.
+10. Pin and audit `MEDDEID_AGE_GRANULARITY_CONFIG` when overriding the packaged
+    default, and record its SHA-256 from `/health`.
 
 Generate a key with:
 
@@ -82,8 +85,9 @@ and retries only for idempotent requests, using bounded exponential backoff.
 
 ## Upgrades and rollback
 
-Record the image digest, model revision, bundle hash, package versions, and
-language-profile version returned by `/health`. Before an upgrade:
+Record the image digest, model revision, bundle hash, package versions,
+language profile, age-policy identity, and date-shift warning threshold returned
+by `/health`. Before an upgrade:
 
 1. run the same local validation set against old and new digests;
 2. compare span and rendered-text changes;
