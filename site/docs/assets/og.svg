@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">MedDeID social preview</title>
+  <desc id="description">Local multilingual clinical text de-identification</desc>
+  <defs>
+    <linearGradient id="background" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#102f3e"/>
+      <stop offset="0.62" stop-color="#174f61"/>
+      <stop offset="1" stop-color="#126f6a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.86" cy="0.12" r="0.55">
+      <stop offset="0" stop-color="#55d6c6" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#55d6c6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g transform="translate(74 70)">
+    <rect width="92" height="92" rx="23" fill="#143f52" stroke="#79e4d7" stroke-opacity="0.45"/>
+    <path d="M25 46h42M46 25v42" fill="none" stroke="#f7f2e8" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="69" cy="23" r="10" fill="#29b6a6" stroke="#143f52" stroke-width="4"/>
+  </g>
+  <text x="190" y="133" fill="#f7f2e8" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700">MedDeID</text>
+  <text x="74" y="280" fill="#fffdf8" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="700">Remove identifiers from</text>
+  <text x="74" y="362" fill="#fffdf8" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="700">clinical text—locally</text>
+  <text x="76" y="447" fill="#bff3eb" font-family="Arial, Helvetica, sans-serif" font-size="30">Open source · Dutch &amp; English · Python, CLI, Docker &amp; HTTP</text>
+  <line x1="74" x2="1126" y1="526" y2="526" stroke="#79e4d7" stroke-opacity="0.35"/>
+  <text x="76" y="574" fill="#f7f2e8" font-family="Arial, Helvetica, sans-serif" font-size="24">stighellemans.github.io/meddeid</text>
+</svg>

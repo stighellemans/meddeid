@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block htmltitle %}
+  {% if page and page.is_homepage %}
+    <title>MedDeID — Local multilingual clinical text de-identification</title>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if page and page.is_homepage %}
+    {% set social_title = "MedDeID — Local multilingual clinical text de-identification" %}
+  {% else %}
+    {% set social_title = page.meta.title if page and page.meta and page.meta.title else config.site_name %}
+  {% endif %}
+  {% set social_description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="MedDeID">
+  <meta property="og:title" content="{{ social_title }}">
+  <meta property="og:description" content="{{ social_description }}">
+  <meta property="og:url" content="{{ page.canonical_url if page else config.site_url }}">
+  <meta property="og:image" content="https://stighellemans.github.io/meddeid/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="MedDeID — local multilingual clinical text de-identification">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ social_title }}">
+  <meta name="twitter:description" content="{{ social_description }}">
+  <meta name="twitter:image" content="https://stighellemans.github.io/meddeid/assets/og.png">
+  {% if page and page.is_homepage %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MedDeID",
+    "url": "https://stighellemans.github.io/meddeid/",
+    "description": "Local, multilingual clinical text de-identification for Dutch and English.",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Linux, macOS, Windows",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR"
+    },
+    "softwareVersion": "0.2.0",
+    "license": "https://spdx.org/licenses/AGPL-3.0-only.html",
+    "codeRepository": "https://github.com/stighellemans/meddeid",
+    "downloadUrl": "https://pypi.org/project/meddeid/",
+    "sameAs": [
+      "https://github.com/stighellemans/meddeid",
+      "https://huggingface.co/collections/stighellemans/meddeid"
+    ]
+  }
+  </script>
+  {% endif %}
+{% endblock %}

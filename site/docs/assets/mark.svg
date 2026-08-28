@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MedDeID">
+  <rect width="64" height="64" rx="16" fill="#143f52"/>
+  <path d="M18 32h28M32 18v28" fill="none" stroke="#f7f2e8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="46" cy="18" r="7" fill="#29b6a6" stroke="#143f52" stroke-width="3"/>
+</svg>

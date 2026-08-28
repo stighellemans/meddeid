@@ -1,0 +1,104 @@
+site_name: MedDeID
+site_description: Local, multilingual clinical text de-identification for Dutch and English.
+site_url: https://stighellemans.github.io/meddeid/
+repo_url: https://github.com/stighellemans/meddeid
+repo_name: stighellemans/meddeid
+edit_uri: edit/main/site/docs/
+copyright: MedDeID contributors · Documentation licensed with the project
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: en
+  font: false
+  logo: assets/mark.svg
+  favicon: assets/mark.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Use dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Use light mode
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.tabs.link
+    - search.highlight
+    - search.suggest
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra:
+  generator: false
+  homepage: https://stighellemans.github.io/meddeid/
+  social:
+    - icon: material/archive
+      link: https://huggingface.co/collections/stighellemans/meddeid
+      name: MedDeID model and datasets on Hugging Face
+    - icon: material/email
+      link: mailto:stig.hellemans@uantwerpen.be
+      name: Contact the MedDeID project
+
+nav:
+  - Home: index.md
+  - Start:
+      - Choose your path: start/index.md
+      - Install and run: start/quickstart.md
+  - Workflows:
+      - Workflow overview: workflows/index.md
+      - Local inference: workflows/inference.md
+      - Production deployment: workflows/production-deployment.md
+      - Prepare and annotate data: workflows/prepare-and-annotate.md
+      - Train and evaluate: workflows/train-and-evaluate.md
+      - Domain adaptation: workflows/domain-adaptation.md
+  - Concepts:
+      - Suite architecture: concepts/architecture.md
+      - Data contract: concepts/data-contract.md
+      - Artifact lineage: concepts/artifact-lineage.md
+  - Reference:
+      - Components: reference/components.md
+      - Compatibility: reference/compatibility.md
+  - Artifacts: artifacts/index.md
+  - Project:
+      - Privacy and security: project/privacy-and-security.md
+      - Contribute and collaborate: project/contributing.md
+      - Team, funding and citation: project/licence-and-citation.md

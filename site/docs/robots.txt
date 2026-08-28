@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://stighellemans.github.io/meddeid/sitemap.xml

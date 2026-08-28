@@ -42,8 +42,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://stighellemans.github.io/meddeid.github.io/"
-Documentation = "https://stighellemans.github.io/meddeid.github.io/workflows/inference/"
+Homepage = "https://stighellemans.github.io/meddeid/"
+Documentation = "https://stighellemans.github.io/meddeid/workflows/inference/"
 Source = "https://github.com/stighellemans/meddeid"
 Issues = "https://github.com/stighellemans/meddeid/issues"
 "Model and datasets" = "https://huggingface.co/collections/stighellemans/meddeid"
