@@ -1,13 +1,26 @@
-# meddeid
+# MedDeID
 
-Local inference for the `meddeid-dutch-synth` clinical de-identification model,
-available as a Python API, command-line interface, batch processor, and optional
-FastAPI service. Data generation, training, evaluation, and annotation packages
-are not required for inference.
+MedDeID is a local-first, multilingual framework for clinical text
+de-identification. It provides a Python API, command-line interface, batch
+processor, and optional FastAPI service for compatible model bundles and
+locale-specific language profiles. Public models support Dutch and English;
+data generation, training, evaluation, and annotation packages are not required
+for inference.
 
 For cross-suite navigation and task-oriented guidance, see the
 [MedDeID documentation](https://stighellemans.github.io/meddeid.github.io/). This repository remains
 authoritative for inference APIs, CLI options, service settings, and deployment.
+
+## Language support
+
+| Language | Language profiles | Public model |
+|---|---|---|
+| Dutch | `nl-BE`, `nl-NL` | [`stighellemans/meddeid-dutch-synth`](https://huggingface.co/stighellemans/meddeid-dutch-synth) |
+| English | `en-GB`, `en-US` | [`stighellemans/meddeid-english-synth`](https://huggingface.co/stighellemans/meddeid-english-synth) |
+| Additional languages | Pluggable | Requires a compatible model bundle and language profile |
+
+Model bundles pin their supported profiles. MedDeID selects a regional profile
+explicitly and never guesses between locales such as British and US English.
 
 ## Easiest start: Docker
 
@@ -91,6 +104,8 @@ become invalid and requires `configure --yes` before outputs are archived.
 
 ## Quick start
 
+The default command uses the public Dutch model:
+
 ```bash
 meddeid deidentify note.txt
 ```
@@ -102,6 +117,14 @@ deid = Deidentifier.from_pretrained("stighellemans/meddeid-dutch-synth")
 result = deid("Patiënt Alex Voorbeeld kwam op controle.")
 print(result.deid_text)
 deid.close()
+```
+
+Use the public English model by selecting its regional profile:
+
+```bash
+meddeid deidentify note.txt \
+  --model stighellemans/meddeid-english-synth \
+  --language-profile en-GB
 ```
 
 Dates use placeholders unless the caller explicitly supplies
@@ -158,7 +181,7 @@ Multi-profile services can set a locale fallback once while still allowing
 trusted `metadata.lang` on a request to override it:
 
 ```bash
-MEDDEID_MODEL=path/to/english-bundle \
+MEDDEID_MODEL=stighellemans/meddeid-english-synth \
 MEDDEID_LANGUAGE_PROFILE=en-GB \
 meddeid-server
 ```
@@ -182,8 +205,8 @@ The service provides:
 - `GET /health` for model identity and backend readiness.
 
 For NVIDIA production serving, MedDeID can use a TensorRT engine hosted by
-NVIDIA Triton while retaining the same tokenization, decoding, and Dutch
-post-processing contract:
+NVIDIA Triton while retaining the same tokenization, decoding, and
+locale-selected post-processing contract:
 
 ```bash
 MEDDEID_BACKEND=triton \
@@ -195,18 +218,20 @@ See [Inference and deployment](docs/inference.md) for the complete Python,
 JSONL, metadata, HTTP, Docker, TensorRT/Triton, sizing, and concurrency guide.
 Operators should also read [Production deployment](docs/production.md).
 
-## Language profile and metadata
+## Language profiles and metadata
 
-The Dutch model bundle uses one set of model weights for both `nl-BE` and
-`nl-NL`; `metadata.lang` selects the locale-specific language resources and
-post-processing. Installed
-bundles may pin the separate `meddeid-language-en` profiles `en-GB` or
-`en-US`; bare `en` is rejected. Profile resolution uses installed
-`meddeid.language_profiles` entry points, with no source-tree fallback. This
-language-pack integration does not itself provide an English inference model.
-For a combined GB/US bundle, document metadata is used first, followed by an
-explicit load-time default and then a single-profile bundle default; MedDeID
-never guesses between multiple profiles. See
+The public Dutch model bundle uses one set of model weights for both `nl-BE`
+and `nl-NL`. The public English model bundle similarly supports both `en-GB`
+and `en-US`. In each case, `metadata.lang` selects the locale-specific language
+resources and post-processing. Bare `en` is rejected because it does not choose
+a regional profile.
+
+Model bundles pin installed profiles provided through
+`meddeid.language_profiles` entry points, with no source-tree fallback. For a
+multi-profile bundle, document metadata is used first, followed by an explicit
+load-time default and then a single-profile bundle default; MedDeID never
+guesses between multiple profiles. Additional languages require a compatible
+model bundle and language profile. See
 [Language profile selection](docs/language-profile-selection.md).
 
 Optional trusted metadata can recover known patient or caregiver names and
