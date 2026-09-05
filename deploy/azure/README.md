@@ -2,8 +2,9 @@
 
 These scripts prepare the one-job GitHub Actions runner required by the CUDA
 and T4 TensorRT release gates. They are maintainer infrastructure, not part of
-an end-user image. At the time of release preparation no Azure VM or repository
-runner existed, so `t4_release_runner_ready` remains a pending suite gate.
+an end-user image. Mark `t4_release_runner_ready` as passed only after the
+temporary host completes the documented driver, container-runtime, and target
+preflight checks; delete the host after retaining the release evidence.
 
 Create a new `Standard_NC4as_T4_v3` VM from a supported Ubuntu 24.04 image with
 Standard security (Secure Boot and vTPM disabled), SSH-key authentication, and
