@@ -40,6 +40,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
       - name: Resolve and verify release identity
         env:
           REQUESTED_VERSION: ${{ inputs.image_version }}
@@ -98,10 +102,6 @@ jobs:
             echo "TRT_OUTPUT_PRECISION=${MEDDEID_TRT_OUTPUT_PRECISION}"
             echo "BUILD_DATE=$(git show -s --format=%cI HEAD)"
           } >>"${GITHUB_ENV}"
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
       - name: Install export and validation environment
         run: |
           python -m pip install --upgrade pip
