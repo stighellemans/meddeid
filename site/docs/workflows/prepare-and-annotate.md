@@ -158,7 +158,7 @@ docker run --rm -p 127.0.0.1:8787:8787 \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
   -e MEDDEID_ANNOTATIONS_PATH=/input/reviewer-a.jsonl \
   -v "$PWD/my-project/assignments/reviewer-a.jsonl:/input/reviewer-a.jsonl" \
-  ghcr.io/stighellemans/meddeid-annotate:0.1.0
+  ghcr.io/stighellemans/meddeid-annotate:0.2.0
 ```
 
 Open `http://127.0.0.1:8787`. The application saves directly to
@@ -204,7 +204,7 @@ mkdir -p my-project/curation
 docker run --rm -p 127.0.0.1:8793:8793 \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
   -v "$PWD/my-project/curation:/app/data" \
-  ghcr.io/stighellemans/meddeid-curate:0.1.0
+  ghcr.io/stighellemans/meddeid-curate:0.2.0
 ```
 
 Open `http://127.0.0.1:8793`, select each completed reviewer JSONL together
@@ -232,7 +232,7 @@ docker run --rm -p 127.0.0.1:8791:8787 \
   -e MEDDEID_ANNOTATIONS_PATH=/input/annotations.jsonl \
   -v "$ANNOTATIONS_PATH:/input/annotations.jsonl:ro" \
   -v "$PWD/my-project/subannotation:/app/data" \
-  ghcr.io/stighellemans/meddeid-subannotate:0.1.0
+  ghcr.io/stighellemans/meddeid-subannotate:0.2.0
 ```
 
 Open `http://127.0.0.1:8791`. The public image uses a language-neutral

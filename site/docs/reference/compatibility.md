@@ -17,14 +17,14 @@ normally selects the compatible supporting packages for you.
 
 | Component | Version | Distribution | Compatible MedDeID dependencies |
 |---|---:|---|---|
-| [`meddeid-core`](https://github.com/stighellemans/meddeid-core) | 0.2.0 | PyPI | None |
-| [`meddeid-language-nl`](https://github.com/stighellemans/meddeid-language-nl) | 0.2.0 / npm 0.1.0 | PyPI and npm | `meddeid-core >=0.2,<0.3` |
-| [`meddeid-language-en`](https://github.com/stighellemans/meddeid-language-en) | 0.2.0 | PyPI | `meddeid-core >=0.2,<0.3` |
+| [`meddeid-core`](https://github.com/stighellemans/meddeid-core) | 0.2.1 | PyPI | None |
+| [`meddeid-language-nl`](https://github.com/stighellemans/meddeid-language-nl) | 0.2.1 / npm 0.2.1 | PyPI and npm | `meddeid-core >=0.2,<0.3` |
+| [`meddeid-language-en`](https://github.com/stighellemans/meddeid-language-en) | 0.2.1 / npm 0.2.1 | PyPI and npm | `meddeid-core >=0.2,<0.3` |
 | [`meddeid`](https://github.com/stighellemans/meddeid) | 0.3.0 | PyPI and CPU/CUDA/TensorRT deployment artifacts | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
-| [`meddeid-data`](https://github.com/stighellemans/meddeid-data) | 0.3.0 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
-| [`meddeid-eval`](https://github.com/stighellemans/meddeid-eval) | 0.3.0 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
-| [`meddeid-training`](https://github.com/stighellemans/meddeid-training) | 0.2.0 | PyPI | `meddeid-core >=0.2,<0.3`; `meddeid-eval >=0.3,<0.4` |
-| Browser applications | 0.1.0 | Public GHCR images and source | Generated taxonomy contract version 1 |
+| [`meddeid-data`](https://github.com/stighellemans/meddeid-data) | 0.4.0 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
+| [`meddeid-eval`](https://github.com/stighellemans/meddeid-eval) | 0.4.0 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
+| [`meddeid-training`](https://github.com/stighellemans/meddeid-training) | 0.2.1 | PyPI | `meddeid-core >=0.2,<0.3`; `meddeid-eval >=0.3,<0.5` |
+| Browser applications | 0.2.0 | Public GHCR images and source | Generated taxonomy contract version 1 |
 
 All Python packages require Python 3.10 or later. You need Node.js 20 or later
 only when running a browser application from source; the published container
@@ -54,9 +54,9 @@ If you are choosing a runtime rather than looking up a version, start with the
 | `ghcr.io/stighellemans/meddeid-api` (PyTorch CUDA) | `0.3.0-cuda12.9` | Resolve and pin the GPU tag independently from the CPU image |
 | `ghcr.io/stighellemans/meddeid-triton-gateway` | `0.3.0` | Weight-free API gateway paired with the matching target-specific model server |
 | `ghcr.io/stighellemans/meddeid-triton-t4-sm75` | `0.3.0-trt26.07-fp16` | FP16 plan compute with FP32 binary HTTP outputs; use only on the published target/stack and pin its digest |
-| `ghcr.io/stighellemans/meddeid-annotate` | `0.1.0` | `sha256:72f3e0fa0935da41e635e668573ec9c434cc3e8e1ef97bc793917bdfe6a7b78d` |
-| `ghcr.io/stighellemans/meddeid-curate` | `0.1.0` | `sha256:8b3dde675cadc81f42a7fc34917d7b472c1556d14bc3acd1babf5bee8699875b` |
-| `ghcr.io/stighellemans/meddeid-subannotate` | `0.1.0` | `sha256:d7da6967cb29b6cf8377458959dca84626a9c0e157320b42fe8815f49e880c87` |
+| `ghcr.io/stighellemans/meddeid-annotate` | `0.2.0` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-curate` | `0.2.0` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-subannotate` | `0.2.0` | Resolve and pin with `docker buildx imagetools inspect` |
 
 The T4 target is the only ready optimized TensorRT plan. If you need an
 optimized build for A10G, L4, or another NVIDIA GPU, email
