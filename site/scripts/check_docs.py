@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
@@ -35,6 +34,25 @@ def markdown_links(path: Path) -> list[tuple[int, str]]:
     return links
 
 
+def h1_count(path: Path) -> int:
+    count = 0
+    in_fence = False
+    fence = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        marker = FENCE_RE.match(line)
+        if marker:
+            current = marker.group(1)
+            if not in_fence:
+                in_fence = True
+                fence = current
+            elif current == fence:
+                in_fence = False
+            continue
+        if not in_fence and re.match(r"^# [^#]", line):
+            count += 1
+    return count
+
+
 def main() -> int:
     errors: list[str] = []
     pages = sorted(DOCS.rglob("*.md"))
@@ -43,10 +61,9 @@ def main() -> int:
 
     for page in pages:
         relative = page.relative_to(ROOT)
-        text = page.read_text(encoding="utf-8")
-        h1_count = len(re.findall(r"^# [^#]", text, flags=re.MULTILINE))
-        if h1_count != 1:
-            errors.append(f"{relative}: expected one H1, found {h1_count}")
+        page_h1_count = h1_count(page)
+        if page_h1_count != 1:
+            errors.append(f"{relative}: expected one H1, found {page_h1_count}")
 
         for line, raw_target in markdown_links(page):
             target = raw_target.strip().strip("<>")

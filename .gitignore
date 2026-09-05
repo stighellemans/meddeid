@@ -1,5 +1,8 @@
 .venv/
 .env
+.env.cuda
+.env.triton
+meddeid-server.env
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -11,3 +14,15 @@ site/site/
 *.pt
 *.onnx
 model/
+deploy/triton/model_source/
+deploy/triton/model_sources/
+deploy/triton/model_repository/
+deploy/triton/builds/
+deploy/triton/benchmark_source/
+deploy/triton/parity-report.json
+deploy/triton/*-benchmark.json
+deploy/triton/*-image-inspect.json
+deploy/triton/trivy-report.json
+deploy/pytorch-cuda/validation-report.json
+deploy/pytorch-cuda/candidate-image-inspect.json
+.azure-validation/

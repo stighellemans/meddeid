@@ -14,6 +14,15 @@ def test_windows_full_tail_covers_tail_without_gaps() -> None:
     ]
 
 
+def test_windows_full_tail_uses_extra_overlap_instead_of_short_tail() -> None:
+    # A 1.5-context note becomes two full contexts. The second window is
+    # anchored to the end, increasing overlap instead of padding a short tail.
+    assert list(windows_full_tail(381, usable=254, overlap=64)) == [
+        (0, 254),
+        (127, 381),
+    ]
+
+
 def test_decoder_uses_first_label_for_entire_i_run() -> None:
     text = "Jan Peeters"
     spans = bio_tags_to_char_entities(

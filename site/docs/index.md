@@ -31,8 +31,8 @@ own infrastructure. Public model bundles support Dutch and English.
 </div>
 
 <div class="trust-item" markdown>
-<strong>Dutch and English</strong>
-<span>Regional profiles for Belgium, the Netherlands, the UK, and the US.</span>
+<strong>Multilingual by design</strong>
+<span>Dutch and English are available today, with room to add more languages.</span>
 </div>
 
 <div class="trust-item" markdown>
@@ -61,7 +61,7 @@ trail.
 <div class="example-card example-input" markdown>
 <span class="source-label">Synthetic input</span>
 
-Dr. Lisa Wong saw patient Alex Example at 10 Market Street on 14 March 2026.
+Dr. Lisa Wong saw patient Alex Example at Riverside Clinic on 14 March 2026.
 </div>
 
 <div class="example-arrow" aria-hidden="true">→</div>
@@ -70,49 +70,7 @@ Dr. Lisa Wong saw patient Alex Example at 10 Market Street on 14 March 2026.
 <span class="source-label">De-identified output</span>
 
 `[Name:Caregiver]` saw patient `[Name:Patient]` at
-`[Address_Location:Other]` on `[Date]`.
-</div>
-
-</div>
-
-## Start with your goal
-
-<div class="path-grid" markdown>
-
-<div class="path-card" markdown>
-### De-identify text
-
-Install one package and process Dutch or English clinical text locally.
-
-[Start inference →](workflows/inference.md)
-
-</div>
-
-<div class="path-card" markdown>
-### Prepare and annotate data
-
-Import TXT, CSV, TSV, or Parquet files and review the identifiers in each document.
-
-[Prepare a project →](workflows/prepare-and-annotate.md)
-
-</div>
-
-<div class="path-card" markdown>
-### Adapt or train a model
-
-Use reviewed data to train or adapt a model that can be run locally.
-
-[Follow the training path →](workflows/train-and-evaluate.md)
-
-</div>
-
-<div class="path-card" markdown>
-### Evaluate a system
-
-Measure MedDeID or another system against the same reviewed test data.
-
-[Evaluate predictions →](workflows/train-and-evaluate.md#evaluate-predictions)
-
+`[Organization:Healthcare]` on `[Date]`.
 </div>
 
 </div>

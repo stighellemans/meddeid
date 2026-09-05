@@ -99,6 +99,10 @@ def test_postprocessing_and_provenance_are_selected_per_document() -> None:
     engine.runtime = Runtime()
     engine.language_profiles = (gb, us)
     engine.language_profile = gb
+    engine.inference_provenance = lambda profile_id: {
+        "contract_version": "meddeid.inference-provenance.v1",
+        "language_profile": {"profile_id": profile_id},
+    }
 
     results = engine.deidentify_many(
         [("British", None), ("American", {"lang": "en-US"})]
@@ -108,6 +112,8 @@ def test_postprocessing_and_provenance_are_selected_per_document() -> None:
         ("en-GB", "British", None),
         ("en-US", "American", "en-US"),
     ]
-    assert [result.language_profile for result in results] == ["en-GB", "en-US"]
+    assert [
+        result.provenance["language_profile"]["profile_id"] for result in results
+    ] == ["en-GB", "en-US"]
     assert results[0].spans[0]["label"] == "profile:en-GB"
     assert results[1].spans[0]["label"] == "profile:en-US"

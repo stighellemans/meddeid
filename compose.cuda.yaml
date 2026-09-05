@@ -1,0 +1,29 @@
+services:
+  meddeid:
+    image: ${MEDDEID_PYTORCH_CUDA_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.3.0-cuda12.9}
+    build:
+      args:
+        TORCH_VERSION: ${MEDDEID_PYTORCH_VERSION:-2.13.0}
+        TORCH_INDEX_URL: ${MEDDEID_PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu129}
+        MEDDEID_ACCELERATOR: cuda
+        MEDDEID_CUDA_VERSION: ${MEDDEID_CUDA_VERSION:-12.9}
+        MEDDEID_DEVICE: cuda
+        MEDDEID_TORCH_PRECISION: ${MEDDEID_TORCH_PRECISION:-fp16}
+        MEDDEID_TORCH_COMPILE_MODE: ${MEDDEID_TORCH_COMPILE_MODE:-off}
+        MEDDEID_VERSION: ${MEDDEID_VERSION:-0.3.0}
+    environment:
+      MEDDEID_BACKEND: torch
+      MEDDEID_DEVICE: cuda
+      MEDDEID_SERVING_PROFILE: ${MEDDEID_SERVING_PROFILE:-latency}
+      MEDDEID_API_KEY: ${MEDDEID_API_KEY:?set MEDDEID_API_KEY to a strong secret}
+      MEDDEID_REQUIRE_API_KEY: "true"
+      MEDDEID_ALLOWED_MODELS: /opt/meddeid-model
+      MEDDEID_ALLOWED_LANGUAGE_PROFILES: nl-BE
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${MEDDEID_GPU_DEVICE_ID:-0}"]
+              capabilities: [gpu]

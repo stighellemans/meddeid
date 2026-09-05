@@ -69,9 +69,17 @@ MEDDEID_LANGUAGE_PROFILE=en-GB \
 meddeid-server
 ```
 
-The browser UI reads the supported profiles from `/health`; it hides the
-language control for a single-profile model and shows locale names—not rule
-versions—for a multi-profile model.
+An operator can additionally set `MEDDEID_ALLOWED_LANGUAGE_PROFILES` to a
+comma-separated subset of the bundle profiles. The server validates the list at
+startup and rejects a document selecting any other profile. When exactly one
+profile is allowed and no fallback was configured, that profile becomes the
+service fallback automatically. This serving policy does not change Python or
+CLI profile selection.
+
+The browser UI reads the model and supported profiles from `/health`. It always
+shows the active model and profile, disables profile changes for a
+single-profile model, and offers locale names—not rule versions—for a
+multi-profile model.
 
 `en_GB` and `en_US` may be normalized to their hyphenated forms. Bare `en`
 always fails because it cannot determine which regional post-processing rules,
@@ -83,5 +91,6 @@ metadata value also fails; it is never silently replaced by the default.
 The selected language profile post-processes decoded model spans before text is
 redacted. This occurs in the shared Python engine, so Python, both CLI modes,
 the HTTP service, and Torch or Triton backends use the same rules. Results expose
-the selected `profile_id`. Batch manifests
-also count documents by selected profile, making mixed-locale runs auditable.
+the selected profile at `provenance.language_profile.profile_id`. Batch
+manifests also count documents by selected profile, making mixed-locale runs
+auditable.

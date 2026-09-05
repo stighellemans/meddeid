@@ -160,7 +160,12 @@ def _weight_contract(
     return "model.pt", "pt"
 
 
-def _validate_model_dir_contract(manifest_path: Path, payload: dict[str, Any]) -> Path:
+def _validate_model_dir_contract(
+    manifest_path: Path,
+    payload: dict[str, Any],
+    *,
+    require_weights: bool,
+) -> Path:
     model_dir = manifest_path.parent
     if manifest_path.name != "bundle.json":
         raise ValueError("model package manifest must be named bundle.json")
@@ -174,7 +179,7 @@ def _validate_model_dir_contract(manifest_path: Path, payload: dict[str, Any]) -
     }[weights_format]
     if source.suffix.lower() != expected_suffix:
         raise ValueError("bundle weights filename extension does not match weights.format")
-    if not source.is_file():
+    if require_weights and not source.is_file():
         raise ValueError(f"model package is missing declared weights file: {filename}")
 
     if weights_format == "safetensors":
@@ -190,11 +195,18 @@ def _validate_model_dir_contract(manifest_path: Path, payload: dict[str, Any]) -
     return source.absolute()
 
 
-def load_model_bundle(path: str | Path, *, validate_package: bool | None = None) -> ModelBundle:
+def load_model_bundle(
+    path: str | Path,
+    *,
+    validate_package: bool | None = None,
+    require_weights: bool = True,
+) -> ModelBundle:
     """Load and validate the model bundle manifest used by all runtimes.
 
     Current Hub bundles use Safetensors plus local encoder/tokenizer assets.
-    Legacy `.pt` and `.onnx` handoffs remain readable when unambiguous.
+    Legacy `.pt` and `.onnx` handoffs remain readable when unambiguous. A
+    remote-inference gateway may set ``require_weights=False`` while retaining
+    validation of the manifest, encoder configuration, and tokenizer assets.
     """
 
     # Keep the package-facing path instead of resolving the final symlink.
@@ -214,7 +226,11 @@ def load_model_bundle(path: str | Path, *, validate_package: bool | None = None)
     if validate_package is None:
         validate_package = _is_source_repo_model_dir(manifest_path.parent)
     if validate_package:
-        checkpoint_path = _validate_model_dir_contract(manifest_path, payload)
+        checkpoint_path = _validate_model_dir_contract(
+            manifest_path,
+            payload,
+            require_weights=require_weights,
+        )
     else:
         weights_filename, _ = _weight_contract(payload, manifest_path.parent)
         checkpoint_path = (manifest_path.parent / weights_filename).absolute()

@@ -10,6 +10,7 @@ on:
       - Dockerfile
       - compose*.yaml
       - constraints/**
+      - deploy/**
       - pyproject.toml
       - src/**
       - scripts/**
@@ -27,17 +28,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
-      - name: Verify tag matches package version
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Resolve and verify release identity
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
         run: |
           python - <<'PY'
           import os, pathlib, tomllib
           version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
-          tag = os.environ["RELEASE_TAG"].removeprefix("v")
-          if tag != version:
-              raise SystemExit(f"tag {tag!r} does not match package version {version!r}")
+          if os.environ["RELEASE_REF_TYPE"] == "tag":
+              tag = os.environ["RELEASE_TAG"].removeprefix("v")
+              if tag != version:
+                  raise SystemExit(f"tag {tag!r} does not match package version {version!r}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              output.write(f"PACKAGE_VERSION={version}\n")
           PY
       - name: Build local smoke image
         uses: docker/build-push-action@v7
@@ -46,12 +50,21 @@ jobs:
           load: true
           tags: meddeid-api:ci
           build-args: |
+            MEDDEID_VERSION=${{ env.PACKAGE_VERSION }}
             VCS_REF=${{ github.sha }}
             BUILD_DATE=${{ github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Enforce CPU image-size budget
+        run: |
+          python deploy/measure_container_image.py meddeid-api:ci \
+            --budget-file deploy/image-size-budgets.json \
+            --budget-key cpu \
+            --output cpu-image-size.json
       - name: Run hardened offline smoke test
         run: |
+          docker run --rm --entrypoint python meddeid-api:ci -c \
+            "import importlib.util, torch; assert torch.version.cuda is None; assert all(importlib.util.find_spec(name) is None for name in ('tensorrt', 'tritonclient', 'onnxruntime', 'triton'))"
           docker network create --internal meddeid-smoke
           docker run --detach --name meddeid-smoke \
             --network meddeid-smoke \
@@ -73,6 +86,13 @@ jobs:
             --api-key ci-smoke-secret
           test "$(docker inspect --format '{{.Config.User}}' meddeid-smoke)" = "10001:10001"
           test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' meddeid-smoke)" = "true"
+      - name: Collect CPU image-size evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpu-image-size-${{ github.run_id }}
+          path: cpu-image-size.json
+          if-no-files-found: warn
       - name: Reject fixable high or critical vulnerabilities
         run: |
           docker run --rm \
@@ -105,6 +125,8 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@v7
+      - name: Resolve package version
+        run: echo "PACKAGE_VERSION=$(python deploy/read_project_version.py)" >>"${GITHUB_ENV}"
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
@@ -129,6 +151,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            MEDDEID_VERSION=${{ env.PACKAGE_VERSION }}
             VCS_REF=${{ github.sha }}
             BUILD_DATE=${{ github.event.repository.updated_at }}
           cache-from: type=gha

@@ -8,17 +8,18 @@ MedDeID is an open-source framework, and broader language support requires colla
 |---|---|
 | Hospitals and care organizations | Define local requirements, validate MedDeID securely on representative text, and identify important failure modes |
 | Clinical and NLP researchers | Develop annotation guidelines, evaluation protocols, datasets, language resources, and reproducible studies |
-| Language experts and clinical annotators | Adapt terminology, labels, post-processing rules, names, dates, addresses, and other locale-specific behavior |
+| Language experts and clinical annotators | Develop terminology resources, post-processing rules, and locale-specific handling of names, dates, addresses, and identifiers |
 | Open-source and ML engineers | Build language-profile packages, train model bundles, improve tooling, tests, documentation, and deployment support |
 
 Collaboration does not require sharing patient text publicly. Hospitals can run validation locally and share approved aggregate findings, test designs, software improvements, or synthetic examples.
 
 ## What adding a language involves
 
-Adding a language is more than translating labels. A credible language addition needs:
+A credible language addition combines language-specific resources, a compatible
+model, representative evaluation, and long-term stewardship:
 
 1. **A defined clinical setting.** Agree on the language and region, participating institutions, document types, identifier categories, and intended use.
-2. **Adapted annotation guidelines.** Start from the published [MedDeID annotation guidelines](https://doi.org/10.5281/zenodo.21992866), adapt the examples and difficult cases, and test them with clinical annotators.
+2. **Adapted annotation guidelines.** Start from the published [Dutch or English annotation guidelines](../artifacts/index.md#annotation-guidelines), adapt the examples and difficult cases, and test them with clinical annotators.
 3. **Representative, governed data.** Prepare training and validation data plus a separate final test set. Include different note types, source systems, writing styles, and uncommon identifiers.
 4. **A strong, compact base encoder.** Select an encoder with good coverage of the language and clinical vocabulary. It should have a suitable licence and run with acceptable memory use and speed on local institutional hardware. Compare promising encoders before committing to model training.
 5. **Language-specific resources.** Package local names, addresses, dates, identifiers, and processing rules in a separate `meddeid-language-*` profile so they can improve without changing the shared tools.
@@ -39,39 +40,36 @@ If your hospital, research group, or open-source team wants to evaluate MedDeID 
 !!! warning "Do not send sensitive data by email"
     Do not attach patient text, identifiers, credentials, or protected project files. Data access and transfer require an agreed governance and security process first.
 
-## Documentation contributions
+## Contribute code or documentation
 
-The documentation follows a single-source ownership model. Improve information at its authoritative home, then link to it elsewhere.
+For development setup, documentation guidance, tests, and the pull-request
+process, see the [contributor guide](https://github.com/stighellemans/meddeid/blob/main/CONTRIBUTING.md).
 
-| Change | Authoritative location |
-|---|---|
-| Choosing components or a cross-suite workflow | This documentation site |
-| Package API, CLI flag, configuration, or internal behavior | That component repository |
-| Canonical record or taxonomy rule | `meddeid-core` |
-| Language-profile or locale-resource behavior | The relevant `meddeid-language-*` repository |
-| Model or dataset limitations, contents, hashes, licence | Its artifact card |
-| Release staging, locks, migration provenance | Suite coordinator workspace |
-| Historical UX evidence | Suite pilot report |
+Use the [GitHub issue tracker](https://github.com/stighellemans/meddeid/issues)
+to propose a change or report a problem. Do not include patient information,
+credentials, or restricted project material.
 
-### Writing principles
+### Keep documentation at its authoritative source
 
-- Start from the user outcome.
-- Name the owning component early.
-- Use plain language in Start and Workflows. Keep file formats, hashes, offsets, and contract details in Concepts or Reference, and link to them.
-- Use canonical field and command names exactly.
-- State privacy boundaries next to the action that crosses them.
-- Link to authoritative detail instead of copying it.
-- Label pilot-scale examples as interface tests, not performance evidence.
-- Never include real patient or caregiver information.
+This site explains how components and artifacts fit into suite workflows. Keep
+complete API and configuration details in the component repository, and keep
+exact files, limitations, licences, provenance, and revisions in the model or
+dataset card. Summarize and link from this site instead of copying the complete
+text, which can become stale after a component or artifact is updated.
 
-### Build the documentation locally
+### Coordinate a release
 
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-docs.txt
-python scripts/check_docs.py
-mkdocs serve
-```
+A coordinated suite release records:
 
-The continuous-integration build runs the same structural check and a strict MkDocs build. A documentation change is complete only when its local links resolve and its owning source remains clear.
+1. the immutable Git revision of every component;
+2. built wheel and application checksums;
+3. schema, taxonomy, and language-profile identities;
+4. immutable model and dataset revisions;
+5. the documentation revision; and
+6. end-to-end verification results.
+
+A patch release may clarify documentation or fix behavior without changing a
+contract. An incompatible record, taxonomy, profile, or model-bundle change
+requires a new contract or version together with migration guidance. See the
+[`meddeid-suite` coordinator](https://github.com/stighellemans/meddeid-suite)
+for the release checklist and pinned compatibility record.

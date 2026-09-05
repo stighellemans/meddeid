@@ -63,6 +63,12 @@ def run_batch(
             for document_id, row in existing.items():
                 if row["text"] != input_by_id[document_id]["text"]:
                     raise ValueError(f"resume text mismatch for {document_id}")
+                provenance = row.get("provenance")
+                if not isinstance(provenance, dict) or not provenance:
+                    raise ValueError(
+                        f"resume output for {document_id} lacks required provenance; "
+                        "rerun with --overwrite"
+                    )
 
     started = perf_counter()
     processed = 0
@@ -77,18 +83,21 @@ def run_batch(
             reused = True
         else:
             result = engine(row["text"], metadata=row.get("metadata") or {})
+            provenance = getattr(result, "provenance", None)
+            if not isinstance(provenance, dict) or not provenance:
+                raise RuntimeError(
+                    f"inference result for {document_id} is missing required provenance"
+                )
             outputs.append(
                 {
                     "document_id": document_id,
                     "text": row["text"],
-                    "spans": result.spans,
-                    "deid_text": result.deid_text,
                     "metadata": row.get("metadata") or {},
-                    "language_profile": {
-                        "profile_id": getattr(result, "language_profile", None),
-                    },
-                    "warnings": getattr(result, "warnings", []),
+                    "deid_text": result.deid_text,
+                    "spans": result.spans,
                     "processing": getattr(result, "processing", {}),
+                    "warnings": getattr(result, "warnings", []),
+                    "provenance": provenance,
                 }
             )
             processed += 1
@@ -118,7 +127,8 @@ def run_batch(
     profile_counts = Counter(
         profile.get("profile_id")
         for row in outputs
-        if isinstance((profile := row.get("language_profile")), dict)
+        if isinstance((provenance := row.get("provenance")), dict)
+        and isinstance((profile := provenance.get("language_profile")), dict)
     )
     manifest = {
         "manifest_version": "meddeid.inference-run.v1",

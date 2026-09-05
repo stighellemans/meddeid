@@ -195,6 +195,26 @@ def test_self_contained_safetensors_bundle_requires_config_and_tokenizer(tmp_pat
     assert bundle.tokenizer_path == tmp_path
 
 
+def test_gateway_bundle_can_validate_metadata_without_local_weights(tmp_path) -> None:
+    write_bundle(
+        tmp_path / "bundle.json",
+        weights={"filename": "model.safetensors", "format": "safetensors"},
+        encoder_config="config.json",
+        tokenizer_path=".",
+    )
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "tokenizer.json").write_text("{}", encoding="utf-8")
+
+    bundle = load_model_bundle(
+        tmp_path / "bundle.json",
+        validate_package=True,
+        require_weights=False,
+    )
+
+    assert not bundle.checkpoint_path.exists()
+    assert bundle.contract_hash()
+
+
 def test_hugging_face_style_symlinked_manifest_keeps_snapshot_root(tmp_path) -> None:
     snapshot = tmp_path / "snapshots" / "abc123"
     blobs = tmp_path / "blobs"

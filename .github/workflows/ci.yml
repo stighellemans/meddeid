@@ -42,4 +42,6 @@ jobs:
       - uses: actions/checkout@v7
       - run: docker compose config --quiet
       - run: MEDDEID_MODEL_DIR=/tmp docker compose -f compose.yaml -f compose.offline.yaml config --quiet
-      - run: docker compose -f compose.triton.yaml config --quiet
+      - run: MEDDEID_PYTORCH_CUDA_IMAGE=meddeid-api:cuda-test MEDDEID_API_KEY=test-only docker compose -f compose.yaml -f compose.cuda.yaml config --quiet
+      - run: MEDDEID_TRITON_IMAGE=meddeid-triton:test MEDDEID_API_KEY=test-only docker compose -f compose.triton.yaml config --quiet
+      - run: MEDDEID_TRITON_IMAGE=meddeid-triton:test MEDDEID_API_KEY=test-only docker compose -f compose.triton.yaml -f compose.triton.validation.yaml config --quiet

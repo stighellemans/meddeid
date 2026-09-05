@@ -287,8 +287,10 @@ TEMPLATES: dict[str, dict[str, Any]] = {
             _decision(
                 "model",
                 "Model bundle or Hub identifier",
-                default="stighellemans/meddeid-dutch-synth",
-                why="Reproducible inference records the exact model identity.",
+                why=(
+                    "Language, training data, and local validation determine which "
+                    "model is appropriate; reproducible inference records that choice."
+                ),
             ),
             _decision(
                 "revision",

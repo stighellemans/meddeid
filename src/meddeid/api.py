@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from importlib.metadata import PackageNotFoundError, version
+from contextlib import nullcontext
 from pathlib import Path
 import platform
 from threading import Lock
@@ -16,12 +16,19 @@ from meddeid_core.normalize import normalize_metadata
 from meddeid_core.taxonomy import BERT_ENTITY_LABELS
 
 from .bundle import ModelBundle, load_model_bundle
-from .language import installed_language_profile_packages, resolve_language_profile
+from .language import resolve_language_profile
+from .model_inspection import (
+    model_file_inventory,
+    package_versions,
+    requested_revision_label,
+)
+from .model_source import resolve_model_source
 from .pipeline import DeidentificationPipeline
-from .runtime import InferenceRuntime, TorchRuntime, TritonRuntime
+from .runtime.base import InferenceRuntime
 
 
 StatusCallback = Callable[[str], None]
+INFERENCE_PROVENANCE_CONTRACT = "meddeid.inference-provenance.v1"
 
 
 @dataclass(frozen=True)
@@ -29,9 +36,18 @@ class DeidentificationResult:
     text: str
     spans: list[dict[str, Any]]
     deid_text: str
-    language_profile: str | None = None
+    provenance: dict[str, Any]
     warnings: list[dict[str, str]] = field(default_factory=list)
     processing: dict[str, Any] = field(default_factory=dict)
+
+    def to_contract(self) -> dict[str, Any]:
+        return {
+            "deid_text": self.deid_text,
+            "spans": self.spans,
+            "processing": self.processing,
+            "warnings": self.warnings,
+            "provenance": self.provenance,
+        }
 
 
 def choose_language_profile(
@@ -73,7 +89,9 @@ def choose_language_profile(
 
 def redact(text: str, spans: list[dict[str, Any]]) -> str:
     output = text
-    for span in sorted(spans, key=lambda item: (int(item["begin"]), int(item["end"])), reverse=True):
+    for span in sorted(
+        spans, key=lambda item: (int(item["begin"]), int(item["end"])), reverse=True
+    ):
         begin, end = int(span["begin"]), int(span["end"])
         replacement = str(span.get("replacement", f"[{span['label']}]"))
         output = output[:begin] + replacement + output[end:]
@@ -101,10 +119,13 @@ class Deidentifier:
             or not isinstance(min_recommended_date_shift_days, int)
             or min_recommended_date_shift_days <= 0
         ):
-            raise ValueError("min_recommended_date_shift_days must be a positive integer")
+            raise ValueError(
+                "min_recommended_date_shift_days must be a positive integer"
+            )
         self.bundle = bundle
         self.runtime = runtime
         self.model_source = model_source
+        self.model_source_is_local = Path(model_source).expanduser().exists()
         self.requested_revision = requested_revision
         self.resolved_revision = resolved_revision
         self.offline = offline
@@ -112,6 +133,7 @@ class Deidentifier:
             age_granularity_config
         )
         self.min_recommended_date_shift_days = min_recommended_date_shift_days
+        self._provenance_packages = self._package_versions()
         self._inference_lock = Lock()
         self.pipeline = DeidentificationPipeline(bundle)
         self.language_profiles: tuple[LanguageProfile, ...] = tuple(
@@ -138,6 +160,39 @@ class Deidentifier:
         elif len(self.language_profiles) == 1:
             self.language_profile = self.language_profiles[0]
 
+    @staticmethod
+    def _package_versions() -> dict[str, str | None]:
+        return package_versions()
+
+    def _requested_revision(self) -> str:
+        return requested_revision_label(
+            self.requested_revision,
+            source_is_local=self.model_source_is_local,
+        )
+
+    def inference_provenance(self, language_profile: str) -> dict[str, Any]:
+        return {
+            "contract_version": INFERENCE_PROVENANCE_CONTRACT,
+            "software": {
+                "name": "meddeid",
+                "version": self._provenance_packages.get("meddeid"),
+            },
+            "model": {
+                "name": self.bundle.name,
+                "version": self.bundle.model_version,
+                "resolved_revision": self.resolved_revision,
+                "bundle_sha256": self.bundle.contract_hash(),
+            },
+            "language_profile": {"profile_id": language_profile},
+        }
+
+    def _model_file_inventory(self) -> dict[str, Any]:
+        return model_file_inventory(
+            self.bundle,
+            source_is_local=self.model_source_is_local,
+            offline=self.offline,
+        )
+
     def _profile_for_document(self, metadata: dict[str, Any]) -> LanguageProfile:
         return choose_language_profile(
             self.language_profiles,
@@ -158,7 +213,11 @@ class Deidentifier:
         backend: str = "torch",
         triton_url: str | None = None,
         triton_timeout_seconds: float = 30.0,
+        triton_transport: str = "json",
         max_windows_per_batch: int | None = None,
+        torch_precision: str = "fp32",
+        torch_compile_mode: str = "off",
+        torch_compile_dynamic: bool | None = True,
         on_status: StatusCallback | None = None,
         language_profile: str | None = None,
         age_granularity_config: (
@@ -179,69 +238,47 @@ class Deidentifier:
             or not isinstance(min_recommended_date_shift_days, int)
             or min_recommended_date_shift_days <= 0
         ):
-            raise ValueError("min_recommended_date_shift_days must be a positive integer")
-        emit("resolving model")
-        root = Path(model).expanduser()
-        if not root.exists():
-            emit("downloading model bundle")
-            try:
-                from huggingface_hub import snapshot_download
-            except ImportError as exc:
-                raise RuntimeError("the meddeid installation is missing huggingface-hub") from exc
-            try:
-                root = Path(snapshot_download(
-                    repo_id=str(model),
-                    revision=revision,
-                    cache_dir=str(cache_dir) if cache_dir is not None else None,
-                    token=token,
-                    local_files_only=local_files_only,
-                    allow_patterns=[
-                        "bundle.json",
-                        "config.json",
-                        "model.safetensors",
-                        "model.pt",
-                        "tokenizer*",
-                        "special_tokens_map.json",
-                        "vocab.json",
-                        "merges.txt",
-                        "README.md",
-                        "LICENSE*",
-                        "NOTICE*",
-                    ],
-                ))
-            except Exception as exc:
-                if local_files_only:
-                    recovery = (
-                        f"model {model!s} is not available in the local cache; "
-                        f"download it first with `hf download {model!s} --local-dir ./meddeid-model`"
-                    )
-                else:
-                    recovery = (
-                        f"model {model!s} could not be downloaded; verify the repository name "
-                        "and visibility, or authenticate with `hf auth login` if it is private"
-                    )
-                raise RuntimeError(recovery) from exc
-        else:
-            emit("using local model bundle")
+            raise ValueError(
+                "min_recommended_date_shift_days must be a positive integer"
+            )
+        resolved = resolve_model_source(
+            model,
+            revision=revision,
+            cache_dir=cache_dir,
+            token=token,
+            local_files_only=local_files_only,
+            include_weights=backend == "torch",
+            on_status=on_status,
+        )
+        root = resolved.root
         emit("validating model bundle")
-        bundle = load_model_bundle(root / "bundle.json", validate_package=True)
-        resolved_revision = (
-            root.name if root.parent.name == "snapshots" and len(root.name) >= 7 else revision
+        bundle = load_model_bundle(
+            root / "bundle.json",
+            validate_package=True,
+            require_weights=backend == "torch",
         )
         if backend == "torch":
             emit("loading PyTorch model")
+            from .runtime.torch import TorchRuntime
+
             runtime: InferenceRuntime = TorchRuntime(
                 bundle,
                 device=device,
                 max_windows_per_batch=max_windows_per_batch or 32,
+                precision=torch_precision,
+                compile_mode=torch_compile_mode,
+                compile_dynamic=torch_compile_dynamic,
             )
         else:
             emit("connecting to TensorRT through Triton")
+            from .runtime.triton import TritonRuntime
+
             runtime = TritonRuntime(
                 bundle,
                 base_url=triton_url or "",
                 timeout_seconds=triton_timeout_seconds,
                 max_windows_per_batch=max_windows_per_batch or 16,
+                transport=triton_transport,
             )
         emit("loading tokenizer and language profile")
         engine = cls(
@@ -249,7 +286,7 @@ class Deidentifier:
             runtime,
             model_source=str(model),
             requested_revision=revision,
-            resolved_revision=resolved_revision,
+            resolved_revision=resolved.resolved_revision,
             offline=local_files_only,
             language_profile=language_profile,
             age_granularity_config=policy,
@@ -258,7 +295,9 @@ class Deidentifier:
         emit("ready")
         return engine
 
-    def __call__(self, text: str, *, metadata: dict[str, Any] | None = None) -> DeidentificationResult:
+    def __call__(
+        self, text: str, *, metadata: dict[str, Any] | None = None
+    ) -> DeidentificationResult:
         return self.deidentify_many([(text, metadata)])[0]
 
     def deidentify_many(
@@ -320,7 +359,12 @@ class Deidentifier:
                         )
             normalized.append((text, document_metadata, profile))
 
-        with self._inference_lock:
+        inference_guard = (
+            nullcontext()
+            if getattr(self.runtime, "supports_concurrent_requests", False)
+            else self._inference_lock
+        )
+        with inference_guard:
             states = []
             all_windows = []
             for index, (text, document_metadata, _) in enumerate(normalized):
@@ -334,16 +378,16 @@ class Deidentifier:
             all_predictions = self.runtime.infer_windows(all_windows)
             results: list[DeidentificationResult] = []
             prediction_offset = 0
-            for state, (text, document_metadata, profile) in zip(states, normalized, strict=True):
+            for state, (text, document_metadata, profile) in zip(
+                states, normalized, strict=True
+            ):
                 next_offset = prediction_offset + len(state.windows)
                 self.pipeline.apply_predictions(
                     state, all_predictions[prediction_offset:next_offset]
                 )
                 prediction_offset = next_offset
                 raw = self.pipeline.decode_document(state)
-                spans = profile.post_process_spans(
-                    raw.spans, text, document_metadata
-                )
+                spans = profile.post_process_spans(raw.spans, text, document_metadata)
                 spans, warnings, processing = self._apply_replacements(
                     text, spans, document_metadata, profile
                 )
@@ -352,9 +396,9 @@ class Deidentifier:
                         text=text,
                         spans=spans,
                         deid_text=redact(text, spans),
-                        language_profile=profile.profile_id,
                         warnings=warnings,
                         processing=processing,
+                        provenance=self.inference_provenance(profile.profile_id),
                     )
                 )
 
@@ -416,10 +460,7 @@ class Deidentifier:
             warning_messages["zero_date_shift_placeholder"] = (
                 "date_shift_days=0 would reproduce original dates; placeholders were used"
             )
-        elif (
-            date_shift_days is not None
-            and abs(date_shift_days) < minimum_shift
-        ):
+        elif date_shift_days is not None and abs(date_shift_days) < minimum_shift:
             warning_messages["date_shift_below_recommended_minimum"] = (
                 f"absolute date shift is below the configured recommended minimum of "
                 f"{minimum_shift} days"
@@ -487,13 +528,9 @@ class Deidentifier:
         ]
         processing = {
             "date_replacement": {
-                "mode": "shift"
-                if date_shift_days not in {None, 0}
-                else "placeholder",
+                "mode": "shift" if date_shift_days not in {None, 0} else "placeholder",
                 "requested_shift_days": date_shift_days,
-                "minimum_recommended_abs_shift_days": (
-                    minimum_shift
-                ),
+                "minimum_recommended_abs_shift_days": (minimum_shift),
                 **counters,
             },
             "age_granularity_policy": age_policy.identity.to_dict(),
@@ -501,30 +538,18 @@ class Deidentifier:
         return output, warnings, processing
 
     def model_info(self) -> dict[str, Any]:
-        packages: dict[str, str | None] = {}
-        for package in (
-            "meddeid",
-            "meddeid-core",
-            "torch",
-            "transformers",
-        ):
-            try:
-                packages[package] = version(package)
-            except PackageNotFoundError:
-                packages[package] = None
-        packages.update(installed_language_profile_packages())
+        packages = self._package_versions()
         return {
             "model": {
                 "source": self.model_source,
                 "name": self.bundle.name,
                 "version": self.bundle.model_version,
-                "requested_revision": self.requested_revision,
+                "requested_revision": self._requested_revision(),
                 "resolved_revision": self.resolved_revision,
                 "bundle_sha256": self.bundle.contract_hash(),
                 "weights_format": self.bundle.weights_format,
-                "local_files_only": self.offline,
-                "offline_ready": True,
             },
+            "model_files": self._model_file_inventory(),
             "contracts": {
                 "language_profiles": [
                     {"profile_id": profile.profile_id}
@@ -545,11 +570,34 @@ class Deidentifier:
                     self.min_recommended_date_shift_days
                 ),
             },
-            "runtime": self.runtime.healthcheck(),
+            "runtime": {"checked": True, **self.runtime.healthcheck()},
             "environment": {
                 "python": platform.python_version(),
                 "platform": platform.platform(),
                 "packages": packages,
+            },
+        }
+
+    def health_info(self) -> dict[str, Any]:
+        runtime = self.runtime.healthcheck()
+        ready = bool(runtime.get("ready", False))
+        return {
+            "status": "ok" if ready else "unavailable",
+            "ready": ready,
+            "model": {
+                "name": self.bundle.name,
+                "version": self.bundle.model_version,
+            },
+            "contracts": {
+                "language_profiles": [
+                    {"profile_id": profile.profile_id}
+                    for profile in self.language_profiles
+                ],
+                "default_language_profile": (
+                    self.language_profile.profile_id
+                    if self.language_profile is not None
+                    else None
+                ),
             },
         }
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+from threading import local
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 import numpy as np
@@ -14,6 +16,8 @@ from meddeid.pipeline.types import PreparedWindow, WindowPrediction
 class TritonRuntime:
     """NVIDIA Triton V2 HTTP client for a TensorRT-backed MedDeID model."""
 
+    supports_concurrent_requests = True
+
     def __init__(
         self,
         bundle: ModelBundle,
@@ -22,6 +26,7 @@ class TritonRuntime:
         timeout_seconds: float = 30.0,
         max_windows_per_batch: int = 16,
         min_sequence_length: int = 8,
+        transport: str = "json",
     ) -> None:
         if not base_url.strip():
             raise ValueError("the Triton backend requires --triton-url or MEDDEID_TRITON_URL")
@@ -30,6 +35,23 @@ class TritonRuntime:
         self.timeout_seconds = float(timeout_seconds)
         self.max_windows_per_batch = max(1, int(max_windows_per_batch))
         self.min_sequence_length = max(1, int(min_sequence_length))
+        self.transport = transport.strip().lower()
+        if self.transport not in {"json", "binary"}:
+            raise ValueError("Triton transport must be 'json' or 'binary'")
+        self._client_state = local()
+        if self.transport == "binary":
+            try:
+                import tritonclient.http as triton_http
+            except ImportError as exc:
+                raise RuntimeError(
+                    "binary Triton transport requires tritonclient[http]"
+                ) from exc
+            parsed = urlsplit(self.base_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError("binary Triton transport requires an http(s) URL")
+            self._triton_http = triton_http
+            self._client_url = parsed.netloc + parsed.path.rstrip("/")
+            self._client_ssl = parsed.scheme == "https"
         self.infer_url = (
             f"{self.base_url}/v2/models/{bundle.name}/versions/{bundle.model_version}/infer"
         )
@@ -53,6 +75,13 @@ class TritonRuntime:
             window.attention_mask + [0] * (max_length - window.sequence_length)
             for window in windows
         ]
+        if self.transport == "binary":
+            return self._infer_batch_binary(
+                windows,
+                sequence_lengths=sequence_lengths,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
         payload = {
             "inputs": [
                 {
@@ -85,6 +114,66 @@ class TritonRuntime:
             for index, length in enumerate(sequence_lengths)
         ]
 
+    def _binary_client(self):
+        client = getattr(self._client_state, "client", None)
+        if client is None:
+            client = self._triton_http.InferenceServerClient(
+                url=self._client_url,
+                ssl=self._client_ssl,
+                connection_timeout=self.timeout_seconds,
+                network_timeout=self.timeout_seconds,
+            )
+            self._client_state.client = client
+        return client
+
+    def _infer_batch_binary(
+        self,
+        windows: list[PreparedWindow],
+        *,
+        sequence_lengths: list[int],
+        input_ids: list[list[int]],
+        attention_mask: list[list[int]],
+    ) -> list[WindowPrediction]:
+        triton_http = self._triton_http
+        inputs = []
+        for name, values in (
+            ("input_ids", input_ids),
+            ("attention_mask", attention_mask),
+        ):
+            array = np.asarray(values, dtype=np.int32)
+            tensor = triton_http.InferInput(name, array.shape, "INT32")
+            tensor.set_data_from_numpy(array, binary_data=True)
+            inputs.append(tensor)
+        requested = [
+            triton_http.InferRequestedOutput(name, binary_data=True)
+            for name in ("bio_logits", "label_logits")
+        ]
+        try:
+            response = self._binary_client().infer(
+                model_name=self.bundle.name,
+                model_version=self.bundle.model_version,
+                inputs=inputs,
+                outputs=requested,
+                # Triton's HTTP inference parameter is an unsigned integer in
+                # microseconds; the client connection timeouts above use seconds.
+                timeout=max(1, round(self.timeout_seconds * 1_000_000)),
+            )
+        except Exception as exc:
+            raise RuntimeError(f"binary Triton inference failed: {exc}") from exc
+        outputs = {
+            name: response.as_numpy(name)
+            for name in ("bio_logits", "label_logits")
+        }
+        if any(output is None for output in outputs.values()):
+            raise RuntimeError("Triton did not return bio_logits and label_logits")
+        return [
+            WindowPrediction(
+                bio_logits=np.asarray(outputs["bio_logits"][index, :length], dtype=np.float64),
+                label_logits=np.asarray(outputs["label_logits"][index, :length], dtype=np.float64),
+            )
+            for index, length in enumerate(sequence_lengths)
+        ]
+
     def healthcheck(self) -> dict[str, Any]:
         checks = {
             "server_live": f"{self.base_url}/v2/health/live",
@@ -95,6 +184,7 @@ class TritonRuntime:
             "backend": "triton",
             "device": "tensorrt",
             "url": self.base_url,
+            "transport": self.transport,
             "max_windows_per_batch": self.max_windows_per_batch,
         }
         for name, url in checks.items():
@@ -137,7 +227,7 @@ class TritonRuntime:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Triton returned invalid JSON for {url}") from exc
         if not isinstance(parsed, dict):
-            raise RuntimeError(f"Triton returned an unexpected response for {url}")
+            raise TypeError(f"Triton returned an unexpected response for {url}")
         return parsed
 
     def close(self) -> None:

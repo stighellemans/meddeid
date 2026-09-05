@@ -1,0 +1,178 @@
+{
+  "schema": "meddeid.mps-benchmark-summary.v1",
+  "measured_at": "2026-09-05",
+  "host": {
+    "model": "MacBook Pro Mac16,7",
+    "chip": "Apple M4 Pro",
+    "cpu_cores": 14,
+    "gpu_cores": 20,
+    "memory_gb": 48,
+    "macos": "26.6.2",
+    "architecture": "arm64",
+    "python": "3.12.11",
+    "pytorch": "2.13.0"
+  },
+  "model": {
+    "id": "stighellemans/meddeid-dutch-synth",
+    "revision": "c5706e009c7f45988328219d0fb1b68875a99519",
+    "bundle_sha256": "001123dbc1184751e4bae3c29633d14a5e041acae0c173773f186127ae3fd944"
+  },
+  "configuration": {
+    "precision": "fp32",
+    "compile_mode": "off",
+    "window_batch_size": 32,
+    "workers": 1,
+    "repetitions": 3,
+    "public_fixture_revision": "9b95ebbfb091a5390e4fc39e2ef74e7580aac068",
+    "public_fixture_sha256": "f1fc1a0447d1c447d742a1d32c1bb18393840665cc44d591eccc95e8cf3f5d01",
+    "short_fixture_sha256": "de604a1d280d8243a108decf10e11c1a80bf1f19296fc539999a220124343307",
+    "long_fixture_sha256": "9aa5a16a32fee587d2b00a8a8e76689f0bb56774c095720bf01f27ee0199be7b",
+    "long_lengths_characters": [8000, 12000, 18000]
+  },
+  "parity": {
+    "passed": true,
+    "documents": 300,
+    "semantic_differences": 0,
+    "confidence_fields_excluded": true
+  },
+  "startup_seconds": {
+    "note": "One cached native startup observation per device",
+    "mps": 12.135,
+    "cpu": 17.66
+  },
+  "eager_medians": {
+    "interactive_short": {
+      "requests": 80,
+      "concurrency": 1,
+      "mps_documents_per_second": 92.83,
+      "mps_p50_ms": 9.4,
+      "mps_p95_ms": 15.2,
+      "cpu_documents_per_second": 56.79,
+      "cpu_p50_ms": 15.1,
+      "cpu_p95_ms": 25.7,
+      "mps_speedup": 1.63
+    },
+    "interactive_mixed": {
+      "requests": 60,
+      "concurrency": 1,
+      "mps_documents_per_second": 50.26,
+      "mps_p50_ms": 20.3,
+      "mps_p95_ms": 25.1,
+      "cpu_documents_per_second": 25.44,
+      "cpu_p50_ms": 39.7,
+      "cpu_p95_ms": 49.9,
+      "mps_speedup": 1.98
+    },
+    "interactive_short_burst": {
+      "requests": 120,
+      "concurrency": 8,
+      "mps_documents_per_second": 113.7,
+      "mps_p50_ms": 66.4,
+      "mps_p95_ms": 90.2,
+      "cpu_documents_per_second": 60.13,
+      "cpu_p50_ms": 130.9,
+      "cpu_p95_ms": 140.5,
+      "mps_speedup": 1.89
+    },
+    "etl_batch_1": {
+      "requests": 160,
+      "concurrency": 16,
+      "documents": 160,
+      "characters": 204202,
+      "mps_documents_per_second": 39.6,
+      "mps_characters_per_second": 50534,
+      "mps_p50_ms": 339.9,
+      "mps_p95_ms": 729.4,
+      "cpu_documents_per_second": 19.72,
+      "cpu_characters_per_second": 25169,
+      "cpu_p50_ms": 700.6,
+      "cpu_p95_ms": 1483.4,
+      "mps_speedup": 2.01
+    },
+    "etl_batch_16": {
+      "requests": 60,
+      "concurrency": 8,
+      "documents": 948,
+      "mps_documents_per_second": 40.08,
+      "mps_characters_per_second": 55268,
+      "mps_p50_ms": 3166.7,
+      "mps_p95_ms": 3660.4,
+      "cpu_documents_per_second": 21.11,
+      "cpu_characters_per_second": 29110,
+      "cpu_p50_ms": 6058.5,
+      "cpu_p95_ms": 6994.0,
+      "mps_speedup": 1.9
+    },
+    "etl_batch_32": {
+      "requests": 40,
+      "concurrency": 8,
+      "documents": 1200,
+      "mps_documents_per_second": 39.51,
+      "mps_characters_per_second": 55262,
+      "mps_p50_ms": 5888.2,
+      "mps_p95_ms": 6730.7,
+      "cpu_documents_per_second": 20.5,
+      "cpu_characters_per_second": 28667,
+      "cpu_p50_ms": 11471.0,
+      "cpu_p95_ms": 12879.8,
+      "mps_speedup": 1.93
+    },
+    "interactive_long": {
+      "requests": 24,
+      "concurrency": 1,
+      "documents": 24,
+      "characters": 304000,
+      "mps_documents_per_second": 3.49,
+      "mps_characters_per_second": 44245,
+      "mps_p50_ms": 257.3,
+      "mps_p95_ms": 424.0,
+      "cpu_documents_per_second": 2.05,
+      "cpu_characters_per_second": 25953,
+      "cpu_p50_ms": 465.2,
+      "cpu_p95_ms": 683.1,
+      "mps_speedup": 1.7
+    },
+    "etl_long": {
+      "requests": 20,
+      "concurrency": 4,
+      "documents": 60,
+      "characters": 760000,
+      "mps_documents_per_second": 3.59,
+      "mps_characters_per_second": 45524,
+      "mps_p50_ms": 3328.5,
+      "mps_p95_ms": 3382.3,
+      "cpu_documents_per_second": 2.11,
+      "cpu_characters_per_second": 26728,
+      "cpu_p50_ms": 5680.3,
+      "cpu_p95_ms": 5715.6,
+      "mps_speedup": 1.7
+    }
+  },
+  "throughput_microbatch_medians": {
+    "maximum_wait_ms": 1,
+    "maximum_windows": 32,
+    "interactive_short_burst_documents_per_second": 167.05,
+    "interactive_short_burst_change_percent": 46.9,
+    "etl_batch_1_documents_per_second": 40.72,
+    "etl_batch_1_change_percent": 2.8,
+    "etl_batch_16_documents_per_second": 42.1,
+    "etl_batch_16_change_percent": 5.0
+  },
+  "compile_experiment": {
+    "mode": "default",
+    "dynamic": true,
+    "first_short_graph_seconds": 6.436,
+    "first_batch_16_graph_seconds": 7.388,
+    "warm_short_documents_per_second": 70.74,
+    "eager_short_documents_per_second": 92.83,
+    "batch_16_concurrency_1_documents_per_second": 12.7,
+    "eager_batch_16_concurrency_1_documents_per_second": 40.98,
+    "recommendation": "off"
+  },
+  "memory": {
+    "measurement": "macOS footprint after the long-note MPS matrix",
+    "physical_footprint_mb": 2673,
+    "peak_physical_footprint_mb": 2762,
+    "ioaccelerator_mb_at_sample": 2057
+  }
+}

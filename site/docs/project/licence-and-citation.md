@@ -7,6 +7,10 @@ University of Antwerp and Antwerp University Hospital (UZA). The work brings
 together data science and software engineering from **Adrem Data Lab**, clinical
 data infrastructure and technical expertise from the **UZA Data Innovation
 Lab**, and research support from the **Research Foundation – Flanders (FWO)**.
+This work was supported by the Flemish Government through the
+[Flanders AI Research Program](https://www.flandersai.be/en/ai-research-and-innovation-flanders).
+The primary care analysis was made possible by
+[Co-Medic](https://co-medic.com/en).
 
 <div class="organization-grid">
   <a class="organization-card" href="https://www.uantwerpen.be/en/research-groups/adrem-data-lab/" target="_blank" rel="noopener">

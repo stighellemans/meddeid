@@ -1,0 +1,411 @@
+name: Triton GPU validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      gpu_target:
+        description: Target ID from deploy/triton/targets.json
+        required: true
+        default: t4-sm75
+      image_version:
+        description: Candidate version; leave empty to use pyproject.toml
+        required: false
+      publish_image:
+        description: Publish a ready target after validation; dispatch must use a version tag
+        required: true
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate ${{ inputs.gpu_target || 't4-sm75' }}
+    runs-on: [self-hosted, linux, x64, nvidia, "${{ inputs.gpu_target || 't4-sm75' }}"]
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      GPU_TARGET: ${{ inputs.gpu_target || 't4-sm75' }}
+      SHOULD_PUBLISH: ${{ github.ref_type == 'tag' && (github.event_name == 'push' || inputs.publish_image) }}
+      MEDDEID_API_KEY: triton-gpu-ci-only-secret
+      MEDDEID_GPU_DEVICE_ID: "0"
+      MEDDEID_SERVING_PROFILE: throughput
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Resolve and verify release identity
+        env:
+          REQUESTED_VERSION: ${{ inputs.image_version }}
+        run: |
+          package_version=$(python - <<'PY'
+          import pathlib, tomllib
+          print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])
+          PY
+          )
+          if [[ "${GITHUB_REF_TYPE}" = tag ]]; then
+            image_version="${GITHUB_REF_NAME#v}"
+            if [[ "${image_version}" != "${package_version}" ]]; then
+              printf 'tag %s does not match package version %s\n' "${image_version}" "${package_version}" >&2
+              exit 1
+            fi
+          else
+            image_version="${REQUESTED_VERSION:-${package_version}}"
+          fi
+          if [[ "${{ inputs.publish_image || false }}" = true && "${GITHUB_REF_TYPE}" != tag ]]; then
+            printf 'manual publication must be dispatched from a version tag\n' >&2
+            exit 1
+          fi
+          source deploy/triton/versions.env
+          target_repository=$(python deploy/triton_targets.py show \
+            "${GPU_TARGET}" --field image_repository)
+          target_status=$(python deploy/triton_targets.py show \
+            "${GPU_TARGET}" --field release_status)
+          if [[ "${SHOULD_PUBLISH}" = true && "${target_status}" != ready ]]; then
+            printf 'target %s is %s; change the reviewed catalog status to ready before publication\n' \
+              "${GPU_TARGET}" "${target_status}" >&2
+            exit 1
+          fi
+          candidate="meddeid-triton-${GPU_TARGET}:${image_version}-trt${MEDDEID_TRITON_STACK}-fp16-ci"
+          gateway_candidate="meddeid-triton-gateway:${image_version}-ci"
+          reference_candidate="meddeid-api:${image_version}-cpu-reference-ci"
+          cuda_candidate="meddeid-api:${image_version}-cuda12.9-ci"
+          {
+            echo "IMAGE_VERSION=${image_version}"
+            echo "TRITON_IMAGE_REPOSITORY=${target_repository}"
+            echo "TRITON_TARGET_STATUS=${target_status}"
+            echo "CANDIDATE_IMAGE=${candidate}"
+            echo "MEDDEID_TRITON_IMAGE=${candidate}"
+            echo "CANDIDATE_GATEWAY_IMAGE=${gateway_candidate}"
+            echo "MEDDEID_API_IMAGE=${gateway_candidate}"
+            echo "CANDIDATE_REFERENCE_IMAGE=${reference_candidate}"
+            echo "MEDDEID_REFERENCE_IMAGE=${reference_candidate}"
+            echo "CANDIDATE_CUDA_IMAGE=${cuda_candidate}"
+            echo "TRITON_STACK=${MEDDEID_TRITON_STACK}"
+            echo "TRITON_BASE_IMAGE=${MEDDEID_TRITON_BASE_IMAGE}"
+            echo "TRITON_MIN_IMAGE=${MEDDEID_TRITON_MIN_IMAGE}"
+            echo "TRITON_COMPOSE_REVISION=${MEDDEID_TRITON_COMPOSE_REVISION}"
+            echo "TENSORRT_VERSION=${MEDDEID_TENSORRT_VERSION}"
+            echo "MODEL_REVISION=${MEDDEID_MODEL_REVISION}"
+            echo "BUNDLE_SHA256=${MEDDEID_BUNDLE_SHA256}"
+            echo "TRT_PRECISION=${MEDDEID_TRT_PRECISION}"
+            echo "TRT_OUTPUT_PRECISION=${MEDDEID_TRT_OUTPUT_PRECISION}"
+            echo "BUILD_DATE=$(git show -s --format=%cI HEAD)"
+          } >>"${GITHUB_ENV}"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install export and validation environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install '.[dev]' distro requests onnx onnxscript
+          python -m pip check
+      - name: Verify target host and immutable model
+        run: |
+          ./deploy/preflight_triton_host.sh "${GPU_TARGET}" 0
+          ./deploy/stage_triton_model.sh deploy/triton/model_source
+          ./deploy/stage_benchmark_fixture.sh deploy/triton/benchmark_source
+      - name: Build TensorRT repository and candidate image
+        run: |
+          docker build --tag "${CANDIDATE_REFERENCE_IMAGE}" .
+          ./deploy/build_triton_gateway_image.sh "${CANDIDATE_GATEWAY_IMAGE}"
+          ./deploy/build_pytorch_cuda_image.sh "${CANDIDATE_CUDA_IMAGE}"
+          ./deploy/build_triton_repository.sh \
+            deploy/triton/model_source \
+            deploy/triton/model_repository \
+            "${GPU_TARGET}" 0
+          ./deploy/build_triton_image.sh \
+            deploy/triton/model_repository \
+            "${CANDIDATE_IMAGE}" \
+            "${GPU_TARGET}"
+      - name: Start TensorRT candidate and PyTorch CPU reference
+        run: |
+          started_at_ns=$(date +%s%N)
+          docker compose \
+            -f compose.triton.yaml \
+            -f compose.triton.validation.yaml \
+            up --detach
+          python deploy/wait_for_health.py \
+            --base-url http://127.0.0.1:8000 \
+            --started-at-ns "${started_at_ns}" \
+            --output deploy/triton/triton-stack-startup.json
+          python deploy/wait_for_health.py \
+            --base-url http://127.0.0.1:8001 \
+            --started-at-ns "${started_at_ns}" \
+            --output deploy/triton/cpu-startup.json
+      - name: Require PyTorch/TensorRT semantic parity
+        run: |
+          python deploy/validate_triton_parity.py \
+            deploy/triton/parity-fixture.jsonl \
+            --candidate-url http://127.0.0.1:8000 \
+            --reference-url http://127.0.0.1:8001 \
+            --output deploy/triton/parity-report.json
+      - name: Benchmark TensorRT and PyTorch CPU
+        run: |
+          python deploy/monitor_nvidia.py \
+            --output deploy/triton/triton-gpu-metrics.json &
+          monitor_pid=$!
+          python deploy/benchmark_http.py deploy/triton/benchmark_source/data/test.jsonl \
+            --base-url http://127.0.0.1:8000 \
+            --api-key "${MEDDEID_API_KEY}" \
+            --batch-size 16 \
+            --warmup-requests 8 --requests 60 --concurrency 8 \
+            --output deploy/triton/triton-benchmark.json
+          kill -INT "${monitor_pid}"
+          wait "${monitor_pid}"
+          python deploy/benchmark_http.py deploy/triton/benchmark_source/data/test.jsonl \
+            --base-url http://127.0.0.1:8001 \
+            --api-key "${MEDDEID_API_KEY}" \
+            --batch-size 16 \
+            --warmup-requests 8 --requests 60 --concurrency 8 \
+            --output deploy/triton/torch-reference-benchmark.json
+      - name: Stop TensorRT services and retain the CPU reference
+        run: |
+          docker compose \
+            -f compose.triton.yaml \
+            -f compose.triton.validation.yaml \
+            stop meddeid triton
+      - name: Benchmark unoptimized PyTorch CUDA baseline
+        run: |
+          cleanup() {
+            docker rm --force meddeid-cuda-benchmark >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          started_at_ns=$(date +%s%N)
+          docker run --detach --name meddeid-cuda-benchmark \
+            --gpus "device=${MEDDEID_GPU_DEVICE_ID}" \
+            --read-only --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
+            --publish 127.0.0.1:8002:8000 \
+            --env MEDDEID_API_KEY="${MEDDEID_API_KEY}" \
+            --env MEDDEID_REQUIRE_API_KEY=true \
+            --env MEDDEID_TORCH_PRECISION=fp32 \
+            --env MEDDEID_TORCH_COMPILE_MODE=off \
+            --env MEDDEID_MAX_CONCURRENT_REQUESTS=8 \
+            "${CANDIDATE_CUDA_IMAGE}"
+          python deploy/wait_for_health.py \
+            --base-url http://127.0.0.1:8002 \
+            --started-at-ns "${started_at_ns}" \
+            --output deploy/triton/pytorch-cuda-baseline-startup.json
+          python deploy/monitor_nvidia.py \
+            --output deploy/triton/pytorch-cuda-baseline-gpu-metrics.json &
+          monitor_pid=$!
+          python deploy/benchmark_http.py deploy/triton/benchmark_source/data/test.jsonl \
+            --base-url http://127.0.0.1:8002 \
+            --api-key "${MEDDEID_API_KEY}" \
+            --batch-size 16 \
+            --warmup-requests 8 --requests 60 --concurrency 8 \
+            --output deploy/triton/pytorch-cuda-baseline-benchmark.json
+          kill -INT "${monitor_pid}"
+          wait "${monitor_pid}"
+      - name: Benchmark optimized PyTorch CUDA and require parity
+        run: |
+          cleanup() {
+            docker rm --force meddeid-cuda-benchmark >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          started_at_ns=$(date +%s%N)
+          docker run --detach --name meddeid-cuda-benchmark \
+            --gpus "device=${MEDDEID_GPU_DEVICE_ID}" \
+            --read-only --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
+            --publish 127.0.0.1:8002:8000 \
+            --env MEDDEID_API_KEY="${MEDDEID_API_KEY}" \
+            --env MEDDEID_REQUIRE_API_KEY=true \
+            --env MEDDEID_TORCH_PRECISION=fp16 \
+            --env MEDDEID_TORCH_COMPILE_MODE=off \
+            --env MEDDEID_SERVING_PROFILE=throughput \
+            --env MEDDEID_MICROBATCH_ENABLED=auto \
+            --env MEDDEID_SEQUENCE_LENGTH_BUCKETS=off \
+            --env MEDDEID_MICROBATCH_MAX_WAIT_MS=1 \
+            --env MEDDEID_MAX_CONCURRENT_REQUESTS=16 \
+            "${CANDIDATE_CUDA_IMAGE}"
+          python deploy/wait_for_health.py \
+            --base-url http://127.0.0.1:8002 \
+            --started-at-ns "${started_at_ns}" \
+            --output deploy/triton/pytorch-cuda-optimized-startup.json
+          python deploy/monitor_nvidia.py \
+            --output deploy/triton/pytorch-cuda-optimized-gpu-metrics.json &
+          monitor_pid=$!
+          python deploy/benchmark_http.py deploy/triton/benchmark_source/data/test.jsonl \
+            --base-url http://127.0.0.1:8002 \
+            --api-key "${MEDDEID_API_KEY}" \
+            --batch-size 16 \
+            --warmup-requests 8 --requests 60 --concurrency 8 \
+            --output deploy/triton/pytorch-cuda-optimized-benchmark.json
+          kill -INT "${monitor_pid}"
+          wait "${monitor_pid}"
+          python deploy/validate_triton_parity.py \
+            deploy/triton/parity-fixture.jsonl \
+            --candidate-url http://127.0.0.1:8002 \
+            --reference-url http://127.0.0.1:8001 \
+            --output deploy/triton/pytorch-cuda-parity-report.json
+      - name: Record comparable image sizes and identities
+        run: |
+          python deploy/measure_container_image.py "${CANDIDATE_IMAGE}" \
+            --budget-file deploy/image-size-budgets.json \
+            --budget-key tensorrt-server \
+            --output deploy/triton/triton-image-size.json
+          python deploy/measure_container_image.py "${CANDIDATE_GATEWAY_IMAGE}" \
+            --budget-file deploy/image-size-budgets.json \
+            --budget-key tensorrt-gateway \
+            --output deploy/triton/gateway-image-size.json
+          python deploy/measure_container_image.py "${CANDIDATE_REFERENCE_IMAGE}" \
+            --budget-file deploy/image-size-budgets.json \
+            --budget-key cpu \
+            --output deploy/triton/cpu-image-size.json
+          python deploy/measure_container_image.py "${CANDIDATE_CUDA_IMAGE}" \
+            --budget-file deploy/image-size-budgets.json \
+            --budget-key pytorch-cuda \
+            --output deploy/triton/cuda-image-size.json
+          docker image inspect "${CANDIDATE_IMAGE}" \
+            > deploy/triton/candidate-image-inspect.json
+          docker image inspect "${MEDDEID_API_IMAGE}" \
+            > deploy/triton/gateway-image-inspect.json
+          docker image inspect "${MEDDEID_REFERENCE_IMAGE}" \
+            > deploy/triton/reference-image-inspect.json
+          docker image inspect "${CANDIDATE_CUDA_IMAGE}" \
+            > deploy/triton/cuda-image-inspect.json
+      - name: Verify container hardening
+        run: |
+          container_id=$(docker compose -f compose.triton.yaml ps --all --quiet triton)
+          test "$(docker inspect --format '{{.Config.User}}' "${container_id}")" = "10000:10000"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "${container_id}")" = "true"
+          gateway_id=$(docker compose -f compose.triton.yaml ps --all --quiet meddeid)
+          test "$(docker inspect --format '{{.Config.User}}' "${gateway_id}")" = "10001:10001"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "${gateway_id}")" = "true"
+      - name: Reject fixable high or critical vulnerabilities
+        run: |
+          for item in \
+            "triton|${CANDIDATE_IMAGE}" \
+            "gateway|${CANDIDATE_GATEWAY_IMAGE}" \
+            "cpu|${CANDIDATE_REFERENCE_IMAGE}" \
+            "cuda|${CANDIDATE_CUDA_IMAGE}"; do
+            report_name="${item%%|*}"
+            scan_image="${item#*|}"
+            docker run --rm \
+              --volume /var/run/docker.sock:/var/run/docker.sock \
+              --volume "${PWD}/deploy/triton:/reports" \
+              aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+              image \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --exit-code 1 \
+              --timeout 10m \
+              --format json \
+              --output "/reports/${report_name}-trivy-report.json" \
+              "${scan_image}"
+          done
+      - name: Collect validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: triton-${{ env.GPU_TARGET }}-evidence-${{ github.run_id }}
+          path: |
+            deploy/triton/model_repository/build-manifest.json
+            deploy/triton/parity-report.json
+            deploy/triton/triton-benchmark.json
+            deploy/triton/torch-reference-benchmark.json
+            deploy/triton/pytorch-cuda-*-benchmark.json
+            deploy/triton/*-gpu-metrics.json
+            deploy/triton/*-startup.json
+            deploy/triton/*-image-size.json
+            deploy/triton/pytorch-cuda-parity-report.json
+            deploy/triton/candidate-image-inspect.json
+            deploy/triton/gateway-image-inspect.json
+            deploy/triton/reference-image-inspect.json
+            deploy/triton/cuda-image-inspect.json
+            deploy/triton/*-trivy-report.json
+          if-no-files-found: warn
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f compose.triton.yaml -f compose.triton.validation.yaml logs || true
+      - name: Stop validation services
+        if: always()
+        run: docker compose -f compose.triton.yaml -f compose.triton.validation.yaml down || true
+      - uses: docker/login-action@v4
+        if: env.SHOULD_PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish exact validated images
+        if: env.SHOULD_PUBLISH == 'true'
+        id: push
+        run: |
+          triton_name="${TRITON_IMAGE_REPOSITORY}"
+          triton_tag="${triton_name}:${IMAGE_VERSION}-trt${TRITON_STACK}-fp16"
+          gateway_name="ghcr.io/${GITHUB_REPOSITORY_OWNER}/meddeid-triton-gateway"
+          gateway_tag="${gateway_name}:${IMAGE_VERSION}"
+          docker tag "${CANDIDATE_IMAGE}" "${triton_tag}"
+          docker tag "${CANDIDATE_GATEWAY_IMAGE}" "${gateway_tag}"
+          docker push "${triton_tag}"
+          docker push "${gateway_tag}"
+          triton_digest=$(docker image inspect "${triton_tag}" \
+            --format '{{range .RepoDigests}}{{println .}}{{end}}' \
+            | awk -F@ -v name="${triton_name}" '$1 == name {print $2; exit}')
+          gateway_digest=$(docker image inspect "${gateway_tag}" \
+            --format '{{range .RepoDigests}}{{println .}}{{end}}' \
+            | awk -F@ -v name="${gateway_name}" '$1 == name {print $2; exit}')
+          test -n "${triton_digest}"
+          test -n "${gateway_digest}"
+          {
+            echo "triton-name=${triton_name}"
+            echo "triton-digest=${triton_digest}"
+            echo "gateway-name=${gateway_name}"
+            echo "gateway-digest=${gateway_digest}"
+          } >>"${GITHUB_OUTPUT}"
+      - name: Attest published target-specific image
+        if: env.SHOULD_PUBLISH == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.push.outputs.triton-name }}
+          subject-digest: ${{ steps.push.outputs.triton-digest }}
+          push-to-registry: true
+      - name: Attest published gateway image
+        if: env.SHOULD_PUBLISH == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.push.outputs.gateway-name }}
+          subject-digest: ${{ steps.push.outputs.gateway-digest }}
+          push-to-registry: true
+      - name: Generate TensorRT image SBOM
+        if: env.SHOULD_PUBLISH == 'true'
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ steps.push.outputs.triton-name }}@${{ steps.push.outputs.triton-digest }}
+          format: spdx-json
+          output-file: deploy/triton/triton-sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate gateway image SBOM
+        if: env.SHOULD_PUBLISH == 'true'
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ steps.push.outputs.gateway-name }}@${{ steps.push.outputs.gateway-digest }}
+          format: spdx-json
+          output-file: deploy/triton/gateway-sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Attest TensorRT image SBOM
+        if: env.SHOULD_PUBLISH == 'true'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.push.outputs.triton-name }}
+          subject-digest: ${{ steps.push.outputs.triton-digest }}
+          sbom-path: deploy/triton/triton-sbom.spdx.json
+          push-to-registry: true
+      - name: Attest gateway image SBOM
+        if: env.SHOULD_PUBLISH == 'true'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.push.outputs.gateway-name }}
+          subject-digest: ${{ steps.push.outputs.gateway-digest }}
+          sbom-path: deploy/triton/gateway-sbom.spdx.json
+          push-to-registry: true

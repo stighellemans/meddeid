@@ -7,3 +7,7 @@ build
 *.egg-info
 tests
 deploy/triton/model_repository
+deploy/triton/benchmark_source
+.env.cuda
+deploy/pytorch-cuda/validation-report.json
+deploy/pytorch-cuda/candidate-image-inspect.json

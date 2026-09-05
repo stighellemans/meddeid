@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import time
 from urllib.error import HTTPError, URLError
@@ -42,7 +43,13 @@ def wait_until_ready(base_url: str, timeout_seconds: float) -> dict:
             if status == 200 and payload.get("status") == "ok":
                 return payload
             last_error = f"health returned HTTP {status}: {payload}"
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+        except (
+            URLError,
+            TimeoutError,
+            ConnectionError,
+            http.client.RemoteDisconnected,
+            json.JSONDecodeError,
+        ) as exc:
             last_error = str(exc)
         time.sleep(1)
     raise RuntimeError(f"MedDeID did not become ready: {last_error}")
@@ -53,21 +60,27 @@ def main() -> None:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--api-key")
     parser.add_argument("--startup-timeout", type=float, default=90.0)
+    parser.add_argument(
+        "--request-timeout",
+        type=float,
+        default=10.0,
+        help="timeout for inference requests, including first-run compilation",
+    )
     args = parser.parse_args()
 
     health = wait_until_ready(args.base_url, args.startup_timeout)
-    assert health["runtime"]["ready"] is True
-    assert health["model"]["resolved_revision"]
+    assert health["ready"] is True
 
     sample = {
         "text": "Patiënt Jan Peeters belde 0470 12 34 56.",
-        "metadata": {
-            "patient": {"given_name": "Jan", "family_name": "Peeters"}
-        },
+        "metadata": {"patient": {"given_name": "Jan", "family_name": "Peeters"}},
     }
     if args.api_key:
         status, body = request_json(
-            args.base_url, "/deidentify", payload=sample
+            args.base_url,
+            "/deidentify",
+            payload=sample,
+            timeout=args.request_timeout,
         )
         assert status == 401, body
 
@@ -76,11 +89,19 @@ def main() -> None:
         "/deidentify",
         api_key=args.api_key,
         payload=sample,
+        timeout=args.request_timeout,
     )
     assert status == 200, body
-    assert body["deid_text"] == (
-        "Patiënt [Name:Patient] belde [Contactdetails]."
-    ), body
+    assert body["deid_text"] == ("Patiënt [Name:Patient] belde [Contactdetails]."), body
+    assert list(body) == [
+        "deid_text",
+        "spans",
+        "processing",
+        "warnings",
+        "provenance",
+    ], body
+    assert body["provenance"]["model"]["resolved_revision"], body
+    assert body["provenance"]["language_profile"]["profile_id"], body
 
     status, body = request_json(
         args.base_url,
@@ -92,16 +113,17 @@ def main() -> None:
                 {"document_id": "two", "text": "Geen persoonsgegevens."},
             ]
         },
+        timeout=args.request_timeout,
     )
     assert status == 200, body
     assert [item["document_id"] for item in body["documents"]] == ["one", "two"]
+    provenance = body["documents"][0]["provenance"]
     print(
         json.dumps(
             {
                 "status": "ok",
-                "model_revision": health["model"]["resolved_revision"],
-                "backend": health["runtime"]["backend"],
-                "device": health["runtime"]["device"],
+                "model": provenance["model"],
+                "software": provenance["software"],
             },
             indent=2,
         )

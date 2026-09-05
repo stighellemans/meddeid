@@ -1,67 +1,72 @@
 # Public artifacts
 
 The [MedDeID Hugging Face collection](https://huggingface.co/collections/stighellemans/meddeid)
-contains the public Dutch and English models and their synthetic datasets. Each
-item has its own page with usage guidance, limitations, licence, and version
-history.
+contains the public Dutch and English models, development data, and independent
+benchmarks.
 
-## Models
+## Choose what you need
 
-### `stighellemans/meddeid-dutch-synth`
+| Goal | Artifact |
+|---|---|
+| Try MedDeID without installing it | [Non-clinical demo](https://huggingface.co/spaces/stighellemans/meddeid-demo) |
+| De-identify Dutch clinical text | [Dutch synthetic model](https://huggingface.co/stighellemans/meddeid-dutch-synth) |
+| De-identify English clinical text | [English synthetic model](https://huggingface.co/stighellemans/meddeid-english-synth) |
+| Develop or adapt a model | A synthetic corpus for the applicable language |
+| Evaluate a system independently | The applicable synthetic benchmark |
+| Prepare human annotations | The Dutch or English annotation guideline |
 
-The current Dutch clinical de-identification model, trained on synthetic data. Download and run the complete model through the MedDeID package:
+The published models are synthetic baselines. Before using one with clinical
+text, validate it on representative data from your own setting.
+
+## Run a published model
+
+### [`stighellemans/meddeid-dutch-synth`](https://huggingface.co/stighellemans/meddeid-dutch-synth)
+
+Choose this model for Dutch text. MedDeID downloads it on first use and then
+reuses the local Hugging Face cache:
 
 ```bash
 pip install meddeid
-meddeid deidentify note.txt
+meddeid deidentify note.txt \
+  --model stighellemans/meddeid-dutch-synth
 ```
 
-For a reproducible or air-gapped deployment, save the exact model version and keep its files together.
+### [`stighellemans/meddeid-english-synth`](https://huggingface.co/stighellemans/meddeid-english-synth)
 
-### `stighellemans/meddeid-english-synth`
-
-The public English clinical de-identification model, trained on synthetic data.
-It supports separate `en-GB` and `en-US` regional profiles:
+Choose this model for English text and select the regional profile that matches
+the document formats:
 
 ```bash
 meddeid deidentify note.txt \
   --model stighellemans/meddeid-english-synth \
-  --language-profile en-GB
+  --language-profile en-GB  # Use en-US for US formats
 ```
 
-## Datasets
+For a reproducible workflow, record the model's immutable Hub revision. To run
+from a local copy, keep the complete model directory together.
 
-### `stighellemans/meddeid-dutch-synthetic-corpus`
+## Develop or evaluate with published data
 
-The complete 6,493-document synthetic dataset used for model development. Divide this dataset into training and validation data; keep the independent benchmark below separate.
+Use a corpus for model development, including training and validation. Keep the
+benchmark separate until final evaluation so it remains an independent test.
 
-### `stighellemans/meddeid-dutch-synthetic-benchmark`
+| Language | Development corpus | Independent benchmark |
+|---|---|---|
+| Dutch | [`meddeid-dutch-synthetic-corpus`](https://huggingface.co/datasets/stighellemans/meddeid-dutch-synthetic-corpus) | [`meddeid-dutch-synthetic-benchmark`](https://huggingface.co/datasets/stighellemans/meddeid-dutch-synthetic-benchmark) |
+| English | [`meddeid-english-synthetic-corpus`](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-corpus) | [`meddeid-english-synthetic-benchmark`](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark) |
 
-An independent set of 300 synthetic documents for final testing. It includes extra reviewed detail for measuring whether the important parts of each identifier were removed.
-
-### English synthetic corpus and benchmark
-
-`stighellemans/meddeid-english-synthetic-corpus` and
-`stighellemans/meddeid-english-synthetic-benchmark` provide the corresponding
-public English development and independent evaluation resources. Their dataset
-cards remain authoritative for exact row counts, provenance, and limitations.
+Before downloading or citing an artifact, read its card for the exact contents,
+provenance, evaluation results, limitations, licence, and available revisions.
+Pin the immutable revision when the result must be reproducible.
 
 ## Annotation guidelines
 
-The current `ProductionLabels_v1` guidelines are available in English and Dutch. PDF reading copies and editable DOCX sources are included in the [Zenodo v2 release](https://doi.org/10.5281/zenodo.21992866). They explain what annotators should mark; the precise software rules are documented separately in `meddeid-core`.
-
-## Artifact documentation belongs with the artifact
-
-Model and dataset cards are authoritative for:
-
-- exact files, row counts, and checksums;
-- intended use and out-of-scope use;
-- training or generation provenance;
-- evaluation results and limitations;
-- licences and required attribution;
-- immutable revisions and citations.
-
-This site explains how artifacts fit into suite workflows. It should not copy full cards, because copied limitations and revisions become stale.
+The current `ProductionLabels_v1` guidelines are available as PDF reading
+copies and editable DOCX sources in the Zenodo releases for
+[Dutch](https://doi.org/10.5281/zenodo.21992866) and
+[English](https://doi.org/10.5281/zenodo.22129255). They explain what
+annotators should mark; the precise software rules are documented separately
+in [`meddeid-core`](https://github.com/stighellemans/meddeid-core).
 
 ## Public demo
 

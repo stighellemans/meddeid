@@ -1,63 +1,55 @@
 # Install and run
 
-## Requirements
+Choose the path that matches how you intend to use MedDeID:
 
-- Docker Desktop or Docker Engine with Compose
-- **CPU:** 8 GiB RAM recommended
-- About 4 GB free disk space and internet access for the first image download
+| Goal | Start here |
+|---|---|
+| De-identify a note or a batch of files | [Run MedDeID locally](#run-meddeid-locally) |
+| Add de-identification to a Python application | [Use the Python API](#use-the-python-api) |
+| Explore the browser interface or HTTP API | [Try MedDeID in your browser](#try-meddeid-in-your-browser) |
+| Operate a shared institutional service | [Production deployment](../workflows/production-deployment.md) |
 
-These are practical starting points; production needs depend on workload.
+Training, evaluation, and annotation tools are separate workflows linked at
+the end of this page.
 
-## Easiest start with Docker
+## Run MedDeID locally
 
-Clone the `meddeid` repository and run:
+This is the shortest path for individual notes, scripts, and batches. It
+requires Python 3.10 or newer but does not require writing Python code.
 
-```bash
-git clone https://github.com/stighellemans/meddeid.git
-cd meddeid
-./scripts/start-local.sh
-```
-
-The script generates a private API key, pulls the published CPU image with the
-pinned default Dutch model, starts it only on your computer, and waits until it is ready. Open
-`http://127.0.0.1:8000/ui`, paste the API key from the generated `.env` file,
-then paste a note. No Python or API command is required. Technical API
-documentation remains available at `http://127.0.0.1:8000/docs`.
-
-Stop the service with `./scripts/stop-local.sh`.
-
-## Python option
-
-Install the released Python API, CLI, batch runner, and optional HTTP service:
+### Install
 
 ```bash
-python -m pip install 'meddeid[server]'
-meddeid deidentify note.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install meddeid
+meddeid models
 ```
 
-MedDeID downloads and caches the default
-`stighellemans/meddeid-dutch-synth` model on first use, chooses a local device,
-and processes the note locally.
+`meddeid models` lists the available models and their validation scope. Select
+one explicitly with `--model`; it is downloaded once and used locally.
 
-## Choose Dutch or English
+### Choose Dutch or English
 
-The default command uses the public Dutch model. For English, select the
-English model and an explicit regional profile:
+=== "Dutch (`nl-BE`)"
 
-```bash
-meddeid deidentify note.txt \
-  --model stighellemans/meddeid-english-synth \
-  --language-profile en-GB
-```
+    ```bash
+    meddeid deidentify note.txt \
+      --model stighellemans/meddeid-dutch-synth
+    ```
 
-Use `en-US` for US formats. The Dutch model supports `nl-BE` and `nl-NL`;
-the English model supports `en-GB` and `en-US`. MedDeID never guesses between
-regional profiles.
+=== "English (`en-GB`)"
 
-See [local inference](../workflows/inference.md#availability-today) for current
-deployment boundaries.
+    ```bash
+    meddeid deidentify note.txt \
+      --model stighellemans/meddeid-english-synth \
+      --language-profile en-GB  # Use en-US for US formats
+    ```
 
-## Use the Python API
+The current public Dutch model declares `nl-BE`; the English model supports
+`en-GB` and `en-US`.
+
+### Use the Python API
 
 ```python
 from meddeid import Deidentifier
@@ -72,27 +64,71 @@ print(result.spans)
 deidentifier.close()
 ```
 
-## Process a batch of notes
+### Process a batch of notes
 
 ```bash
-meddeid batch documents.jsonl --output predictions.jsonl
+meddeid batch documents.jsonl \
+  --output predictions.jsonl \
+  --model stighellemans/meddeid-dutch-synth
 ```
 
-The batch command keeps the document order and saves the information needed to identify how the results were produced.
+The batch command keeps document order and records how the results were
+produced.
 
-## Check the model version
+## Try MedDeID in your browser
+
+Install and start Docker Desktop. Clone MedDeID once:
 
 ```bash
-meddeid model-info
+git clone https://github.com/stighellemans/meddeid.git
+cd meddeid
 ```
 
-Save the exact model version shown by this command when the result must be reproducible.
+Choose the language you want to test:
 
-!!! tip "Air-gapped environments"
-    Download a fixed copy of the model outside the secure environment, validate it, transfer it according to local policy, and pass the local directory with `--model`. See [local inference](../workflows/inference.md#offline-and-air-gapped-use).
+=== "Dutch"
+
+    ```bash
+    ./scripts/start-local.sh \
+      --model stighellemans/meddeid-dutch-synth \
+      --language-profile nl-BE
+    ```
+
+=== "English"
+
+    ```bash
+    ./scripts/start-local.sh \
+      --model stighellemans/meddeid-english-synth \
+      --language-profile en-GB
+    ```
+
+When MedDeID is ready, the browser opens with the API key already filled in.
+Paste a note and select **De-identify**. The English model also lets you switch
+between `en-GB` and `en-US` in the browser.
+
+API documentation is available at `http://127.0.0.1:8000/docs`.
+
+Stop the service with `./scripts/stop-local.sh`.
+
+Developers testing source changes can add `--build`. For a shared service, see
+[production deployment](../workflows/production-deployment.md).
+
+## Reproducible or offline runs
+
+Inspect and record the exact model version when results must be reproducible:
+
+```bash
+meddeid model-info --model stighellemans/meddeid-dutch-synth
+```
+
+To stage and manage a model bundle yourself, pass its local directory with
+`--model`. The [local inference
+guide](../workflows/inference.md#run-a-model-from-a-local-directory) covers
+revision pinning, complete local bundles, and air-gapped environments.
 
 ## Next steps
 
-- [Run batch or service inference](../workflows/inference.md)
-- [Learn how MedDeID structures data](../concepts/data-contract.md)
+- [Explore local inference options](../workflows/inference.md)
+- [Deploy a shared institutional service](../workflows/production-deployment.md)
 - [Review privacy and security boundaries](../project/privacy-and-security.md)
+- [Choose a workflow for data preparation, evaluation, or training](../workflows/index.md)

@@ -1,61 +1,125 @@
-# Workflow overview
+# Choose a workflow
 
-MedDeID consists of focused tools that work together. You can use the complete workflow or choose only the steps your project needs.
+Start with the outcome you need. Each workflow explains which tools to use,
+what files you will create, and where those files go next. If you have not run
+MedDeID before, begin with [Install and run](../start/quickstart.md).
 
-## Clinical inference
+!!! tip "Planning a multi-step study?"
+    Run `meddeid start` when you want MedDeID to guide you through a longer
+    workflow and keep its decisions and progress together. It asks what you
+    want to accomplish, helps you choose the appropriate workflow, and creates
+    a workspace for continuing it later.
 
-```text
-note.txt or documents.jsonl
-  → meddeid
-  → de-identified text or predictions.jsonl
+    ```bash
+    meddeid start
+    ```
+
+    The assistant does not choose your study design for you. See the
+    [workflow CLI reference](../reference/workflow-cli.md) when you are ready
+    to create and use a workspace.
+
+<div class="path-grid" markdown>
+
+<div class="path-card" markdown>
+### De-identify text
+
+Process one note or a batch with the command line, or add local inference to a
+Python application.
+
+[Follow the inference steps →](inference.md)
+
+</div>
+
+<div class="path-card" markdown>
+### Run MedDeID as an internal service
+
+Choose CPU, NVIDIA GPU, or native Apple silicon for the HTTP API, then place the
+service inside your institution's security and operational controls.
+
+[Prepare a deployment →](production-deployment.md)
+
+</div>
+
+<div class="path-card" markdown>
+### Prepare and annotate data
+
+Import exported notes, review the identifiers in each document, and reconcile
+multiple reviewers only when your project requires it.
+
+[Prepare and annotate data →](prepare-and-annotate.md)
+
+</div>
+
+<div class="path-card" markdown>
+### Train a model
+
+Train from reviewed development data and measure the resulting model on an
+independent test set.
+
+[Train and evaluate →](train-and-evaluate.md)
+
+</div>
+
+<div class="path-card" markdown>
+### Adapt a model to your setting
+
+Test whether additional reviewed data from a hospital, speciality, or document
+type improves an existing model fairly.
+
+[Plan domain adaptation →](domain-adaptation.md)
+
+</div>
+
+<div class="path-card" markdown>
+### Evaluate or compare systems
+
+Score predictions against reviewed test data and compare systems under the
+same evaluation conditions.
+
+[Evaluate predictions →](train-and-evaluate.md#5-evaluate-predictions)
+
+</div>
+
+<div class="path-card" markdown>
+### Add another language
+
+Understand the language package, model bundle, validation, documentation, and
+collaboration work involved.
+
+[See how to add a language →](../project/contributing.md#what-adding-a-language-involves)
+
+</div>
+
+</div>
+
+## How the workflows fit together
+
+The workflows can be used separately or connected. A one-time de-identification
+run does not require an annotation or training project. A model-development
+project usually moves through preparation, review, training, and evaluation
+before the exported model is used for inference or deployment.
+
+```mermaid
+flowchart LR
+    S["Source notes"] --> R["Prepare and review"]
+    R --> T["Train or adapt"]
+    R --> E["Evaluate or compare"]
+    T --> I["Run or integrate"]
+    T --> E
+    M["Existing model"] --> I
+    I --> D["Deploy internally"]
 ```
 
-Use this path when a trained model already meets the needs of the target setting. [Run local inference](inference.md).
+Whichever route you choose:
 
-## Dataset preparation and review
+- keep source notes and the private ID mapping inside the approved data
+  boundary;
+- use separate writable files for reviewer work instead of changing the
+  imported source artifact;
+- preserve the manifests and settings that connect data, models, predictions,
+  and results; and
+- keep test answers out of training decisions when reporting model quality.
 
-```text
-hospital TXT / CSV / TSV / Parquet
-  → meddeid-data project
-  → optional model pre-annotations
-  → meddeid-annotate
-  → completed reviewed annotations
-```
-
-One completed review is sufficient for training. Add another reviewer and `meddeid-curate` only when your study requires independent review. [Prepare and annotate data](prepare-and-annotate.md).
-
-## Detailed evaluation
-
-```text
-completed reviewed annotations
-  → optional meddeid-curate
-  → meddeid-subannotate
-  → detailed evaluation benchmark
-  → meddeid-eval
-```
-
-This optional step marks which parts of each identifier are essential to be detected. It supports detailed evaluation and is not required for training.
-
-## Model adaptation
-
-```text
-reviewed development data + separate test data
-  → meddeid-data prepare-training
-  → meddeid-training
-  → exported model bundle
-  → meddeid batch
-  → meddeid-eval
-```
-
-For published research, MedDeID can first determine how long to train and then train a fresh model on all development data. A simpler one-time training run is available for ordinary experiments. [Train and evaluate](train-and-evaluate.md).
-
-## What stays consistent
-
-Across the workflow:
-
-- one tool's output can be used directly by the next;
-- source files are not silently overwritten;
-- MedDeID records which data, model, and settings produced a result;
-- the independent test set stays separate while training decisions are made.
-
-Implementation details are available in the [data contract](../concepts/data-contract.md) and [artifact lineage](../concepts/artifact-lineage.md) pages.
+For component responsibilities and package boundaries, see the
+[suite architecture](../concepts/architecture.md) and
+[component reference](../reference/components.md).

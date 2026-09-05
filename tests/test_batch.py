@@ -23,6 +23,19 @@ class FakeEngine:
             spans=[],
             deid_text=text,
             language_profile=metadata.get("lang", "nl-BE"),
+            provenance={
+                "contract_version": "meddeid.inference-provenance.v1",
+                "software": {"name": "meddeid", "version": "test"},
+                "model": {
+                    "name": "test-model",
+                    "version": "1",
+                    "resolved_revision": "abc123",
+                    "bundle_sha256": "a" * 64,
+                },
+                "language_profile": {
+                    "profile_id": metadata.get("lang", "nl-BE")
+                },
+            },
         )
 
     def model_info(self):
@@ -55,8 +68,19 @@ def test_batch_preserves_ids_order_and_writes_manifest(tmp_path):
         for line in output.read_text(encoding="utf-8").splitlines()
     ]
     assert rows[0]["text"] == "😀 note"
+    assert list(rows[0]) == [
+        "document_id",
+        "text",
+        "metadata",
+        "deid_text",
+        "spans",
+        "processing",
+        "warnings",
+        "provenance",
+    ]
     assert rows[0]["warnings"] == []
     assert rows[0]["processing"] == {}
+    assert rows[0]["provenance"]["language_profile"] == {"profile_id": "nl-BE"}
     assert manifest["counts"]["language_profiles"] == [
         {"profile_id": "nl-BE", "documents": 2},
     ]
@@ -74,6 +98,21 @@ def test_batch_resume_reuses_finished_documents(tmp_path):
     assert second.calls == []
     with pytest.raises(FileExistsError):
         run_batch(second, source, output)
+
+
+def test_batch_rejects_resume_output_without_provenance(tmp_path):
+    source = tmp_path / "input.jsonl"
+    source.write_text(
+        '{"document_id":"a","text":"one","spans":[]}\n', encoding="utf-8"
+    )
+    output = tmp_path / "predictions.jsonl"
+    output.write_text(
+        '{"document_id":"a","text":"one","spans":[],"deid_text":"one"}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="lacks required provenance"):
+        run_batch(FakeEngine(), source, output, resume=True)
 
 
 def test_batch_reports_progress_timing_and_runtime(tmp_path):

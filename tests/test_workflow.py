@@ -137,7 +137,7 @@ def test_operational_decision_is_requested_only_when_stage_is_reached(tmp_path: 
     reached = workflow_status(workspace)
     assert reached["next"]["id"] == "batch_inference"
     assert reached["next"]["state"] == "needs_input"
-    assert reached["next"]["missing_decisions"] == ["device"]
+    assert reached["next"]["missing_decisions"] == ["device", "model"]
     with pytest.raises(WorkflowError) as raised:
         run_next(workspace, interactive=False)
     assert raised.value.code == EXIT_NEEDS_INPUT
@@ -377,7 +377,7 @@ def test_optional_blank_answer_is_not_requested_again(
     tmp_path: Path, monkeypatch
 ) -> None:
     workspace = tmp_path / "cancelled"
-    answers = iter(["3", "", "", "no"])
+    answers = iter(["3", "example/model", "", "", "no"])
     prompts: list[str] = []
 
     def answer(prompt: str) -> str:
@@ -619,6 +619,7 @@ def test_one_resolved_end_to_end_fixture_per_workflow(tmp_path: Path) -> None:
     examples = {
         "inference": {
             "inference_mode": "batch", "source": str(gold), "device": "cpu",
+            "model": "example/model",
         },
         "dataset-review": {
             "source": str(gold), "namespace": "fixture", "language_profile": "en-GB",

@@ -90,11 +90,14 @@
 }
 
 .md-typeset .hero-text-link {
-  align-self: center;
+  display: block;
+  width: fit-content;
+  margin-top: 0.7rem;
   padding: 0.35rem 0.2rem;
   color: #d9f8f3;
   font-size: 0.78rem;
   font-weight: 700;
+  white-space: nowrap;
   text-decoration: underline;
   text-decoration-color: rgba(217, 248, 243, 0.45);
   text-underline-offset: 0.25rem;
@@ -140,6 +143,8 @@
 }
 
 .trust-item span {
+  display: block;
+  margin-top: 0.25rem;
   color: var(--md-default-fg-color--light);
   font-size: 0.7rem;
   line-height: 1.45;

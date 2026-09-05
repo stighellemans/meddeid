@@ -2,10 +2,13 @@ name: meddeid-triton
 
 services:
   triton:
-    image: ${MEDDEID_TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.02-py3}
-    command: ["tritonserver", "--model-repository=/models", "--strict-readiness=true"]
-    volumes:
-      - ./deploy/triton/model_repository:/models:ro
+    image: ${MEDDEID_TRITON_IMAGE:?set MEDDEID_TRITON_IMAGE to a target-specific MedDeID Triton image}
+    command:
+      - tritonserver
+      - --model-repository=/models
+      - --strict-readiness=true
+      - --disable-auto-complete-config
+      - --model-config-name=${MEDDEID_SERVING_PROFILE:-latency}
     expose:
       - "8000"
     deploy:
@@ -13,34 +16,44 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              device_ids: ["${MEDDEID_GPU_DEVICE_ID:-0}"]
               capabilities: [gpu]
+    networks:
+      - inference
     read_only: true
     tmpfs:
       - /tmp:size=1g,mode=1777,nosuid,nodev
+    shm_size: 1gb
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/v2/health/ready"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 6
     restart: unless-stopped
 
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.2.0}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.3.0}
     depends_on:
       triton:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "${MEDDEID_BIND_ADDRESS:-127.0.0.1}:${MEDDEID_PORT:-8000}:8000"
+    networks:
+      - gateway
+      - inference
     environment:
       MEDDEID_BACKEND: triton
       MEDDEID_TRITON_URL: http://triton:8000
-      MEDDEID_TRITON_TIMEOUT: ${MEDDEID_TRITON_TIMEOUT:-30}
-      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-16}
-      MEDDEID_API_KEY: ${MEDDEID_API_KEY:-}
-      MEDDEID_REQUIRE_API_KEY: ${MEDDEID_REQUIRE_API_KEY:-false}
-      MEDDEID_DOCS_ENABLED: ${MEDDEID_DOCS_ENABLED:-false}
-      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-2}
-      MEDDEID_MAX_CONCURRENT_REQUESTS: ${MEDDEID_MAX_CONCURRENT_REQUESTS:-1}
+      MEDDEID_SERVING_PROFILE: ${MEDDEID_SERVING_PROFILE:-latency}
+      MEDDEID_API_KEY: ${MEDDEID_API_KEY:?set MEDDEID_API_KEY to a strong secret}
+      MEDDEID_REQUIRE_API_KEY: "true"
+      MEDDEID_ALLOWED_MODELS: /opt/meddeid-model
+      MEDDEID_ALLOWED_LANGUAGE_PROFILES: nl-BE
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
@@ -51,3 +64,8 @@ services:
     pids_limit: 256
     init: true
     restart: unless-stopped
+
+networks:
+  gateway:
+  inference:
+    internal: true

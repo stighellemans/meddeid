@@ -1,0 +1,156 @@
+name: PyTorch CUDA image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_version:
+        description: Candidate version; leave empty to use pyproject.toml
+        required: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/meddeid-api
+
+jobs:
+  t4-sm75:
+    runs-on: [self-hosted, linux, x64, nvidia, t4-sm75]
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Resolve and verify release identity
+        env:
+          REQUESTED_VERSION: ${{ inputs.image_version }}
+        run: |
+          package_version=$(python - <<'PY'
+          import pathlib, tomllib
+          print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])
+          PY
+          )
+          if [[ "${GITHUB_REF_TYPE}" = tag ]]; then
+            image_version="${GITHUB_REF_NAME#v}"
+            if [[ "${image_version}" != "${package_version}" ]]; then
+              printf 'tag %s does not match package version %s\n' "${image_version}" "${package_version}" >&2
+              exit 1
+            fi
+          else
+            image_version="${REQUESTED_VERSION:-${package_version}}"
+          fi
+          source deploy/pytorch-cuda/versions.env
+          cuda_tag="${MEDDEID_PYTORCH_CUDA_VERSION//./.}"
+          {
+            echo "IMAGE_VERSION=${image_version}"
+            echo "PACKAGE_VERSION=${package_version}"
+            echo "CUDA_TAG=${cuda_tag}"
+            echo "PYTORCH_VERSION=${MEDDEID_PYTORCH_VERSION}"
+            echo "PYTORCH_INDEX_URL=${MEDDEID_PYTORCH_INDEX_URL}"
+            echo "PYTORCH_CUDA_VERSION=${MEDDEID_PYTORCH_CUDA_VERSION}"
+            echo "CANDIDATE_IMAGE=meddeid-api:${image_version}-cuda${cuda_tag}-ci"
+            echo "BUILD_DATE=$(git show -s --format=%cI HEAD)"
+          } >>"${GITHUB_ENV}"
+      - name: Verify Compose contract
+        run: |
+          MEDDEID_PYTORCH_CUDA_IMAGE="${CANDIDATE_IMAGE}" \
+          MEDDEID_API_KEY=cuda-validation-only-secret \
+          docker compose -f compose.yaml -f compose.cuda.yaml config --quiet
+      - name: Build local candidate
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.CANDIDATE_IMAGE }}
+          build-args: |
+            TORCH_VERSION=${{ env.PYTORCH_VERSION }}
+            TORCH_INDEX_URL=${{ env.PYTORCH_INDEX_URL }}
+            MEDDEID_ACCELERATOR=cuda
+            MEDDEID_CUDA_VERSION=${{ env.PYTORCH_CUDA_VERSION }}
+            MEDDEID_DEVICE=cuda
+            MEDDEID_TORCH_PRECISION=fp16
+            MEDDEID_TORCH_COMPILE_MODE=off
+            MEDDEID_VERSION=${{ env.PACKAGE_VERSION }}
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+          cache-from: type=gha,scope=pytorch-cuda
+          cache-to: type=gha,mode=max,scope=pytorch-cuda
+      - name: Require CUDA execution and API inference
+        run: |
+          ./deploy/validate_pytorch_cuda_image.sh \
+            "${CANDIDATE_IMAGE}" 0 \
+            deploy/pytorch-cuda/validation-report.json
+      - name: Record candidate identity
+        run: |
+          docker image inspect "${CANDIDATE_IMAGE}" \
+            > deploy/pytorch-cuda/candidate-image-inspect.json
+          python deploy/measure_container_image.py "${CANDIDATE_IMAGE}" \
+            --budget-file deploy/image-size-budgets.json \
+            --budget-key pytorch-cuda \
+            --output deploy/pytorch-cuda/candidate-image-size.json
+      - name: Reject fixable high or critical vulnerabilities
+        run: |
+          docker run --rm \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --timeout 10m \
+            "${CANDIDATE_IMAGE}"
+      - name: Collect validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytorch-cuda-t4-sm75-evidence-${{ github.run_id }}
+          path: |
+            deploy/pytorch-cuda/validation-report.json
+            deploy/pytorch-cuda/candidate-image-inspect.json
+            deploy/pytorch-cuda/candidate-image-size.json
+          if-no-files-found: warn
+      - uses: docker/login-action@v4
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish validated CUDA image
+        if: github.ref_type == 'tag'
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}-cuda${{ env.CUDA_TAG }}
+          build-args: |
+            TORCH_VERSION=${{ env.PYTORCH_VERSION }}
+            TORCH_INDEX_URL=${{ env.PYTORCH_INDEX_URL }}
+            MEDDEID_ACCELERATOR=cuda
+            MEDDEID_CUDA_VERSION=${{ env.PYTORCH_CUDA_VERSION }}
+            MEDDEID_DEVICE=cuda
+            MEDDEID_TORCH_PRECISION=fp16
+            MEDDEID_TORCH_COMPILE_MODE=off
+            MEDDEID_VERSION=${{ env.PACKAGE_VERSION }}
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+          cache-from: type=gha,scope=pytorch-cuda
+          provenance: mode=max
+          sbom: true
+      - name: Attest published CUDA image
+        if: github.ref_type == 'tag'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

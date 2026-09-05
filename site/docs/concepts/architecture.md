@@ -50,52 +50,52 @@ flowchart LR
 | Experiment | `meddeid-training`, `meddeid-eval` | Training protocol, export, metrics, stability |
 | Artifacts | Hugging Face and Zenodo repositories | Published model, datasets, guidelines, checksums |
 
-## Boundaries that matter
+## How the separation helps you
 
-### Language-neutral core
+The components are separated so you can use the part of MedDeID that matches
+your task without installing or operating the entire suite.
 
-`meddeid-core` has no language-specific rules and no model runtime. Language behavior belongs in separate profile packages, so a new language can implement the same provider interface without forking the schema, annotation tools, training flow, or evaluation contract.
+### Install only what you need
 
-The public `meddeid-language-nl` package provides the `nl-BE` and `nl-NL`
-profiles, while `meddeid-language-en` provides `en-GB` and `en-US`. An
-additional language should live in its own independently versioned package,
-register its Python profile provider and any JavaScript
-subannotation profiles, package shared resources with provenance, and be pinned
-by the corresponding model and evaluation bundles.
+For ordinary de-identification, install `meddeid`. Dataset preparation,
+annotation, evaluation, and training are separate tools and are needed only for
+those workflows. Add the optional server dependencies only when an application
+needs to call MedDeID over HTTP.
 
-### Inference is small by default
+This keeps a basic inference environment smaller and gives production and
+research workflows independent dependency and release boundaries.
 
-Installing `meddeid` does not install data generation, training, evaluation, or annotation tools. The optional server dependency adds HTTP serving but not the research pipeline.
+### Select language behavior explicitly
 
-### Human workflows exchange files
+Every MedDeID tool uses the same record structure and label taxonomy. Dutch,
+English, and future languages add their own regional rules without changing
+that shared format.
 
-The browser applications are local tools connected by canonical files and manifests. Curation is optional, and subannotation begins only from completed primary gold.
+Models declare which regional profiles they support. You select the model and,
+when required, a profile such as `nl-BE`, `en-GB`, or `en-US`. The same
+annotation, training, and evaluation workflow can therefore support another
+language without creating a separate version of the suite.
 
-Subannotation has a language-neutral review engine and a built-in neutral
-profile. Installed `meddeid-language-*` packages may additionally expose a
-versioned semantic subannotation capability. The capability owns language and
-locale grammar, category suggestions, formatting policy, and attributed lookup
-resources; the application continues to own offsets, persistence, review state,
-rebasing, validation, and export. Profile identity, ruleset version, resources,
-and implementation hash are pinned in the resulting benchmark manifest.
+### Pass work between tools as files
 
-JavaScript language packages self-register profile selections through
-`package.json#meddeid.subannotationProfiles`; `meddeid-subannotate` discovers
-that metadata without language-specific branches. Each workspace persists one
-selection in `data/subannotation-profile.json`. Environment variables are
-temporary overrides, not the normal configuration mechanism. Switching a
-profile after review begins requires a backed-up migration that resets review
-state.
+The tools do not need to run together as one application. Dataset preparation,
+human review, training, and evaluation exchange validated files and manifests,
+so each step can run in the environment appropriate for it while retaining a
+record of what produced the result.
 
-Python and JavaScript capabilities may ship from the same language repository
-and consume the same versioned resource files. This avoids copying locale
-lookups between inference, generation, and subannotation while keeping their
-runtime contracts separate.
+Optional stages stay optional. Use curation when a project has multiple
+independent reviewers. Add detailed subannotations only when building a
+benchmark that needs character-level evaluation.
 
-### External comparators stay external
+### Install released components, not the suite workspace
 
-Belgian DEDUCE and other comparison systems run in their own environments. Only their canonical output crosses into `meddeid-eval`; their code and licence do not enter the MedDeID dependency graph.
+Most users install Python packages or run published container images. The
+grouped `meddeid-suite` checkout is for maintainers who coordinate and verify
+releases; it is not required at runtime.
 
-### The suite workspace is a coordinator
+### Keep comparison systems independent
 
-The grouped `meddeid-suite` checkout assembles and verifies release candidates. End users clone or install individual components. Runtime code must not discover sibling source checkouts.
+External systems such as Belgian DEDUCE run in their own environments. Convert
+their predictions to the MedDeID result format before evaluating them with
+`meddeid-eval`. This avoids mixing dependencies and licences while still
+allowing results to be compared consistently.

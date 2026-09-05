@@ -1,105 +1,220 @@
-# Train and evaluate
+# Train and evaluate a model
 
-Use reviewed development data to train a model. Keep a separate test set untouched until the final evaluation.
+Use this workflow when you have reviewed development data and a separate,
+reviewed test set. Development data may influence training decisions; test
+answers must remain unseen until the final evaluation.
 
-Install the released workflow packages from PyPI:
+You can follow either of two training routes:
+
+| Goal | Route |
+|---|---|
+| Explore whether training works | One ordinary fit |
+| Produce a study or release result | Select the training duration, then restart and refit on all development data |
+
+If you only want to evaluate existing predictions, skip directly to
+[Evaluate predictions](#5-evaluate-predictions).
+
+## Before you begin
+
+You need:
+
+- a MedDeID project that was split before review;
+- completed train, validation, and test assignments whose document IDs still
+  match those project splits; and
+- a training configuration that identifies the starting model and language
+  profile.
+
+See [Prepare and annotate data](prepare-and-annotate.md) if those reviewed
+files do not exist yet.
+
+Install the released tools:
 
 ```bash
 python -m pip install \
   meddeid-data \
-  'meddeid-eval[plots]' \
-  'meddeid-training[train]'
+  'meddeid-training[train]' \
+  'meddeid-eval[plots]'
 ```
 
-## Prepare data and protect the test set
+The training extra also installs `meddeid`, which is used later to generate
+predictions from the exported model. If you only need to score and plot
+predictions that already exist, install `meddeid-eval[plots]` instead.
+
+## 1. Prepare the training files
 
 <span class="source-label">Owner: meddeid-data</span>
 
+Pass the three completed assignments to `prepare-training`:
+
 ```bash
 meddeid-data project prepare-training my-project \
-  --development assignments/development-reviewer-a.jsonl \
-  --test-gold evaluation/meddeid-dutch-synthetic-benchmark.jsonl
+  --selection-train my-project/assignments/train-reviewed.jsonl \
+  --selection-validation my-project/assignments/validation-reviewed.jsonl \
+  --test-gold my-project/assignments/test-reviewed.jsonl
 ```
 
-This checks that the reviewed files belong to the project and prepares three folders for training and evaluation:
+The command verifies completion, document membership, text, labels, and
+checksums before creating three views under `my-project/prepared/`:
 
-| View | Purpose |
-|---|---|
-| `prepared/fit` | Run one ordinary training experiment |
-| `prepared/selection` | Decide how long to train without looking at test answers |
-| `prepared/refit` | Train on all development data and evaluate once on the separate test set |
+| Directory | What it contains | Use it for |
+|---|---|---|
+| `fit` | Separate train, validation, and test files | One ordinary experiment |
+| `selection` | Train and validation files; the test file is empty | Choosing the training duration without seeing test answers |
+| `refit` | All development documents for training and the sealed test set | Restarting, fitting all development data, and evaluating once |
 
-## Ordinary training run
+Use `--development` instead of the two `--selection-*` options only when train
+and validation were deliberately reviewed as one combined development
+assignment.
+
+The command does not modify the reviewed source files and will not overwrite a
+non-empty `prepared/` directory.
+
+## 2. Create the training configuration
 
 <span class="source-label">Owner: meddeid-training</span>
 
+Save a small YAML file such as `training.yaml`:
+
+```yaml
+model_name: stighellemans/meddeid-dutch-synth
+model_revision: <immutable-hub-revision>
+language_profile: nl-BE
+device: auto
+epochs: 8
+seed: 42
+```
+
+`model_name` is the model from which training starts. Use its immutable Hub
+revision so separate runs cannot resolve different model versions. You can
+inspect the model and copy its reported revision with:
+
+```bash
+meddeid model-info \
+  --model stighellemans/meddeid-dutch-synth
+```
+
+For English data, use the English starting model and `en-GB` or `en-US`. When
+one training dataset deliberately contains both profiles, replace
+`language_profile` with:
+
+```yaml
+language_profiles:
+  - en-GB
+  - en-US
+```
+
+The remaining training parameters have defaults. Add or change them only when
+they are part of the experiment you intend to run. The
+[`meddeid-training` repository](https://github.com/stighellemans/meddeid-training)
+documents the complete configuration.
+
+## 3. Run one ordinary fit
+
+Use this route for exploration or an ordinary train/validation/test
+experiment:
+
 ```bash
 meddeid-train fit \
-  --config configs/release.yaml \
-  --data prepared/fit \
+  --config training.yaml \
+  --data my-project/prepared/fit \
   --run runs/fit
 ```
 
-Validation chooses the best saved model. Test evaluation happens after training. The result is `runs/fit/checkpoints/best.pt`.
+Training uses the validation set to retain the best checkpoint, then evaluates
+that checkpoint on the test set. The selected checkpoint is written to
+`runs/fit/checkpoints/best.pt`.
 
-## Publication protocol
+Do not use repeated ordinary fits on the same test set to select
+hyperparameters. Once test results influence another training decision, the
+test set is no longer independent.
 
-For a release-quality experiment, first use validation data to choose how long to train. Then start fresh, train on all development data, and evaluate once on the separate test set:
+## 4. Select and refit for a study or release
+
+Use this two-stage route when the final test result must remain independent of
+training-duration selection.
+
+First, select the number of epochs using only the development train and
+validation data:
 
 ```bash
 meddeid-train select-epochs \
-  --config configs/release.yaml \
-  --data prepared/selection \
+  --config training.yaml \
+  --data my-project/prepared/selection \
   --run runs/selection
+```
 
+This writes the selected epoch count to `runs/selection/run.json`. The test
+file in this view is empty, so this stage cannot score the test set.
+
+Then restart from the original model and train on all development data for that
+fixed number of epochs:
+
+```bash
 meddeid-train refit \
-  --config configs/release.yaml \
+  --config training.yaml \
   --selection runs/selection/run.json \
-  --data prepared/refit \
+  --data my-project/prepared/refit \
   --run runs/refit
+```
 
+Refit does not continue from the selection checkpoint. It starts again from the
+same model revision, combines the development train and validation data, and
+evaluates once on the sealed test set.
+
+## Export the trained model
+
+Export the checkpoint from the route you chose. This example uses the refit
+run; replace `runs/refit` with `runs/fit` after an ordinary fit:
+
+```bash
 meddeid-train export \
   --checkpoint runs/refit/checkpoints/best.pt \
   --run-metadata runs/refit/train_metrics.json \
   --output release/my-model
 ```
 
-Both runs start independently from the configured initial model. The final run does not continue from the earlier one. The exported directory contains everything `meddeid` needs to use the model.
+The `release/my-model` directory is a self-contained MedDeID model bundle. Use
+that exported directory—not an in-memory model or an unexported checkpoint—for
+the final inference and evaluation.
 
-## Evaluate predictions
+## 5. Evaluate predictions
 
 <span class="source-label">Owner: meddeid-eval</span>
 
-Generate predictions with the exact exported bundle:
+Generate predictions from the exact exported bundle. The example uses the
+refit test view; use `prepared/fit/test.jsonl` for an ordinary fit:
 
 ```bash
-meddeid batch prepared/refit/test.jsonl \
+meddeid batch my-project/prepared/refit/test.jsonl \
   --model release/my-model \
   --output predictions/test.jsonl
 ```
 
-Then score the prediction file:
+Score those predictions against the unchanged test gold:
 
 ```bash
 meddeid-eval score \
-  --gold prepared/refit/test.jsonl \
+  --gold my-project/prepared/refit/test.jsonl \
   --predictions predictions/test.jsonl \
   --name my-model \
-  --seconds 18.4 \
-  --device gpu \
   --output results/my-model.json
 ```
 
-The installation above includes plotting support. Add the `infer` extra when
-evaluation itself must run model inference.
+The result includes exact-span and character-level metrics, core-PII recall,
+and unnecessary redaction outside the reviewed identifiers. Detailed
+subannotation metrics appear only when the test gold contains those optional
+labels.
 
-The score artifact reports exact-span and character metrics, core-PII recall,
-non-PII redaction, and privacy-safe aggregate tables by gold label,
-sub-annotation category, and predicted label when the test data supports them.
+Add `--seconds` and `--device` only when you measured runtime and want that
+context stored with the score. They do not run a benchmark themselves.
 
-To compare another system, run it separately, convert its results to the MedDeID prediction format, and score them with `meddeid-eval`.
+## Compare systems and create figures
 
-Render the resulting score artifacts together:
+To compare another system, run it in its own environment and convert its
+predictions to the MedDeID result format. Score it against the same gold file
+with the same `meddeid-eval` version.
+
+Render one or more score files together:
 
 ```bash
 meddeid-eval plot \
@@ -107,20 +222,22 @@ meddeid-eval plot \
   --output-dir results/plots
 ```
 
-PNG and searchable vector PDF figures are written by default. The figure family
-includes a performance overview, label and sub-annotation heatmaps, non-PII
-redactions by predicted label, exact-boundary label confusion, and an
-accuracy-versus-runtime plot when timing metadata was recorded.
+The command writes PNG and searchable PDF figures. Consult the
+[`meddeid-eval` repository](https://github.com/stighellemans/meddeid-eval)
+for metric definitions, stability analysis, and additional plot options.
 
-## Keep with every result
+## Keep with the result
 
-- the dataset versions and development/test split;
-- the starting model and exact version;
-- the language profile and version;
-- the annotation labels used;
-- settings and random seeds;
-- package versions and hardware/runtime information;
-- the saved model version;
-- exact prediction and metric commands.
+Keep enough information to identify the complete run:
 
-MedDeID records much of this automatically. Keep those run records with the paper or report. See [artifact lineage](../concepts/artifact-lineage.md) for the detailed reproducibility fields.
+- the reviewed development and test manifests;
+- the fixed project split;
+- `training.yaml` and its random seed;
+- the starting model and immutable revision;
+- the selected language profile and package versions;
+- the training run metadata and exported bundle;
+- the prediction manifest, score file, and exact commands; and
+- relevant hardware and measured runtime information.
+
+See [Artifact lineage](../concepts/artifact-lineage.md) for how these files
+connect.

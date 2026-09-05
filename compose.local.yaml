@@ -1,0 +1,9 @@
+name: meddeid
+
+services:
+  meddeid:
+    volumes:
+      - meddeid-model-cache:/var/cache/meddeid
+
+volumes:
+  meddeid-model-cache:

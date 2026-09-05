@@ -1,0 +1,38 @@
+services:
+  torch-reference:
+    image: ${MEDDEID_REFERENCE_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.3.0}
+    ports:
+      - "127.0.0.1:${MEDDEID_REFERENCE_PORT:-8001}:8000"
+    environment:
+      MEDDEID_BACKEND: torch
+      MEDDEID_DEVICE: cpu
+      MEDDEID_WINDOW_BATCH_SIZE: 32
+      MEDDEID_API_KEY: ${MEDDEID_API_KEY:?set MEDDEID_API_KEY to a strong secret}
+      MEDDEID_REQUIRE_API_KEY: "true"
+      MEDDEID_ALLOWED_MODELS: ${MEDDEID_ALLOWED_MODELS:-}
+      MEDDEID_ALLOWED_LANGUAGE_PROFILES: ${MEDDEID_ALLOWED_LANGUAGE_PROFILES:-}
+      MEDDEID_DOCS_ENABLED: "false"
+      MEDDEID_UI_ENABLED: "false"
+      MEDDEID_WORKERS: 1
+      MEDDEID_MAX_CONCURRENT_REQUESTS: 8
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    init: true
+    networks:
+      - gateway
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4))"
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 6

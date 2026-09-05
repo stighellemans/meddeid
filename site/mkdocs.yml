@@ -80,11 +80,9 @@ extra:
 
 nav:
   - Home: index.md
-  - Start:
-      - Choose your path: start/index.md
-      - Install and run: start/quickstart.md
+  - Start here: start/quickstart.md
   - Workflows:
-      - Workflow overview: workflows/index.md
+      - Choose a workflow: workflows/index.md
       - Local inference: workflows/inference.md
       - Production deployment: workflows/production-deployment.md
       - Prepare and annotate data: workflows/prepare-and-annotate.md
@@ -95,6 +93,7 @@ nav:
       - Data contract: concepts/data-contract.md
       - Artifact lineage: concepts/artifact-lineage.md
   - Reference:
+      - Workflow CLI: reference/workflow-cli.md
       - Components: reference/components.md
       - Compatibility: reference/compatibility.md
   - Artifacts: artifacts/index.md

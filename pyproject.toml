@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meddeid"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local-first multilingual clinical text de-identification framework with Python, CLI, batch, and HTTP interfaces"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,19 +50,24 @@ Issues = "https://github.com/stighellemans/meddeid/issues"
 
 [project.optional-dependencies]
 server = ["fastapi>=0.115", "uvicorn>=0.30"]
+triton = ["tritonclient[http]>=2.71,<2.72"]
 research = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "meddeid-data[llm,parquet]>=0.3,<0.4",
-    "meddeid-eval[infer,plots]>=0.3,<0.4",
-    "meddeid-training[plots,train]>=0.2,<0.3",
+    "meddeid-eval[plots]>=0.3,<0.4",
+    "meddeid-training[plots]>=0.2,<0.3",
+    "scikit-learn>=1.4",
+    "tqdm>=4.66",
 ]
 contributor = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "meddeid-data[llm,parquet]>=0.3,<0.4",
-    "meddeid-eval[infer,plots]>=0.3,<0.4",
-    "meddeid-training[plots,train]>=0.2,<0.3",
+    "meddeid-eval[plots]>=0.3,<0.4",
+    "meddeid-training[plots]>=0.2,<0.3",
+    "scikit-learn>=1.4",
+    "tqdm>=4.66",
     "build>=1.2",
     "pytest>=8",
 ]

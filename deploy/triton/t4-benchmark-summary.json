@@ -1,0 +1,105 @@
+{
+  "schema": "meddeid.triton-benchmark-summary.v1",
+  "measured_at": "2026-09-05",
+  "target": {
+    "id": "t4-sm75",
+    "gpu": "NVIDIA Tesla T4",
+    "compute_capability": "7.5",
+    "cloud": "Azure",
+    "vm_size": "Standard_NC4as_T4_v3",
+    "vcpu": 4,
+    "gpu_memory_mib": 16384
+  },
+  "model": {
+    "id": "stighellemans/meddeid-dutch-synth",
+    "revision": "c5706e009c7f45988328219d0fb1b68875a99519",
+    "bundle_sha256": "001123dbc1184751e4bae3c29633d14a5e041acae0c173773f186127ae3fd944"
+  },
+  "fixture": {
+    "id": "stighellemans/meddeid-dutch-synthetic-benchmark",
+    "revision": "9b95ebbfb091a5390e4fc39e2ef74e7580aac068",
+    "sha256": "f1fc1a0447d1c447d742a1d32c1bb18393840665cc44d591eccc95e8cf3f5d01",
+    "parity_documents": 300
+  },
+  "benchmark": {
+    "repetitions": 3,
+    "aggregation": "median",
+    "batch_size": 16,
+    "concurrency": 8,
+    "requests": 60,
+    "documents": 948,
+    "characters": 1307107
+  },
+  "parity": {
+    "passed": true,
+    "documents": 300,
+    "semantic_differences": 0,
+    "confidence_fields_excluded": true
+  },
+  "artifacts": {
+    "cpu": {
+      "description": "PyTorch CPU API",
+      "pull_size_proxy_gb": 0.73,
+      "unpacked_size_gb": 1.61,
+      "ready_seconds": 20.1,
+      "documents_per_second": 1.85,
+      "p50_seconds": 6.78,
+      "p95_seconds": 15.74
+    },
+    "pytorch_cuda_fp16_eager": {
+      "description": "PyTorch CUDA API, FP16 eager",
+      "pull_size_proxy_gb": 4.54,
+      "unpacked_size_gb": 7.4,
+      "ready_seconds": 68.8,
+      "documents_per_second": 65.0,
+      "p50_seconds": 1.87,
+      "p95_seconds": 2.49,
+      "peak_gpu_memory_mib": 1655
+    },
+    "tensorrt_gateway_pair": {
+      "description": "Target-specific TensorRT server plus weight-free gateway",
+      "pull_size_proxy_gb": 1.133,
+      "unpacked_size_gb": 2.474,
+      "ready_seconds": 10.0,
+      "documents_per_second": 168.8,
+      "characters_per_second": 232731,
+      "p50_seconds": 0.725,
+      "p95_seconds": 1.418,
+      "peak_gpu_memory_mib": 911,
+      "plan_mb": 250,
+      "gateway_model_payload_mb": 5,
+      "components": {
+        "tensorrt_server": {
+          "pull_size_proxy_gb": 1.017,
+          "unpacked_size_gb": 1.925
+        },
+        "gateway": {
+          "pull_size_proxy_gb": 0.116,
+          "unpacked_size_gb": 0.549
+        }
+      }
+    }
+  },
+  "compile_experiment": {
+    "dynamic_batch_16_documents_per_second": 71.1,
+    "eager_batch_16_documents_per_second": 65.0,
+    "dynamic_batch_32_documents_per_second": 71.0,
+    "eager_batch_32_documents_per_second": 67.3,
+    "additional_pull_size_gb": 0.3,
+    "additional_unpacked_size_gb": 1.0,
+    "first_graph_seconds": 28.7,
+    "observed_p95_stall_seconds": 31.4,
+    "recommendation": "fp16-eager"
+  },
+  "scheduler_recommendation": {
+    "gateway_workers": 4,
+    "request_local_window_batch_size": 64,
+    "triton_dynamic_batching": false,
+    "reason": "Best overall latency/throughput trade-off in the current-suite workload matrix; nested batching helped only the short-note burst and regressed isolated and ETL workloads."
+  },
+  "limitations": [
+    "The serialized TensorRT plan is compatible only with the validated T4 target and pinned runtime stack.",
+    "Pull size uses gzip-compressed docker image save as a registry-transfer proxy.",
+    "Synthetic public notes are comparative evidence, not a clinical capacity guarantee."
+  ]
+}

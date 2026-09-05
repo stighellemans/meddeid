@@ -1,0 +1,33 @@
+{
+  "schema": "meddeid.triton-target-catalog.v1",
+  "default_target": "t4-sm75",
+  "targets": [
+    {
+      "id": "t4-sm75",
+      "display_name": "NVIDIA T4",
+      "compute_capability": "7.5",
+      "gpu_name_pattern": "(^|\\s)T4($|\\s)",
+      "runner_label": "t4-sm75",
+      "image_repository": "ghcr.io/stighellemans/meddeid-triton-t4-sm75",
+      "release_status": "ready"
+    },
+    {
+      "id": "a10g-sm86",
+      "display_name": "NVIDIA A10G",
+      "compute_capability": "8.6",
+      "gpu_name_pattern": "(^|\\s)A10G($|\\s)",
+      "runner_label": "a10g-sm86",
+      "image_repository": "ghcr.io/stighellemans/meddeid-triton-a10g-sm86",
+      "release_status": "on-request"
+    },
+    {
+      "id": "l4-sm89",
+      "display_name": "NVIDIA L4",
+      "compute_capability": "8.9",
+      "gpu_name_pattern": "(^|\\s)L4($|\\s)",
+      "runner_label": "l4-sm89",
+      "image_repository": "ghcr.io/stighellemans/meddeid-triton-l4-sm89",
+      "release_status": "on-request"
+    }
+  ]
+}
