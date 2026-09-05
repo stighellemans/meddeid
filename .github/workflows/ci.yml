@@ -24,9 +24,9 @@ jobs:
       - name: Install released dependencies and test requirements
         run: |
           python -m pip install \
-            'meddeid-core==0.2.0' \
-            'meddeid-language-en==0.2.0' \
-            'meddeid-language-nl==0.2.0'
+            'meddeid-core==0.2.1' \
+            'meddeid-language-en==0.2.1' \
+            'meddeid-language-nl==0.2.1'
           python -m pip install '.[dev]' build twine
           python -m pip check
       - run: pytest -q

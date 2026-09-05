@@ -35,9 +35,10 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
   CI rejects size regressions as well as accidental cross-framework payloads.
 - Made the `research` and `contributor` extras resolve against the current
   suite without selecting the older self-referential inference/training
-  extras; their required training dependencies are declared directly.
-- Aligned CPU, CUDA, and gateway image inputs to the exact released 0.2.0
-  core and language-package tag commits used by clean PyPI installations.
+  extras; their required training dependencies are declared directly and the
+  compatible ranges include the coordinated data and evaluation releases.
+- Aligned CPU, CUDA, and gateway image inputs to the exact coordinated core
+  and language-package tag commits used by clean PyPI installations.
 - Reduced each published GPU environment template to image identity, API key,
   bind address, and one performance choice: `latency` or `throughput`. The
   images now carry the benchmarked batching, worker, precision, transport, and
