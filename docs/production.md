@@ -57,7 +57,7 @@ per run.
 | T4 TensorRT | 168.8 | 0.725 / 1.418 s | 911 MiB |
 
 These historical measurements do not establish the performance or correctness
-of a repaired FP16 candidate. Fresh parity and benchmark evidence is required.
+of a repaired FP16 candidate. Fresh comparison reports and benchmark evidence are required.
 Latency includes queueing under the stated concurrency.
 An exact semantic comparison of CPU and TensorRT output passed for all 300
 pinned fixture documents with zero differences.
@@ -197,10 +197,10 @@ Each worker loads a separate model copy onto the GPU. Start with one worker.
 The CUDA release target remains FP16, a 32-window batch, and eager execution
 (`MEDDEID_TORCH_COMPILE_MODE=off`) to preserve throughput. The 0.4.0 candidate
 audit found that FP16 changed a redaction span on the pinned Dutch fixture, even
-without cross-request batching. This remains a release blocker; FP32 is a
-diagnostic reference, not a substitute for the preferred FP16 release. Any
-numerical correction must pass full parity and receive fresh throughput
-measurements. The following measurements describe the earlier FP16 configuration. Dynamic `reduce-overhead` compilation raised
+without cross-request batching. The release policy accepts semantic differences, including reduced masking,
+with a complete discrepancy report. FP32 remains a diagnostic reference.
+Execution, model identity and result completeness must still pass; fresh
+throughput measurements must describe the actual FP16 configuration. The following measurements describe the earlier FP16 configuration. Dynamic `reduce-overhead` compilation raised
 warm batch-16 throughput from 65.0 to 71.1 documents/s (9.5%) and batch-32
 throughput from 67.3 to 71.0 documents/s (5.5%). It also added 0.30 GB to the
 compressed pull proxy and 1.00 GB unpacked, took 28.7 seconds to compile the

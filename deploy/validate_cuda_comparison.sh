@@ -71,7 +71,7 @@ if [[ "$mode" == parity ]]; then
   if [[ "$variant" == optimized ]]; then report="$output_dir/pytorch-cuda-parity-report.json"; fi
   python deploy/validate_triton_parity.py "$MEDDEID_BENCHMARK_FILE" \
     --candidate-url http://127.0.0.1:8002 --reference-url http://127.0.0.1:8001 \
-    --fail-fast --output "$report" "$@"
+    --fail-fast --semantic-policy report-only --output "$report" "$@"
 else
   python deploy/monitor_nvidia.py --output "$prefix-gpu-metrics.json" &
   monitor_pid=$!

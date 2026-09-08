@@ -103,3 +103,57 @@ def test_duplicate_fixture_and_unknown_replay_id_rejected(tmp_path):
                        batch_size=2, output=tmp_path/'report.json')
     with pytest.raises(ValueError, match='not found'):
         parity.selected_batches(documents(), 2, 'unknown')
+
+
+def test_report_only_records_missed_masking_and_finishes_every_batch(monkeypatch, tmp_path):
+    def mutate(side, rows):
+        if side == 'reference':
+            for row in rows:
+                row['spans'] = [{'begin': 0, 'end': 3, 'label': 'Name'}]
+                row['deid_text'] = '[Name]thetic text'
+        return rows
+    report, calls = run(monkeypatch, tmp_path, mutate, semantic_policy='report-only', fail_fast=True)
+    assert report['passed'] and not report['strict_passed']
+    assert report['complete'] and report['checked_documents'] == 4 and len(calls) == 4
+    assert len(report['semantic_differences']) == 4
+    assert report['semantic_summary']['unmasked_reference_characters'] == 12
+    assert report['semantic_summary']['documents_with_reduced_mask_coverage'] == 4
+    assert report['semantic_summary']['affected_document_fraction'] == 1.0
+    assert 'Reference-masked characters unmasked by candidate: 12' in (tmp_path/'report.md').read_text()
+
+
+def test_report_only_never_accepts_identity_mismatch(monkeypatch, tmp_path):
+    def mutate(side, rows):
+        if side == 'candidate': rows[0]['provenance']['model']['bundle_sha256'] = 'different'
+        return rows
+    report, _ = run(monkeypatch, tmp_path, mutate, semantic_policy='report-only')
+    assert not report['passed'] and not report['model_identity_matches']
+
+
+@pytest.mark.parametrize('bad', ['missing', 'offsets'])
+def test_report_only_never_accepts_broken_responses(monkeypatch, tmp_path, bad):
+    def mutate(side, rows):
+        if side == 'candidate':
+            if bad == 'missing': return []
+            rows[0]['spans'] = [{'begin': 0, 'end': 999999999, 'label': 'Name'}]
+        return rows
+    report, _ = run(monkeypatch, tmp_path, mutate, semantic_policy='report-only')
+    assert not report['passed'] and report['errors']
+
+
+def test_report_distinguishes_label_changes_from_reduced_masking():
+    ref = {'spans': [{'begin': 0, 'end': 3, 'label': 'Name'}]}
+    cand = {'spans': [{'begin': 0, 'end': 3, 'label': 'Organization'},
+                      {'begin': 5, 'end': 6, 'label': 'Organization'}]}
+    delta = parity.semantic_delta(ref, cand)
+    assert len(delta['label_changes']) == 1
+    assert delta['unmasked_reference_characters'] == 0
+    assert delta['additional_masked_characters'] == 1
+
+
+def test_default_policy_still_rejects_semantic_changes(monkeypatch, tmp_path):
+    def mutate(side, rows):
+        if side == 'candidate': rows[0]['deid_text'] = 'different'
+        return rows
+    report, _ = run(monkeypatch, tmp_path, mutate)
+    assert report['semantic_policy'] == 'strict' and not report['passed']

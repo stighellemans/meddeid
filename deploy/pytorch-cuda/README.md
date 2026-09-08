@@ -47,10 +47,11 @@ docker compose \
 
 Use one worker initially. Each worker loads another complete model copy onto
 the GPU. The intended release defaults remain FP16, a 32-window batch, and
-eager execution (`MEDDEID_TORCH_COMPILE_MODE=off`) for throughput. The observed
-Dutch FP16 parity discrepancy must be resolved before release; FP32 remains a
-diagnostic reference. A repaired FP16 candidate needs full parity and fresh
-performance measurements.
+eager execution (`MEDDEID_TORCH_COMPILE_MODE=off`) for throughput. Semantic differences, including reduced masking compared with CPU output,
+are retained in complete JSON/Markdown reports and do not block the release.
+FP32 remains a diagnostic reference. Technical execution and identity checks
+still block on failure; fresh performance measurements describe the actual
+FP16 candidate.
 
 The following measurements are historical FP16 results. With dynamic shapes,
 `reduce-overhead` compilation raised warm batch-16 throughput from 65.0 to 71.1

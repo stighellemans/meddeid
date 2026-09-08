@@ -7,6 +7,10 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [0.4.0] - 2026-09-08
 
+- Keep FP16 as the CUDA release target and report full CPU/CUDA/TensorRT
+  semantic differences, including reduced masking, without blocking publication
+  on those differences. Execution, identity and completeness checks remain mandatory.
+
 - Moved CUDA parity and gateway configuration checks ahead of TensorRT builds
   and benchmarks; stream parity progress and retain small failure reports
   independently from compiled model artifacts.

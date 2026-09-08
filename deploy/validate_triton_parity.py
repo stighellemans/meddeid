@@ -90,9 +90,18 @@ def validate_outputs(outputs: Any, documents: list[dict[str, Any]], side: str) -
     actual = [row.get("document_id") for row in outputs]
     if len(actual) != len(expected) or len(set(actual)) != len(actual) or set(actual) != set(expected):
         raise ValueError(f"{side} response has missing, duplicate, or unexpected document IDs")
+    source_by_id = {row["document_id"]: row for row in documents}
     for row in outputs:
         if not {"document_id", "deid_text", "spans", "provenance"} <= row.keys():
             raise ValueError(f"{side} response is missing required semantic fields")
+        spans = row["spans"]
+        if not isinstance(spans, list) or any(not isinstance(span, dict) for span in spans):
+            raise ValueError(f"{side} spans must be a list of objects")
+        for span in spans:
+            if (type(span.get("begin")) is not int or type(span.get("end")) is not int
+                    or not 0 <= span["begin"] < span["end"] <= len(source_by_id[row["document_id"]]["text"])
+                    or not isinstance(span.get("label"), str)):
+                raise ValueError(f"{side} span has invalid offsets or label")
         identity = result_identity(row)
         if not identity["software"] or not identity["model"]:
             raise ValueError(f"{side} response is missing software or model identity")
@@ -108,8 +117,51 @@ def selected_batches(documents, batch_size, document_id=None):
     return selected
 
 
+def semantic_delta(expected, actual):
+    def span_key(span):
+        return (span["begin"], span["end"], span["label"])
+
+    reference_keys = {span_key(span) for span in expected["spans"]}
+    candidate_keys = {span_key(span) for span in actual["spans"]}
+    reference_coverage = {i for span in expected["spans"] for i in range(span["begin"], span["end"])}
+    candidate_coverage = {i for span in actual["spans"] for i in range(span["begin"], span["end"])}
+    return {
+        "reference_spans_not_matched": [span for span in expected["spans"] if span_key(span) not in candidate_keys],
+        "candidate_spans_not_matched": [span for span in actual["spans"] if span_key(span) not in reference_keys],
+        "label_changes": [{"reference": left, "candidate": right}
+                          for left in expected["spans"] for right in actual["spans"]
+                          if (left["begin"], left["end"]) == (right["begin"], right["end"])
+                          and left["label"] != right["label"]],
+        "unmasked_reference_characters": len(reference_coverage - candidate_coverage),
+        "additional_masked_characters": len(candidate_coverage - reference_coverage),
+    }
+
+
+def write_summary(report, output):
+    summary = report["semantic_summary"]
+    lines = ["# Semantic comparison report", "",
+             f"Execution/selected policy passed: {report['passed']}",
+             f"Exact semantic parity: {report['strict_passed']}",
+             f"Semantic policy: {report['semantic_policy']}",
+             f"Documents checked: {report['checked_documents']}/{report['documents']}",
+             f"Documents with differences: {len(report['semantic_differences'])}",
+             f"Documents with reduced masking coverage: {summary['documents_with_reduced_mask_coverage']}",
+             f"Reference-masked characters unmasked by candidate: {summary['unmasked_reference_characters']}",
+             f"Additional characters masked by candidate: {summary['additional_masked_characters']}",
+             "", "Counts compare candidate output with the CPU reference, not with annotated ground truth.",
+             "Report-only semantics do not override identity, completeness, readiness or execution failures.", ""]
+    for item in report["semantic_differences"]:
+        lines += [f"## {item['document_id']}", "", f"Changed fields: {', '.join(item['changed_fields'])}",
+                  "", "```json", json.dumps(item["delta"], ensure_ascii=False, indent=2), "```", ""]
+    if report["errors"]:
+        lines += ["## Execution errors", "", *report["errors"]]
+    output.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def compare(documents, *, reference_url, candidate_url, api_key, batch_size, output,
-            fail_fast=False, document_id=None, fixture_sha256=None):
+            fail_fast=False, document_id=None, fixture_sha256=None, semantic_policy="strict"):
+    if semantic_policy not in {"strict", "report-only"}:
+        raise ValueError("semantic policy must be strict or report-only")
     ids = [row["document_id"] for row in documents]
     if len(set(ids)) != len(ids):
         raise ValueError("fixture has duplicate document IDs")
@@ -124,10 +176,18 @@ def compare(documents, *, reference_url, candidate_url, api_key, batch_size, out
         "reference_url": reference_url, "candidate_url": candidate_url,
         "model_identity_matches": True, "reference_identity": None, "candidate_identity": None,
         "semantic_differences": [], "errors": [],
+        "strict_passed": False, "semantic_policy": semantic_policy,
+        "semantic_summary": {"reference_spans": 0, "candidate_spans": 0,
+                             "reference_spans_not_matched": 0, "candidate_spans_not_matched": 0,
+                             "label_changes": 0, "documents_with_reduced_mask_coverage": 0,
+                             "unmasked_reference_characters": 0, "additional_masked_characters": 0},
         "source_commit": os.environ.get("GITHUB_SHA"),
     }
 
     def checkpoint():
+        report["semantic_summary"]["affected_document_fraction"] = (
+            len(report["semantic_differences"]) / report["checked_documents"]
+            if report["checked_documents"] else None)
         report["elapsed_seconds"] = round(monotonic() - started, 3)
         output.parent.mkdir(parents=True, exist_ok=True)
         temporary = output.with_suffix(output.suffix + ".tmp")
@@ -158,26 +218,40 @@ def compare(documents, *, reference_url, candidate_url, api_key, batch_size, out
                 if ri != ci or ri != report["reference_identity"] or ci != report["candidate_identity"]:
                     report["model_identity_matches"] = False
                 expected, actual = semantic_document(reference), semantic_document(candidate)
+                report["semantic_summary"]["reference_spans"] += len(expected["spans"])
+                report["semantic_summary"]["candidate_spans"] += len(actual["spans"])
                 if expected != actual:
+                    delta = semantic_delta(expected, actual)
+                    for field in ("reference_spans_not_matched", "candidate_spans_not_matched", "label_changes"):
+                        report["semantic_summary"][field] += len(delta[field])
+                    for field in ("unmasked_reference_characters", "additional_masked_characters"):
+                        report["semantic_summary"][field] += delta[field]
+                    report["semantic_summary"]["documents_with_reduced_mask_coverage"] += bool(delta["unmasked_reference_characters"])
                     fields = [field for field in expected if expected[field] != actual[field]]
                     report["semantic_differences"].append({"document_id": key,
-                        "reference": expected, "candidate": actual, "changed_fields": fields,
+                        "reference": expected, "candidate": actual, "changed_fields": fields, "delta": delta,
                         "batch_document_ids": [row["document_id"] for row in batch]})
                     print(json.dumps({"event": "semantic_difference", "document_id": key,
-                                      "changed_fields": fields}), flush=True)
+                                      "changed_fields": fields, "semantic_policy": semantic_policy,
+                                      "unmasked_reference_characters": delta["unmasked_reference_characters"]}), flush=True)
             report["checked_documents"] += len(batch)
             print(json.dumps({"event": "parity_progress", "batch": batch_number,
-                              "checked": report["checked_documents"], "total": total,
+                              "checked": report["checked_documents"],
+                              "semantic_policy": report["semantic_policy"], "total": total,
                               "differences": len(report["semantic_differences"])}), flush=True)
             checkpoint()
-            if fail_fast and (report["semantic_differences"] or not report["model_identity_matches"]):
+            if fail_fast and ((semantic_policy == "strict" and report["semantic_differences"])
+                              or not report["model_identity_matches"]):
                 break
         report["complete"] = report["checked_documents"] == total
     except Exception as exc:
         report["errors"].append(f"{type(exc).__name__}: {exc}")
     report["passed"] = bool(report["complete"] and report["model_identity_matches"]
-                            and not report["semantic_differences"] and not report["errors"])
+                            and not report["errors"] and
+                            (semantic_policy == "report-only" or not report["semantic_differences"]))
+    report["strict_passed"] = report["passed"] and not report["semantic_differences"]
     checkpoint()
+    write_summary(report, output)
     return report
 
 
@@ -191,6 +265,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("deploy/triton/parity-report.json"))
     parser.add_argument("--fail-fast", action="store_true", help="Stop after the first failing batch")
     parser.add_argument("--document-id", help="Diagnostic replay of the original batch containing this ID; not a full release gate")
+    parser.add_argument("--semantic-policy", choices=("strict", "report-only"), default="strict",
+                        help="Report-only permits semantic differences, including reduced masking, but still requires complete healthy identity-matched results")
     args = parser.parse_args()
     if not args.api_key:
         parser.error("provide --api-key or MEDDEID_API_KEY")
@@ -201,9 +277,11 @@ def main() -> None:
     report = compare(documents, reference_url=args.reference_url, candidate_url=args.candidate_url,
                      api_key=args.api_key, batch_size=args.batch_size, output=args.output,
                      fail_fast=args.fail_fast, document_id=args.document_id,
-                     fixture_sha256=hashlib.sha256(args.fixture.read_bytes()).hexdigest())
+                     fixture_sha256=hashlib.sha256(args.fixture.read_bytes()).hexdigest(),
+                     semantic_policy=args.semantic_policy)
     print(json.dumps({"passed": report["passed"], "documents": report["documents"],
-                      "checked": report["checked_documents"],
+                      "checked": report["checked_documents"], "strict_passed": report["strict_passed"],
+                      "semantic_policy": report["semantic_policy"],
                       "differences": len(report["semantic_differences"]), "errors": report["errors"]}), flush=True)
     if not report["passed"]:
         print(f"Parity failed; inspect {args.output}", file=sys.stderr)

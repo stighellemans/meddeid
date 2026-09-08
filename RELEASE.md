@@ -95,8 +95,8 @@ GPU images have separate hardware gates. The PyTorch CUDA workflow builds
 `meddeid-api:<version>-cuda12.9`, requires real CUDA and authenticated API
 inference on its T4 runner, then publishes an AMD64 image with SBOM and
 provenance on a matching release tag. The target-driven TensorRT workflow
-builds both public model plans on their matching runners, requires semantic
-parity with PyTorch, records benchmark evidence, and publishes only when the
+builds both public model plans on their matching runners, records a full semantic
+comparison with PyTorch, records benchmark evidence, and publishes only when the
 target is marked `ready`. A release-tag push publishes the weight-free runtime
 and gateway once plus distinct Dutch and English T4 plan artifacts. Manual runs
 may validate the `a10g-sm86` and `l4-sm89` build-on-request candidates, but the
@@ -118,13 +118,21 @@ test, rendered documentation, and rollback-by-digest exercise all pass.
 
 ## Failure diagnosis before another paid candidate run
 
-FP16 remains the preferred CUDA release target for throughput. The audit's
-FP32 pass is diagnostic evidence, not authorization to replace that target.
-Resolve the observed FP16 discrepancy with bounded existing-image experiments
-before another full GPU build. Compare the Torch autocast path with the export
-path's explicit half weights and eager attention, then test selective FP32
-accumulation or classifier computation if needed. Measure any performance cost;
-do not weaken semantic parity or silently switch the whole model to FP32.
+FP16 remains the preferred CUDA release target for throughput. Per the user's
+release decision, semantic differences, including reduced masking relative to
+the CPU reference, are **report-only**. They do not block publication and do
+not trigger numerical repair/rebuild cycles. CUDA and TensorRT release
+comparisons use `--semantic-policy report-only` and must finish the entire
+fixture, write detailed JSON plus Markdown reports, and retain their counts.
+
+A report's `passed` field means execution and the selected acceptance policy
+passed; `strict_passed` separately records exact semantic agreement. Never
+rewrite nonzero differences as zero or describe report-only success as exact
+parity. Reduced masking counts are relative to the CPU reference, not annotated
+ground truth. Missing/duplicate outputs, model identity mismatches, unhealthy
+services, HTTP errors and all other technical/security/publication gates remain
+blocking. The comparator's standalone default remains strict for callers that
+do not explicitly select report-only mode.
 
 A failed gate is a stop condition, not an automatic request to rebuild all
 images. Preserve the small `triton-<target>-<model>-evidence-<run-id>` artifact,
@@ -155,9 +163,9 @@ image plus staged model/fixture variables from the validation workflow:
 `--document-id` replays the entire original batch containing that document, in
 its original order. It is diagnostic only, never sufficient release evidence.
 Repeat any suspected scheduling-dependent failure and then run the full fixture
-without `--document-id` for both public models. Keep strict semantic parity;
-do not remove a failing document, ignore a changed span, or change the precision
-only inside the test. Any runtime/default change needs matching public settings,
+without `--document-id` for both public models. Record every semantic difference;
+do not remove a differing document, suppress a changed span, or change the
+precision only inside the test. Any runtime/default change needs matching public settings,
 new performance evidence, and the complete release gates.
 
 The workflow now checks merged gateway mounts and local bundle identity before
