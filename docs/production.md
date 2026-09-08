@@ -42,7 +42,7 @@ plan; each needs its own target evidence before publication.
 
 ### Measured T4 snapshot
 
-The current images were measured end to end on one Azure
+The earlier FP16 candidate images were measured end to end on one Azure
 `Standard_NC4as_T4_v3` VM (4 vCPU, Tesla T4 16 GiB). The benchmark used the
 pinned public synthetic fixture at revision
 `9b95ebbfb091a5390e4fc39e2ef74e7580aac068`. Each throughput value is the
@@ -56,6 +56,8 @@ per run.
 | PyTorch CUDA, FP16 | 65.0 | 1.87 / 2.49 s | 1,655 MiB |
 | T4 TensorRT | 168.8 | 0.725 / 1.418 s | 911 MiB |
 
+These historical FP16 measurements do not establish the performance of the
+corrected FP32 CUDA default. The release gate must collect fresh FP32 benchmarks.
 Latency includes queueing under the stated concurrency.
 An exact semantic comparison of CPU and TensorRT output passed for all 300
 pinned fixture documents with zero differences.
@@ -127,7 +129,7 @@ GPU deployments have a process-wide `MEDDEID_SERVING_PROFILE` with two values:
 
 | Profile | PyTorch CUDA | Apple MPS | TensorRT/Triton |
 |---|---|---|---|
-| `latency` | Eager FP16 inference and request-local window batches, with no cross-request wait | Eager FP32 native inference and request-local window batches, with no cross-request wait | Request-local gateway batches and a Triton config without dynamic queueing |
+| `latency` | Eager FP32 inference and request-local window batches, with no cross-request wait | Eager FP32 native inference and request-local window batches, with no cross-request wait | Request-local gateway batches and a Triton config without dynamic queueing |
 | `throughput` | A bounded gateway queue coalesces windows from concurrent requests for at most 1 ms | The same bounded 1 ms queue, enabled after the M4 Pro burst and ETL measurements | Four weight-free gateway workers feed request-local batches directly to one Triton model instance; no second queue is enabled by default |
 
 Use `latency` for on-demand de-identification. Use `throughput` together with
@@ -138,7 +140,7 @@ profile can also be supplied as
 `meddeid-server --serving-profile latency|throughput`.
 
 This is the only performance setting in the published GPU environment
-templates. The selected image supplies its measured precision, compilation,
+templates. The selected image supplies its validated precision, compilation,
 window batching, transport, worker, and admission defaults. The remaining
 environment controls later in this guide are advanced overrides, not required
 setup; changing them creates a new deployment configuration that should be
@@ -192,8 +194,13 @@ device, so an unavailable GPU fails startup instead of silently falling back to
 CPU.
 
 Each worker loads a separate model copy onto the GPU. Start with one worker.
-The CUDA image defaults to FP16 autocast, a 32-window batch, and eager execution
-(`MEDDEID_TORCH_COMPILE_MODE=off`). Dynamic `reduce-overhead` compilation raised
+The CUDA image defaults to FP32, a 32-window batch, and eager execution
+(`MEDDEID_TORCH_COMPILE_MODE=off`). The 0.4.0 candidate audit found that FP16
+changed a redaction span on the pinned Dutch fixture, even without cross-request
+batching. FP32 is therefore the release default; FP16 is an advanced opt-in
+requiring separate semantic validation. The following compilation measurements
+were made with the earlier FP16 configuration and are not performance evidence
+for the FP32 default. Dynamic `reduce-overhead` compilation raised
 warm batch-16 throughput from 65.0 to 71.1 documents/s (9.5%) and batch-32
 throughput from 67.3 to 71.0 documents/s (5.5%). It also added 0.30 GB to the
 compressed pull proxy and 1.00 GB unpacked, took 28.7 seconds to compile the
@@ -309,7 +316,7 @@ configuration on the target hardware.
 |---|---|---|
 | `MEDDEID_BACKEND` | `torch` | Inference backend: `torch` or `triton`. |
 | `MEDDEID_DEVICE` | `cpu` in Compose | Torch device. Direct Python startup selects an available local device automatically; the CUDA overlay uses `cuda`. |
-| `MEDDEID_TORCH_PRECISION` | `fp32` | Torch precision. The CUDA overlay uses `fp16`. |
+| `MEDDEID_TORCH_PRECISION` | `fp32` | Torch precision. CUDA also defaults to `fp32`; `fp16` requires separate semantic validation. |
 | `MEDDEID_TORCH_COMPILE_MODE` | `off` | Optional `torch.compile` mode. The published configuration remains eager. |
 | `MEDDEID_TORCH_COMPILE_DYNAMIC` | `true` | Allow dynamic shapes when Torch compilation is enabled. |
 | `MEDDEID_WINDOW_BATCH_SIZE` | `32` | Maximum note windows in one runtime call. The Triton overlay uses `64`. |

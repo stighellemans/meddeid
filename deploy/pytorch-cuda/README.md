@@ -46,8 +46,13 @@ docker compose \
 ```
 
 Use one worker initially. Each worker loads another complete model copy onto
-the GPU. The measured defaults are FP16 autocast, a 32-window batch, and eager
-execution (`MEDDEID_TORCH_COMPILE_MODE=off`). With dynamic shapes,
+the GPU. The release defaults are FP32, a 32-window batch, and eager
+execution (`MEDDEID_TORCH_COMPILE_MODE=off`). FP16 changed a redaction span on
+the pinned Dutch fixture in the 0.4.0 candidate audit. Use FP16 only after
+separate semantic validation; it is no longer the CUDA release default.
+
+The following measurements are historical FP16 results, not performance
+claims for the corrected FP32 default. With dynamic shapes,
 `reduce-overhead` compilation raised warm batch-16 throughput from 65.0 to 71.1
 documents/s (9.5%) and batch-32 throughput from 67.3 to 71.0 documents/s
 (5.5%). It added 0.30 GB to the compressed pull proxy and 1.00 GB unpacked,
@@ -59,7 +64,7 @@ and static CUDA archives. Treat compilation as a target-host, fully prewarmed
 experiment rather than a precompiled portable image. Tune window batch size,
 concurrency, and workers only from measurements on the target workload.
 
-On an Azure `Standard_NC4as_T4_v3`, the final image measured 7.40 GB unpacked
+In that historical FP16 configuration on an Azure `Standard_NC4as_T4_v3`, the image measured 7.40 GB unpacked
 and 4.54 GB as a gzip-compressed `docker image save` pull-size proxy. With the
 throughput profile it processed 948 documents at 65.0 documents/s after
 warmup, with 1.87 s p50 and 2.49 s p95 HTTP batch latency at batch size 16 and

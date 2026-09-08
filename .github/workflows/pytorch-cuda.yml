@@ -79,7 +79,7 @@ jobs:
             MEDDEID_ACCELERATOR=cuda
             MEDDEID_CUDA_VERSION=${{ env.PYTORCH_CUDA_VERSION }}
             MEDDEID_DEVICE=cuda
-            MEDDEID_TORCH_PRECISION=fp16
+            MEDDEID_TORCH_PRECISION=fp32
             MEDDEID_TORCH_COMPILE_MODE=off
             MEDDEID_VERSION=${{ env.PACKAGE_VERSION }}
             VCS_REF=${{ github.sha }}
@@ -143,7 +143,7 @@ jobs:
             MEDDEID_ACCELERATOR=cuda
             MEDDEID_CUDA_VERSION=${{ env.PYTORCH_CUDA_VERSION }}
             MEDDEID_DEVICE=cuda
-            MEDDEID_TORCH_PRECISION=fp16
+            MEDDEID_TORCH_PRECISION=fp32
             MEDDEID_TORCH_COMPILE_MODE=off
             MEDDEID_VERSION=${{ env.PACKAGE_VERSION }}
             VCS_REF=${{ github.sha }}

@@ -58,7 +58,10 @@ self-hosted GitHub Actions runners with labels `linux`, `x64`, `nvidia`, and
 from the exact candidate commit with publication disabled; retain their parity,
 benchmark, image-size, GPU-memory, scan, and image-inspection evidence. A tag
 must not be pushed while either T4 runner is offline because the release would
-be only partially published.
+be only partially published. The tag triggers three GPU jobs (CUDA plus Dutch
+and English TensorRT). With two one-job hosts, re-register the first host after
+its completed job/evidence upload so the third queued job receives a fresh JIT
+runner; two registrations alone are insufficient.
 
 The CPU workflow builds and smoke-tests the hardened offline image, rejects
 fixable high or critical vulnerabilities, then publishes `linux/amd64` and
@@ -112,3 +115,52 @@ release candidate before finalizing its released lock.
 
 Do not announce the release until the public PyPI install, pulled-image smoke
 test, rendered documentation, and rollback-by-digest exercise all pass.
+
+## Failure diagnosis before another paid candidate run
+
+A failed gate is a stop condition, not an automatic request to rebuild all
+images. Preserve the small `triton-<target>-<model>-evidence-<run-id>` artifact,
+including parity JSON, startup reports and logs. The compiled model repository
+is a separate artifact; download it only when engine inspection is necessary.
+Deallocate idle dedicated Azure VMs after saving diagnostics. Retained disks
+and networking can still incur charges; delete the release resource group
+when it is no longer needed.
+
+Before retrying, reproduce the exact failing contract using existing images
+on a diagnostic host. Do not register a new JIT runner for diagnosis: that
+registration intentionally destroys the preceding job's images and cache.
+Diagnostic reuse is not release evidence. Final release candidates must still
+pass every gate on clean one-job runners at the exact reviewed commit.
+
+For a parity failure, keep the selected model revision, bundle, language profile,
+fixture revision and original request batch fixed. The comparison helper builds
+nothing; it expects the CPU reference on port 8001 and the already-built CUDA
+image plus staged model/fixture variables from the validation workflow:
+
+```bash
+./deploy/validate_cuda_comparison.sh parity baseline --document-id targeted-difficult-0023
+./deploy/validate_cuda_comparison.sh parity fp16-latency --document-id targeted-difficult-0023
+./deploy/validate_cuda_comparison.sh parity fp32-throughput --document-id targeted-difficult-0023
+./deploy/validate_cuda_comparison.sh parity fp16-throughput --document-id targeted-difficult-0023
+```
+
+`--document-id` replays the entire original batch containing that document, in
+its original order. It is diagnostic only, never sufficient release evidence.
+Repeat any suspected scheduling-dependent failure and then run the full fixture
+without `--document-id` for both public models. Keep strict semantic parity;
+do not remove a failing document, ignore a changed span, or change the precision
+only inside the test. Any runtime/default change needs matching public settings,
+new performance evidence, and the complete release gates.
+
+The workflow now checks merged gateway mounts and local bundle identity before
+CUDA/TensorRT compilation, then full CPU/CUDA parity before TensorRT compilation
+or benchmarks. It checkpoints parity reports after each batch and writes changed
+document IDs and fields to the live log. A stopped/restarting container fails
+readiness immediately when its container ID is supplied. A benchmark or full
+release run must not be used as the first test of a mount/configuration repair.
+
+Freeze the release scope before final gates, including user-facing wording,
+signing configuration and dependency order. Avoid additional cosmetic releases
+while expensive candidate gates are running. Inspect actual job steps/logs;
+`in_progress` or CPU usage alone proves activity, not correctness. Use bounded
+state-change monitoring and report only meaningful changes.

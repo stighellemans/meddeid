@@ -45,6 +45,12 @@ if [[ "${cuda_label}" != "${MEDDEID_PYTORCH_CUDA_VERSION}" ]]; then
   exit 1
 fi
 
+precision_label="$(docker image inspect "${image}" --format '{{index .Config.Labels "io.meddeid.torch-precision"}}')"
+if [[ "${precision_label}" != fp32 ]]; then
+  printf 'CUDA release image must default to fp32; found %s.\n' "${precision_label}" >&2
+  exit 1
+fi
+
 mkdir -p -- "$(dirname -- "${report}")"
 docker run --rm \
   --gpus "device=${gpu_device_id}" \

@@ -50,6 +50,7 @@ jobs:
       MEDDEID_API_KEY: triton-gpu-ci-only-secret
       MEDDEID_GPU_DEVICE_ID: "0"
       MEDDEID_SERVING_PROFILE: throughput
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -157,16 +158,46 @@ jobs:
           ./deploy/preflight_triton_host.sh "${GPU_TARGET}" 0
           ./deploy/stage_triton_model.sh deploy/triton/model_source
           ./deploy/stage_benchmark_fixture.sh deploy/triton/benchmark_source
-      - name: Build TensorRT repository and weight-free runtime images
+      - name: Build CPU reference image
         run: |
-          docker build --tag "${CANDIDATE_REFERENCE_IMAGE}" .
-          ./deploy/build_triton_gateway_image.sh "${CANDIDATE_GATEWAY_IMAGE}"
-          ./deploy/build_pytorch_cuda_image.sh "${CANDIDATE_CUDA_IMAGE}"
+          docker build --tag "${CANDIDATE_REFERENCE_IMAGE}" \
+            --build-arg "MEDDEID_VERSION=${IMAGE_VERSION}" \
+            --build-arg "VCS_REF=${GITHUB_SHA}" \
+            --build-arg "BUILD_DATE=${BUILD_DATE}" .
+      - name: Build gateway image
+        run: ./deploy/build_triton_gateway_image.sh "${CANDIDATE_GATEWAY_IMAGE}"
+      - name: Check merged gateway mounts and local bundle before GPU compilation
+        timeout-minutes: 3
+        run: |
+          mkdir -p "${MEDDEID_TRITON_MODEL_REPOSITORY}"
+          docker compose -f compose.triton.yaml -f compose.triton.validation.yaml \
+            run --rm --no-deps --entrypoint python \
+            -e MEDDEID_BUNDLE_SHA256 -e MEDDEID_MODEL_ID -e MEDDEID_MODEL_REVISION \
+            meddeid -c 'import os; from pathlib import Path; from meddeid.triton_gateway import pin_gateway_revision; assert Path("/models").is_dir(); assert os.environ.get("MEDDEID_LOCAL_BUNDLE") == "true"; pin_gateway_revision(os.environ, {"model": {"id": os.environ["MEDDEID_MODEL_ID"], "revision": os.environ["MEDDEID_MODEL_REVISION"], "bundle_sha256": os.environ["MEDDEID_BUNDLE_SHA256"]}}); print("Merged gateway mounts and catalog bundle identity passed")'
+      - name: Build CUDA comparison image
+        run: ./deploy/build_pytorch_cuda_image.sh "${CANDIDATE_CUDA_IMAGE}"
+      - name: Start CPU reference for early CUDA correctness checks
+        timeout-minutes: 6
+        run: |
+          started_at_ns=$(date +%s%N)
+          docker compose -f compose.triton.yaml -f compose.triton.validation.yaml \
+            up --detach torch-reference
+          python deploy/wait_for_health.py --base-url http://127.0.0.1:8001 \
+            --started-at-ns "${started_at_ns}" --output deploy/triton/cpu-startup.json
+      - name: Require full CPU and CUDA FP32 baseline parity before TensorRT compilation
+        timeout-minutes: 15
+        run: ./deploy/validate_cuda_comparison.sh parity baseline
+      - name: Require full CPU and optimized CUDA parity before TensorRT compilation
+        timeout-minutes: 15
+        run: ./deploy/validate_cuda_comparison.sh parity optimized
+      - name: Build TensorRT model repository
+        run: |
           ./deploy/build_triton_repository.sh \
             deploy/triton/model_source \
             deploy/triton/model_repository \
             "${GPU_TARGET}" 0
-          ./deploy/build_slim_triton_runtime.sh "${CANDIDATE_IMAGE}"
+      - name: Build weight-free TensorRT runtime
+        run: ./deploy/build_slim_triton_runtime.sh "${CANDIDATE_IMAGE}"
       - name: Start TensorRT candidate and PyTorch CPU reference
         run: |
           started_at_ns=$(date +%s%N)
@@ -174,26 +205,29 @@ jobs:
             -f compose.triton.yaml \
             -f compose.triton.validation.yaml \
             up --detach
+          gateway_id=$(docker compose -f compose.triton.yaml -f compose.triton.validation.yaml ps --all --quiet meddeid)
           python deploy/wait_for_health.py \
+            --container "${gateway_id}" \
             --base-url http://127.0.0.1:8000 \
             --started-at-ns "${started_at_ns}" \
             --output deploy/triton/triton-stack-startup.json
           python deploy/wait_for_health.py \
             --base-url http://127.0.0.1:8001 \
             --started-at-ns "${started_at_ns}" \
-            --output deploy/triton/cpu-startup.json
+            --output deploy/triton/cpu-stack-recheck-startup.json
       - name: Require PyTorch/TensorRT semantic parity
         run: |
           python deploy/validate_triton_parity.py \
             "${MEDDEID_BENCHMARK_FILE}" \
             --candidate-url http://127.0.0.1:8000 \
             --reference-url http://127.0.0.1:8001 \
-            --output deploy/triton/parity-report.json
+            --fail-fast --output deploy/triton/parity-report.json
       - name: Benchmark TensorRT and PyTorch CPU
         run: |
           python deploy/monitor_nvidia.py \
             --output deploy/triton/triton-gpu-metrics.json &
           monitor_pid=$!
+          trap 'kill -INT "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" || true' EXIT
           python deploy/benchmark_http.py "${MEDDEID_BENCHMARK_FILE}" \
             --base-url http://127.0.0.1:8000 \
             --api-key "${MEDDEID_API_KEY}" \
@@ -202,6 +236,7 @@ jobs:
             --output deploy/triton/triton-benchmark.json
           kill -INT "${monitor_pid}"
           wait "${monitor_pid}"
+          trap - EXIT
           python deploy/benchmark_http.py "${MEDDEID_BENCHMARK_FILE}" \
             --base-url http://127.0.0.1:8001 \
             --api-key "${MEDDEID_API_KEY}" \
@@ -215,84 +250,9 @@ jobs:
             -f compose.triton.validation.yaml \
             stop meddeid triton
       - name: Benchmark unoptimized PyTorch CUDA baseline
-        run: |
-          cleanup() {
-            docker rm --force meddeid-cuda-benchmark >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          started_at_ns=$(date +%s%N)
-          docker run --detach --name meddeid-cuda-benchmark \
-            --gpus "device=${MEDDEID_GPU_DEVICE_ID}" \
-            --read-only --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
-            --publish 127.0.0.1:8002:8000 \
-            --volume "${PWD}/deploy/triton/model_source:/models/meddeid:ro" \
-            --env MEDDEID_MODEL=/models/meddeid \
-            --env MEDDEID_OFFLINE=true \
-            --env MEDDEID_API_KEY="${MEDDEID_API_KEY}" \
-            --env MEDDEID_REQUIRE_API_KEY=true \
-            --env MEDDEID_TORCH_PRECISION=fp32 \
-            --env MEDDEID_TORCH_COMPILE_MODE=off \
-            --env MEDDEID_MAX_CONCURRENT_REQUESTS=8 \
-            "${CANDIDATE_CUDA_IMAGE}"
-          python deploy/wait_for_health.py \
-            --base-url http://127.0.0.1:8002 \
-            --started-at-ns "${started_at_ns}" \
-            --output deploy/triton/pytorch-cuda-baseline-startup.json
-          python deploy/monitor_nvidia.py \
-            --output deploy/triton/pytorch-cuda-baseline-gpu-metrics.json &
-          monitor_pid=$!
-          python deploy/benchmark_http.py "${MEDDEID_BENCHMARK_FILE}" \
-            --base-url http://127.0.0.1:8002 \
-            --api-key "${MEDDEID_API_KEY}" \
-            --batch-size 16 \
-            --warmup-requests 8 --requests 60 --concurrency 8 \
-            --output deploy/triton/pytorch-cuda-baseline-benchmark.json
-          kill -INT "${monitor_pid}"
-          wait "${monitor_pid}"
-      - name: Benchmark optimized PyTorch CUDA and require parity
-        run: |
-          cleanup() {
-            docker rm --force meddeid-cuda-benchmark >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          started_at_ns=$(date +%s%N)
-          docker run --detach --name meddeid-cuda-benchmark \
-            --gpus "device=${MEDDEID_GPU_DEVICE_ID}" \
-            --read-only --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
-            --publish 127.0.0.1:8002:8000 \
-            --volume "${PWD}/deploy/triton/model_source:/models/meddeid:ro" \
-            --env MEDDEID_MODEL=/models/meddeid \
-            --env MEDDEID_OFFLINE=true \
-            --env MEDDEID_API_KEY="${MEDDEID_API_KEY}" \
-            --env MEDDEID_REQUIRE_API_KEY=true \
-            --env MEDDEID_TORCH_PRECISION=fp16 \
-            --env MEDDEID_TORCH_COMPILE_MODE=off \
-            --env MEDDEID_SERVING_PROFILE=throughput \
-            --env MEDDEID_MICROBATCH_ENABLED=auto \
-            --env MEDDEID_SEQUENCE_LENGTH_BUCKETS=off \
-            --env MEDDEID_MICROBATCH_MAX_WAIT_MS=1 \
-            --env MEDDEID_MAX_CONCURRENT_REQUESTS=16 \
-            "${CANDIDATE_CUDA_IMAGE}"
-          python deploy/wait_for_health.py \
-            --base-url http://127.0.0.1:8002 \
-            --started-at-ns "${started_at_ns}" \
-            --output deploy/triton/pytorch-cuda-optimized-startup.json
-          python deploy/monitor_nvidia.py \
-            --output deploy/triton/pytorch-cuda-optimized-gpu-metrics.json &
-          monitor_pid=$!
-          python deploy/benchmark_http.py "${MEDDEID_BENCHMARK_FILE}" \
-            --base-url http://127.0.0.1:8002 \
-            --api-key "${MEDDEID_API_KEY}" \
-            --batch-size 16 \
-            --warmup-requests 8 --requests 60 --concurrency 8 \
-            --output deploy/triton/pytorch-cuda-optimized-benchmark.json
-          kill -INT "${monitor_pid}"
-          wait "${monitor_pid}"
-          python deploy/validate_triton_parity.py \
-            "${MEDDEID_BENCHMARK_FILE}" \
-            --candidate-url http://127.0.0.1:8002 \
-            --reference-url http://127.0.0.1:8001 \
-            --output deploy/triton/pytorch-cuda-parity-report.json
+        run: ./deploy/validate_cuda_comparison.sh benchmark baseline
+      - name: Benchmark optimized PyTorch CUDA
+        run: ./deploy/validate_cuda_comparison.sh benchmark optimized
       - name: Record comparable image sizes and identities
         run: |
           python deploy/measure_container_image.py "${CANDIDATE_IMAGE}" \
@@ -350,14 +310,32 @@ jobs:
               --output "/reports/${report_name}-trivy-report.json" \
               "${scan_image}"
           done
+      - name: Capture service logs and concise diagnostic summary
+        if: always()
+        run: |
+          mkdir -p deploy/triton
+          docker compose -f compose.triton.yaml -f compose.triton.validation.yaml \
+            logs --no-color > deploy/triton/validation-services.log 2>&1 || true
+          python - <<'PY_SUMMARY'
+          import json, os, pathlib
+          lines = ["## GPU validation diagnostics", f"Commit: `{os.environ['GITHUB_SHA']}`", f"Model: `{os.environ['MODEL_KEY']}`"]
+          for path in sorted(pathlib.Path("deploy/triton").glob("*parity-report.json")):
+              report = json.loads(path.read_text())
+              lines.append(f"- {path.name}: passed={report['passed']}, checked={report.get('checked_documents', report['documents'])}/{report['documents']}, differences={len(report['semantic_differences'])}")
+              for difference in report['semantic_differences'][:5]:
+                  lines.append(f"  - Document `{difference['document_id']}`: {difference.get('changed_fields', ['semantic output'])}")
+              for error in report.get('errors', []):
+                  lines.append(f"  - Error: {error}")
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write("\n".join(lines) + "\n")
+          PY_SUMMARY
       - name: Collect validation evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: triton-${{ env.GPU_TARGET }}-${{ env.MODEL_KEY }}-evidence-${{ github.run_id }}
           path: |
-            deploy/triton/model_repository/**
-            deploy/triton/parity-report.json
+            deploy/triton/*parity-report.json
             deploy/triton/triton-benchmark.json
             deploy/triton/torch-reference-benchmark.json
             deploy/triton/pytorch-cuda-*-benchmark.json
@@ -370,7 +348,18 @@ jobs:
             deploy/triton/reference-image-inspect.json
             deploy/triton/cuda-image-inspect.json
             deploy/triton/*-trivy-report.json
+            deploy/triton/*.log
+            deploy/triton/pytorch-cuda-*-inspect.json
+            deploy/triton/model_repository/build-manifest.json
           if-no-files-found: warn
+      - name: Retain compiled model repository separately
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: triton-${{ env.GPU_TARGET }}-${{ env.MODEL_KEY }}-model-repository-${{ github.run_id }}
+          path: deploy/triton/model_repository/**
+          compression-level: 0
+          if-no-files-found: ignore
       - name: Show logs on failure
         if: failure()
         run: docker compose -f compose.triton.yaml -f compose.triton.validation.yaml logs || true

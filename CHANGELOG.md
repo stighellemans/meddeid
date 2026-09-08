@@ -7,6 +7,13 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [0.4.0] - 2026-09-08
 
+- Changed the CUDA image and Compose default to FP32 after FP16 changed a
+  redaction span on the pinned Dutch fixture. FP16 remains an explicit option
+  requiring separate semantic validation.
+- Moved CUDA parity and gateway configuration checks ahead of TensorRT builds
+  and benchmarks; stream parity progress and retain small failure reports
+  independently from compiled model artifacts.
+
 - `meddeid deidentify` now accepts literal input through `--text`, explicitly
   separated from its positional and `--input` file-path forms.
 - Split TensorRT delivery into a weight-free gateway and runtime plus separate,
