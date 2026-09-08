@@ -7,7 +7,7 @@ shift 2
 case "$mode" in parity|benchmark) ;; *) exit 2 ;; esac
 case "$variant" in
   baseline) precision=fp32; profile=latency; concurrent=8 ;;
-  optimized) precision=fp32; profile=throughput; concurrent=16 ;;
+  optimized) precision=fp16; profile=throughput; concurrent=16 ;;
   fp16-throughput) precision=fp16; profile=throughput; concurrent=16 ;;
   fp16-latency) precision=fp16; profile=latency; concurrent=8 ;;
   fp32-throughput) precision=fp32; profile=throughput; concurrent=16 ;;
@@ -18,9 +18,9 @@ esac
 : "${MEDDEID_LANGUAGE_PROFILE:?set the selected catalog language profile}"
 : "${MEDDEID_API_KEY:?set the validation API key}"
 if [[ "$variant" == optimized ]]; then
-  # The release check must not hide an image that still ships the old default.
+  # The release check must not hide an image that ships a different precision.
   image_config=$(docker image inspect "$CANDIDATE_CUDA_IMAGE" --format '{{json .Config}}')
-  python -c 'import json,sys; c=json.loads(sys.argv[1]); assert "MEDDEID_TORCH_PRECISION=fp32" in c["Env"], "CUDA image default is not fp32"; assert c["Labels"]["io.meddeid.torch-precision"] == "fp32", "CUDA image precision label is not fp32"' "$image_config"
+  python -c 'import json,sys; c=json.loads(sys.argv[1]); assert "MEDDEID_TORCH_PRECISION=fp16" in c["Env"], "CUDA image default is not fp16"; assert c["Labels"]["io.meddeid.torch-precision"] == "fp16", "CUDA image precision label is not fp16"' "$image_config"
 fi
 output_dir="${MEDDEID_COMPARISON_OUTPUT_DIR:-deploy/triton}"
 mkdir -p "$output_dir"

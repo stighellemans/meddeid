@@ -22,7 +22,7 @@ docker buildx build \
   --build-arg MEDDEID_ACCELERATOR=cuda \
   --build-arg "MEDDEID_CUDA_VERSION=${MEDDEID_PYTORCH_CUDA_VERSION}" \
   --build-arg MEDDEID_DEVICE=cuda \
-  --build-arg MEDDEID_TORCH_PRECISION=fp32 \
+  --build-arg MEDDEID_TORCH_PRECISION=fp16 \
   --build-arg "MEDDEID_TORCH_COMPILE_MODE=${compile_mode}" \
   --build-arg "MEDDEID_VERSION=${package_version}" \
   --build-arg "VCS_REF=${vcs_ref}" \

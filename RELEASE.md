@@ -118,6 +118,14 @@ test, rendered documentation, and rollback-by-digest exercise all pass.
 
 ## Failure diagnosis before another paid candidate run
 
+FP16 remains the preferred CUDA release target for throughput. The audit's
+FP32 pass is diagnostic evidence, not authorization to replace that target.
+Resolve the observed FP16 discrepancy with bounded existing-image experiments
+before another full GPU build. Compare the Torch autocast path with the export
+path's explicit half weights and eager attention, then test selective FP32
+accumulation or classifier computation if needed. Measure any performance cost;
+do not weaken semantic parity or silently switch the whole model to FP32.
+
 A failed gate is a stop condition, not an automatic request to rebuild all
 images. Preserve the small `triton-<target>-<model>-evidence-<run-id>` artifact,
 including parity JSON, startup reports and logs. The compiled model repository

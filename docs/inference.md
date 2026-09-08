@@ -506,10 +506,10 @@ passed. Production operators should pin the immutable digest documented in the
 
 The portable GPU artifact uses the same weight-free Dockerfile, API process,
 model cache, and hardening controls as the CPU image, but selects PyTorch's official
-CUDA 12.9 wheel and sets `MEDDEID_DEVICE=cuda`. FP32 with eager
-execution is the release default. FP16 remains an explicit option requiring
-separate semantic validation because it changed a redaction span in the pinned
-Dutch release fixture. The image omits PyTorch's compiler-only
+CUDA 12.9 wheel and sets `MEDDEID_DEVICE=cuda`. FP16 with eager
+execution remains the intended release default for throughput. The candidate
+must resolve the observed Dutch FP16 parity discrepancy before publication;
+FP32 is retained as a diagnostic reference. The image omits PyTorch's compiler-only
 Triton package, headers, and static archives. Its version contract is:
 
 ```text
@@ -635,7 +635,7 @@ Use these as starting configurations, not benchmark claims:
 | Deployment | Starting point | Concurrency guidance |
 |---|---:|---|
 | PyTorch CPU | 4 vCPU, 8 GiB RAM | One API worker and 4 Torch threads. Prefer `/deidentify-batch`; adding workers duplicates model memory. |
-| PyTorch CUDA | 1 NVIDIA GPU with at least 8 GiB | One worker per GPU, FP32, 32-window batches, and compilation off. |
+| PyTorch CUDA | 1 NVIDIA GPU with at least 8 GiB | One worker per GPU, FP16, 32-window batches, and compilation off. |
 | PyTorch MPS | Apple silicon Mac, measured on an M4 Pro with 48 GiB unified memory | Native Python installation, one worker, FP32 eager execution, and batch 16 as the measured ETL starting point. Use throughput microbatching only for sustained concurrency. |
 | Triton/TensorRT | T4 16 GiB or a plan rebuilt for the chosen GPU | Four weight-free API workers on the measured 4-vCPU host, one Triton model instance, 64-window request-local chunks, and binary tensors. Dynamic or nested batching is target/workload-specific rather than the default. |
 

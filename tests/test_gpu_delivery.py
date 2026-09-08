@@ -39,11 +39,11 @@ def test_pytorch_cuda_release_pins_stay_aligned() -> None:
     assert "io.meddeid.accelerator" in dockerfile
     assert 'org.opencontainers.image.version="${MEDDEID_VERSION}"' in dockerfile
     assert "MEDDEID_DEVICE: cuda" in compose
-    assert compose.count("MEDDEID_TORCH_PRECISION: ${MEDDEID_TORCH_PRECISION:-fp32}") == 2
+    assert compose.count("MEDDEID_TORCH_PRECISION: ${MEDDEID_TORCH_PRECISION:-fp16}") == 2
     cuda_workflow = (ROOT / ".github/workflows/pytorch-cuda.yml").read_text()
-    assert cuda_workflow.count("MEDDEID_TORCH_PRECISION=fp32") == 2
-    assert "MEDDEID_TORCH_PRECISION=fp32" in (ROOT / "deploy/build_pytorch_cuda_image.sh").read_text()
-    assert 'optimized) precision=fp32; profile=throughput' in (ROOT / "deploy/validate_cuda_comparison.sh").read_text()
+    assert cuda_workflow.count("MEDDEID_TORCH_PRECISION=fp16") == 2
+    assert "MEDDEID_TORCH_PRECISION=fp16" in (ROOT / "deploy/build_pytorch_cuda_image.sh").read_text()
+    assert 'optimized) precision=fp16; profile=throughput' in (ROOT / "deploy/validate_cuda_comparison.sh").read_text()
     assert (
         compose.count("MEDDEID_TORCH_COMPILE_MODE: ${MEDDEID_TORCH_COMPILE_MODE:-off}")
         == 1
