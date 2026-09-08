@@ -125,9 +125,10 @@ RUN python -c "import torch; expected='${MEDDEID_CUDA_VERSION}'; actual=torch.ve
 
 RUN groupadd --gid 10001 meddeid \
     && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/meddeid meddeid \
-    && mkdir -p /var/cache/meddeid/huggingface /models/meddeid \
-    && touch /models/meddeid/.mountpoint \
-    && chown -R 10001:10001 /var/cache/meddeid /home/meddeid /models
+    && mkdir -p /var/cache/meddeid/huggingface /models/meddeid /model-source \
+    && touch /models/meddeid/.mountpoint /model-source/.mountpoint \
+    && chown -R 10001:10001 \
+      /var/cache/meddeid /home/meddeid /models /model-source
 
 # Keep release-only metadata after filesystem construction so changing a tag,
 # source revision, or build date does not invalidate multi-gigabyte layers.

@@ -1,18 +1,18 @@
 services:
   meddeid:
     environment:
-      MEDDEID_MODEL: /models/meddeid
+      MEDDEID_MODEL: /model-source
       MEDDEID_REVISION: ""
       MEDDEID_OFFLINE: "true"
     volumes:
-      - ${MEDDEID_TRITON_SOURCE_MODEL_DIR:-./deploy/triton/model_source}:/models/meddeid:ro
+      - ${MEDDEID_TRITON_SOURCE_MODEL_DIR:-./deploy/triton/model_source}:/model-source:ro
 
   torch-reference:
     image: ${MEDDEID_REFERENCE_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.0}
     ports:
       - "127.0.0.1:${MEDDEID_REFERENCE_PORT:-8001}:8000"
     environment:
-      MEDDEID_MODEL: /models/meddeid
+      MEDDEID_MODEL: /model-source
       MEDDEID_REVISION: ""
       MEDDEID_OFFLINE: "true"
       MEDDEID_BACKEND: torch
@@ -26,7 +26,7 @@ services:
       MEDDEID_WORKERS: 1
       MEDDEID_MAX_CONCURRENT_REQUESTS: 8
     volumes:
-      - ${MEDDEID_TRITON_SOURCE_MODEL_DIR:-./deploy/triton/model_source}:/models/meddeid:ro
+      - ${MEDDEID_TRITON_SOURCE_MODEL_DIR:-./deploy/triton/model_source}:/model-source:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev

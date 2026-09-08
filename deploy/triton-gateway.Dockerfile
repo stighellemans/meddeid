@@ -85,9 +85,10 @@ COPY LICENSE NOTICE /licenses/meddeid/
 RUN python -c "import importlib.util; assert all(importlib.util.find_spec(name) is None for name in ('torch', 'tensorrt', 'onnxruntime')); from meddeid.server import create_app" \
     && groupadd --gid 10001 meddeid \
     && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/meddeid meddeid \
-    && mkdir -p /var/cache/meddeid/huggingface /models/meddeid \
-    && touch /models/meddeid/.mountpoint \
-    && chown -R 10001:10001 /var/cache/meddeid /home/meddeid /models
+    && mkdir -p /var/cache/meddeid/huggingface /models/meddeid /model-source \
+    && touch /models/meddeid/.mountpoint /model-source/.mountpoint \
+    && chown -R 10001:10001 \
+      /var/cache/meddeid /home/meddeid /models /model-source
 
 # OCI release metadata stays after filesystem construction so changing it does
 # not invalidate the gateway runtime layers.

@@ -54,8 +54,13 @@ def test_pytorch_cuda_release_pins_stay_aligned() -> None:
     assert "MEDDEID_MODEL_REVISION" not in dockerfile
     assert "/opt/meddeid-model" not in dockerfile
     assert "hf download" not in dockerfile
-    assert "mkdir -p /var/cache/meddeid/huggingface /models/meddeid" in dockerfile
-    assert "touch /models/meddeid/.mountpoint" in dockerfile
+    assert (
+        "mkdir -p /var/cache/meddeid/huggingface /models/meddeid /model-source"
+        in dockerfile
+    )
+    assert (
+        "touch /models/meddeid/.mountpoint /model-source/.mountpoint" in dockerfile
+    )
     assert dockerfile.index("LABEL org.opencontainers.image.title") > dockerfile.index(
         "COPY --from=builder /opt/venv"
     )
@@ -152,6 +157,7 @@ def test_triton_runtime_uses_current_boolean_flag_syntax() -> None:
 def test_triton_gateway_is_weight_free_and_does_not_install_torch() -> None:
     dockerfile = (ROOT / "deploy/triton-gateway.Dockerfile").read_text()
     compose = (ROOT / "compose.triton.yaml").read_text()
+    validation = (ROOT / "compose.triton.validation.yaml").read_text()
 
     assert "('torch', 'tensorrt', 'onnxruntime')" in dockerfile
     assert "tritonclient[http]" in dockerfile
@@ -159,8 +165,13 @@ def test_triton_gateway_is_weight_free_and_does_not_install_torch() -> None:
     assert "/opt/meddeid-model" not in dockerfile
     assert "MEDDEID_MODEL_ID" not in dockerfile
     assert "MEDDEID_MODEL_REVISION" not in dockerfile
-    assert "mkdir -p /var/cache/meddeid/huggingface /models/meddeid" in dockerfile
-    assert "touch /models/meddeid/.mountpoint" in dockerfile
+    assert (
+        "mkdir -p /var/cache/meddeid/huggingface /models/meddeid /model-source"
+        in dockerfile
+    )
+    assert (
+        "touch /models/meddeid/.mountpoint /model-source/.mountpoint" in dockerfile
+    )
     assert 'org.opencontainers.image.version="${MEDDEID_VERSION}"' in dockerfile
     assert dockerfile.index("LABEL org.opencontainers.image.title") > dockerfile.index(
         "COPY --from=builder /opt/venv"
@@ -171,6 +182,9 @@ def test_triton_gateway_is_weight_free_and_does_not_install_torch() -> None:
     assert "MEDDEID_WINDOW_BATCH_SIZE=64" in dockerfile
     assert "--model-config-name=${MEDDEID_SERVING_PROFILE:-latency}" in compose
     assert "MEDDEID_MICROBATCH_ENABLED=auto" in dockerfile
+    assert validation.count("MEDDEID_MODEL: /model-source") == 2
+    assert validation.count(":/model-source:ro") == 2
+    assert ":/models/meddeid:ro" not in validation
     assert not (ROOT / "deploy/triton-model.Dockerfile").exists()
     assert not (ROOT / "deploy/build_triton_image.sh").exists()
 
