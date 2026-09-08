@@ -158,6 +158,12 @@ jobs:
           ./deploy/preflight_triton_host.sh "${GPU_TARGET}" 0
           ./deploy/stage_triton_model.sh deploy/triton/model_source
           ./deploy/stage_benchmark_fixture.sh deploy/triton/benchmark_source
+      - name: Check every fixture request against the API before image builds
+        timeout-minutes: 2
+        run: |
+          python deploy/preflight_benchmark_contract.py "${MEDDEID_BENCHMARK_FILE}" \
+            --language-profiles "${MEDDEID_LANGUAGE_PROFILES}" \
+            --output deploy/triton/fixture-contract-preflight.json
       - name: Build CPU reference image
         run: |
           docker build --tag "${CANDIDATE_REFERENCE_IMAGE}" \
@@ -335,6 +341,7 @@ jobs:
         with:
           name: triton-${{ env.GPU_TARGET }}-${{ env.MODEL_KEY }}-evidence-${{ github.run_id }}
           path: |
+            deploy/triton/fixture-contract-preflight.json
             deploy/triton/*parity-report.json
             deploy/triton/*parity-report.md
             deploy/triton/triton-benchmark.json

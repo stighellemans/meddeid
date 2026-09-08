@@ -232,6 +232,23 @@ Compose network.
 
 ## Mandatory parity gate
 
+Before allocating a GPU or building images, stage the pinned benchmark and
+exercise its request contract in an environment with `meddeid[dev]` installed:
+
+```bash
+python deploy/preflight_benchmark_contract.py "$MEDDEID_BENCHMARK_FILE" \
+  --language-profiles "$MEDDEID_LANGUAGE_PROFILES" \
+  --output deploy/triton/fixture-contract-preflight.json
+```
+
+Use the fixture path and comma-separated language profiles from the selected
+model's catalog entry. This sends every normalized parity, benchmark batch, and
+single-document request through the actual API with an echo-only engine. It
+checks nested metadata, request limits, language selection, unique document IDs,
+and agreement between the fixture loaders without loading weights or using a
+GPU. It does not establish inference correctness. The GPU workflow runs this
+check before image builds and retains the report even when validation fails.
+
 ```bash
 set -a
 source .env.triton
