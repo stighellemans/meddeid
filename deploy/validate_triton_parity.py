@@ -13,6 +13,18 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
+API_METADATA_KEYS = frozenset(
+    {
+        "lang",
+        "patient",
+        "caregivers",
+        "document_creation_date",
+        "date_shift_days",
+        "known_values",
+    }
+)
+
+
 def request_json(url: str, *, api_key: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"Authorization": f"Bearer {api_key}"}
@@ -41,11 +53,21 @@ def read_documents(path: Path) -> list[dict[str, Any]]:
         for key in ("document_id", "text"):
             if key not in row:
                 raise ValueError(f"{path}:{line_number}: missing {key}")
+        metadata = row.get("metadata")
+        if metadata is None and row.get("metadata_json") is not None:
+            metadata = json.loads(row["metadata_json"])
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError(f"{path}:{line_number}: metadata must be an object")
+        api_metadata = {
+            key: value
+            for key, value in (metadata or {}).items()
+            if key in API_METADATA_KEYS
+        }
         documents.append(
             {
                 "document_id": str(row["document_id"]),
                 "text": str(row["text"]),
-                "metadata": row.get("metadata") or {},
+                "metadata": api_metadata,
             }
         )
     if not documents:

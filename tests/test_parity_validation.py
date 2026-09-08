@@ -44,6 +44,29 @@ def test_complete_equality_passes(monkeypatch, tmp_path):
     assert len(calls) == 4
 
 
+def test_fixture_reader_forwards_only_supported_api_metadata(tmp_path):
+    fixture = tmp_path / 'benchmark.jsonl'
+    fixture.write_text(
+        json.dumps({
+            'document_id': 'english-1',
+            'text': 'Synthetic English note',
+            'metadata': {
+                'lang': 'en-GB',
+                'patient': {'given_name': 'Ada'},
+                'generation_method': 'benchmark-only',
+                'synthetic': True,
+            },
+        }) + '\n',
+        encoding='utf-8',
+    )
+
+    assert parity.read_documents(fixture) == [{
+        'document_id': 'english-1',
+        'text': 'Synthetic English note',
+        'metadata': {'lang': 'en-GB', 'patient': {'given_name': 'Ada'}},
+    }]
+
+
 @pytest.mark.parametrize('side', ['reference', 'candidate'])
 @pytest.mark.parametrize('bad', ['empty', 'duplicate', 'missing', 'unexpected', 'no_identity'])
 def test_incomplete_outputs_never_pass(monkeypatch, tmp_path, side, bad):
