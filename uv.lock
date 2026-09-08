@@ -1707,7 +1707,7 @@ wheels = [
 
 [[package]]
 name = "meddeid"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
@@ -1771,12 +1771,12 @@ requires-dist = [
     { name = "meddeid-core", specifier = ">=0.2,<0.3" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'research'", specifier = ">=0.3,<0.5" },
-    { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.5" },
-    { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.3,<0.5" },
+    { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.5,<0.6" },
+    { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.5,<0.6" },
     { name = "meddeid-language-en", specifier = ">=0.2,<0.3" },
     { name = "meddeid-language-nl", specifier = ">=0.2,<0.3" },
-    { name = "meddeid-training", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.2,<0.3" },
-    { name = "meddeid-training", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.2,<0.3" },
+    { name = "meddeid-training", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.4" },
+    { name = "meddeid-training", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.3,<0.4" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pytest", marker = "extra == 'contributor'", specifier = ">=8" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
@@ -1830,7 +1830,7 @@ parquet = [
 
 [[package]]
 name = "meddeid-eval"
-version = "0.3.0"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "meddeid-core" },
@@ -1838,9 +1838,9 @@ dependencies = [
     { name = "meddeid-language-nl" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/d2/ac8d8822bf239fc968c385cf09c4a1b12aead3c3ab4bc42f33045a48e143/meddeid_eval-0.3.0.tar.gz", hash = "sha256:17a7998afccae5251e98f9b7b2d607fb1decc29b663a9b829c0ffff9974bce64", size = 63815, upload-time = "2026-08-27T13:06:10.046Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/21/9be62c4453c38954dced560cb0aeb95de424b31914098cc2007492ec1ee3/meddeid_eval-0.5.0.tar.gz", hash = "sha256:847eb8e0bc98f519a691bb54c218149b6bfd1bdb7af677ab072ca09f4fad9358", size = 80425, upload-time = "2026-09-08T14:06:56.206Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/08/db66c8261148187c41be29a92c32961a9907cdffa1a8f610748b59df8397/meddeid_eval-0.3.0-py3-none-any.whl", hash = "sha256:0a68cde28bf16d29bfd67663f4bba4172ff17515d6c8772b01aa241d616fb421", size = 69607, upload-time = "2026-08-27T13:06:08.941Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/bd/4b94b10e3fd175ebb262add1a7eda6dcc83ec0182b87871457243f277450/meddeid_eval-0.5.0-py3-none-any.whl", hash = "sha256:c783c6f0bccb825b14981f7a2025bf1dbc9d1c30b34ea454b5940fb92682e8a3", size = 84440, upload-time = "2026-09-08T14:06:54.756Z" },
 ]
 
 [package.optional-dependencies]
@@ -1875,16 +1875,16 @@ wheels = [
 
 [[package]]
 name = "meddeid-training"
-version = "0.2.0"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "meddeid-core" },
     { name = "meddeid-eval" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/10/69/4798cd98f6e8eab4e4c2c7153b57d714c581096467bc4c8603d3ef2b70c7/meddeid_training-0.2.0.tar.gz", hash = "sha256:78c8ae1bd02b13b24146a4859dac344dd0ec2186574ef5d701b60a21c8bfd322", size = 52404, upload-time = "2026-08-27T13:12:03.929Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/93/d80b771b274a0d8236c800042dbb19b9a65547351b0c51b7d83c2b79b929/meddeid_training-0.3.0.tar.gz", hash = "sha256:e95b0a2d888d2bbe73d3e54f62367bb4e31d70bc2a5d20b22ab2dcb3b05d52c8", size = 52402, upload-time = "2026-09-08T14:12:18.89Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/56/5aca528b1c6ef9a429f074b505bf35c7c45aa46c941f43ead0c651c91ff0/meddeid_training-0.2.0-py3-none-any.whl", hash = "sha256:80399aa21f661c2931dcf9ddd377f72754b8aa40d78ba901326bbab91ec62d8d", size = 48761, upload-time = "2026-08-27T13:12:02.375Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/a8/e50709534e91d0e61ad934b0dd66b2cd00827c90f31fb86a9b51813093d7/meddeid_training-0.3.0-py3-none-any.whl", hash = "sha256:b02bffea6791a58567a06da841b95b60f21355c7196dd20e073fce6146f4cbce", size = 48761, upload-time = "2026-09-08T14:12:17.57Z" },
 ]
 
 [package.optional-dependencies]
