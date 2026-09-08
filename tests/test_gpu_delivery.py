@@ -54,6 +54,7 @@ def test_pytorch_cuda_release_pins_stay_aligned() -> None:
     assert "MEDDEID_MODEL_REVISION" not in dockerfile
     assert "/opt/meddeid-model" not in dockerfile
     assert "hf download" not in dockerfile
+    assert "mkdir -p /var/cache/meddeid/huggingface /models/meddeid" in dockerfile
     assert dockerfile.index("LABEL org.opencontainers.image.title") > dockerfile.index(
         "COPY --from=builder /opt/venv"
     )
@@ -77,6 +78,7 @@ def test_gpu_validation_exercises_cuda_and_the_http_api() -> None:
     assert 'find_spec("triton") is not None' in checker
     assert "scripts/container_smoke.py:/smoke.py:ro" in validator
     assert "--read-only" in validator
+    assert '--user "$(id -u):$(id -g)"' in validator
 
 
 def test_triton_tooling_avoids_local_package_shadowing() -> None:
@@ -156,6 +158,7 @@ def test_triton_gateway_is_weight_free_and_does_not_install_torch() -> None:
     assert "/opt/meddeid-model" not in dockerfile
     assert "MEDDEID_MODEL_ID" not in dockerfile
     assert "MEDDEID_MODEL_REVISION" not in dockerfile
+    assert "mkdir -p /var/cache/meddeid/huggingface /models/meddeid" in dockerfile
     assert 'org.opencontainers.image.version="${MEDDEID_VERSION}"' in dockerfile
     assert dockerfile.index("LABEL org.opencontainers.image.title") > dockerfile.index(
         "COPY --from=builder /opt/venv"

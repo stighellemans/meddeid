@@ -62,6 +62,7 @@ trap cleanup EXIT
 
 chmod 0777 "${model_cache}"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   --volume "${model_cache}:/var/cache/meddeid/huggingface" \
   --env MEDDEID_MODEL="${model_id}" \
   --env MEDDEID_REVISION="${model_revision}" \
