@@ -10,6 +10,7 @@ FROM ${TRITON_COMPOSED_IMAGE} AS composed
 FROM ${CUDA_BASE_IMAGE}
 
 ARG TRITON_STACK
+ARG MEDDEID_VERSION
 ARG TRITON_SERVER_VERSION
 ARG TENSORRT_VERSION
 ARG TRITON_FULL_IMAGE
@@ -21,6 +22,7 @@ LABEL org.opencontainers.image.title="MedDeID TensorRT-only Triton runtime" \
       org.opencontainers.image.description="Minimal NVIDIA Triton runtime projected from the official TensorRT-only composition" \
       org.opencontainers.image.source="https://github.com/stighellemans/meddeid" \
       org.opencontainers.image.licenses="LicenseRef-NVIDIA-Deep-Learning-Container" \
+      org.opencontainers.image.version="${MEDDEID_VERSION}" \
       io.meddeid.triton-stack="${TRITON_STACK}" \
       io.meddeid.triton-server-version="${TRITON_SERVER_VERSION}" \
       io.meddeid.tensorrt-version="${TENSORRT_VERSION}" \
@@ -53,8 +55,8 @@ COPY --from=composed /opt/tritonserver/lib /opt/tritonserver/lib
 COPY --from=composed /opt/tritonserver/backends/tensorrt /opt/tritonserver/backends/tensorrt
 
 # Required direct runtime dependencies reported by the Triton executable and
-# TensorRT backend. Builder resources and non-SM75 engine builders are not
-# part of this closure because the final image only loads a prebuilt plan.
+# TensorRT backend. Engine-builder resources are not part of this closure
+# because the final image only loads a prebuilt plan.
 COPY --from=composed /usr/local/cuda-13.3/targets/x86_64-linux/lib/libcupti.so.2026.2.1 /usr/local/cuda-13.3/targets/x86_64-linux/lib/
 COPY --from=composed /usr/lib/x86_64-linux-gnu/libdcgm.so.4.5.3 /usr/lib/x86_64-linux-gnu/
 COPY --from=composed /usr/lib/x86_64-linux-gnu/libnccl.so.2.30.7 /usr/lib/x86_64-linux-gnu/

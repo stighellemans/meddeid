@@ -45,6 +45,7 @@ docker build \
   --build-arg "TRITON_COMPOSED_IMAGE=${composed_image}" \
   --build-arg "CUDA_BASE_IMAGE=${MEDDEID_CUDA_BASE_IMAGE}" \
   --build-arg "TRITON_STACK=${MEDDEID_TRITON_STACK}" \
+  --build-arg "MEDDEID_VERSION=${MEDDEID_VERSION}" \
   --build-arg "TRITON_SERVER_VERSION=${MEDDEID_TRITON_SERVER_VERSION}" \
   --build-arg "TENSORRT_VERSION=${MEDDEID_TENSORRT_VERSION}" \
   --build-arg "TRITON_FULL_IMAGE=${MEDDEID_TRITON_BASE_IMAGE}" \

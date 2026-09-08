@@ -6,11 +6,14 @@ import hashlib
 import json
 from pathlib import Path
 
+from meddeid.triton_hardware import FAMILY_MODES, family_for_gpu
+
 from triton_targets import (
     BUILD_MANIFEST_SCHEMA,
     CATALOG_PATH,
     get_target,
     load_catalog,
+    local_target,
     target_spec_sha256,
     verify_host,
 )
@@ -34,12 +37,16 @@ def main() -> None:
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--model-revision", required=True)
     parser.add_argument("--bundle-sha256", required=True)
+    parser.add_argument("--language-profile", action="append", required=True)
+    parser.add_argument("--suite-version", required=True)
+    parser.add_argument("--meddeid-version", required=True)
     parser.add_argument("--triton-stack", required=True)
     parser.add_argument("--triton-server-version", required=True)
     parser.add_argument("--tensorrt-version", required=True)
     parser.add_argument("--builder-image", required=True)
     parser.add_argument("--target-catalog", type=Path, default=CATALOG_PATH)
     parser.add_argument("--gpu-target", required=True)
+    parser.add_argument("--hardware-family", choices=("native", *FAMILY_MODES), default="native")
     parser.add_argument("--gpu-name", required=True)
     parser.add_argument("--compute-capability", required=True)
     parser.add_argument("--driver-version", required=True)
@@ -55,6 +62,8 @@ def main() -> None:
     )
     parser.add_argument("--throughput-queue-delay-microseconds", type=int)
     args = parser.parse_args()
+    if args.hardware_family != "native" and family_for_gpu(args.compute_capability) != args.hardware_family:
+        parser.error("hardware family does not match the build GPU")
     throughput_dynamic_batching = args.throughput_dynamic_batching == "true"
     if throughput_dynamic_batching and (
         args.throughput_queue_delay_microseconds is None
@@ -63,7 +72,16 @@ def main() -> None:
         parser.error("dynamic batching requires a non-negative throughput queue delay")
 
     try:
-        target_spec = get_target(load_catalog(args.target_catalog), args.gpu_target)
+        catalog = load_catalog(args.target_catalog)
+        try:
+            target_spec = get_target(catalog, args.gpu_target)
+        except ValueError:
+            target_spec = local_target(args.gpu_name, args.compute_capability)
+            if target_spec["id"] != args.gpu_target:
+                raise ValueError(
+                    f"unknown target {args.gpu_target!r} does not match the "
+                    f"detected local target {target_spec['id']!r}"
+                )
         verify_host(
             target_spec,
             gpu_name=args.gpu_name,
@@ -88,10 +106,15 @@ def main() -> None:
 
     payload = {
         "schema": BUILD_MANIFEST_SCHEMA,
+        "release": {
+            "suite_version": args.suite_version,
+            "meddeid_version": args.meddeid_version,
+        },
         "model": {
             "id": args.model_id,
             "revision": args.model_revision,
             "bundle_sha256": args.bundle_sha256,
+            "language_profiles": sorted(set(args.language_profile)),
             "triton_name": args.model_name,
             "triton_version": args.model_version,
         },
@@ -102,11 +125,18 @@ def main() -> None:
             "builder_image": args.builder_image,
         },
         "target": {
-            "id": args.gpu_target,
+            "id": args.gpu_target if args.hardware_family == "native" else args.hardware_family,
+            **({
+                "family": args.hardware_family,
+                "compatibility_mode": FAMILY_MODES[args.hardware_family],
+                "build_target": args.gpu_target,
+            } if args.hardware_family != "native" else {}),
             "display_name": target_spec["display_name"],
             "catalog_spec_sha256": target_spec_sha256(target_spec),
-            "release_status": target_spec["release_status"],
-            "image_repository": target_spec["image_repository"],
+            # A new family must not inherit an exact-GPU plan's approval or
+            # publication destination merely because it used that build host.
+            "release_status": target_spec["release_status"] if args.hardware_family == "native" else "local",
+            "artifact_repository": target_spec["artifact_repository"] if args.hardware_family == "native" else "",
             "gpu_name": args.gpu_name,
             "compute_capability": args.compute_capability,
             "driver_version": args.driver_version,

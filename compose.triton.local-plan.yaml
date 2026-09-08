@@ -1,0 +1,11 @@
+# Use a locally compiled plan with the release gateway and runtime images.
+services:
+  plan:
+    volumes:
+      - ./deploy/triton/local_model_repository:/models
+  triton:
+    volumes:
+      - ./deploy/triton/local_model_repository:/models:ro
+  meddeid:
+    volumes:
+      - ./deploy/triton/local_model_repository:/models:ro

@@ -151,6 +151,8 @@
   "throughput_microbatch_medians": {
     "maximum_wait_ms": 1,
     "maximum_windows": 32,
+    "interactive_short_p50_ms": 26.06,
+    "interactive_short_documents_per_second": 38.5,
     "interactive_short_burst_documents_per_second": 167.05,
     "interactive_short_burst_change_percent": 46.9,
     "etl_batch_1_documents_per_second": 40.72,

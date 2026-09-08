@@ -159,6 +159,21 @@ def test_cli_json_reports_bundle_pinned_profile(monkeypatch, tmp_path, capsys) -
     assert payload["provenance"]["language_profile"] == {"profile_id": "en-GB"}
 
 
+def test_cli_accepts_literal_text(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli, "_load_engine", lambda _args: FakeEngine())
+
+    assert cli.main([
+        "deidentify",
+        "--text",
+        "mijn naam is Noor Janssens",
+        "--model",
+        "stighellemans/meddeid-dutch-synth",
+        "--quiet",
+    ]) == 0
+
+    assert capsys.readouterr().out == "mijn naam is Noor Janssens\n"
+
+
 def test_cli_accepts_explicit_input_option(monkeypatch, tmp_path, capsys) -> None:
     source = tmp_path / "input.jsonl"
     output = tmp_path / "output.jsonl"
@@ -251,6 +266,37 @@ def test_cli_rejects_both_input_forms_before_loading_model(
     assert error.value.code == 2
     assert model_loaded is False
     assert "either positionally or with `--input`, not both" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("use_explicit_input", [False, True])
+def test_cli_rejects_text_with_file_input_before_loading_model(
+    monkeypatch, tmp_path, capsys, use_explicit_input
+) -> None:
+    source = tmp_path / "note.txt"
+    source.write_text("Example", encoding="utf-8")
+    model_loaded = False
+
+    def fake_load_engine(_args):
+        nonlocal model_loaded
+        model_loaded = True
+        return FakeEngine()
+
+    monkeypatch.setattr(cli, "_load_engine", fake_load_engine)
+    input_args = ["--input", str(source)] if use_explicit_input else [str(source)]
+
+    with pytest.raises(SystemExit) as error:
+        cli.main([
+            "deidentify",
+            *input_args,
+            "--text",
+            "mijn naam is Noor Janssens",
+            "--model",
+            "stighellemans/meddeid-dutch-synth",
+        ])
+
+    assert error.value.code == 2
+    assert model_loaded is False
+    assert "pass either an input file or `--text`, not both" in capsys.readouterr().err
 
 
 def test_cli_lists_public_model_scope(capsys) -> None:

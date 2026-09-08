@@ -21,6 +21,8 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/meddeid-api
+  SMOKE_MODEL: stighellemans/meddeid-dutch-synth
+  SMOKE_MODEL_REVISION: 1f20655454dcbd042647cacdfff6b6802a970959
 
 jobs:
   verify:
@@ -61,20 +63,37 @@ jobs:
             --budget-file deploy/image-size-budgets.json \
             --budget-key cpu \
             --output cpu-image-size.json
+      - name: Stage the smoke-test model outside the image
+        run: |
+          mkdir -p "${RUNNER_TEMP}/meddeid-model-cache"
+          chmod 0777 "${RUNNER_TEMP}/meddeid-model-cache"
+          docker run --rm \
+            --volume "${RUNNER_TEMP}/meddeid-model-cache:/var/cache/meddeid/huggingface" \
+            --env MEDDEID_MODEL="${SMOKE_MODEL}" \
+            --env MEDDEID_REVISION="${SMOKE_MODEL_REVISION}" \
+            --entrypoint python \
+            meddeid-api:ci -c \
+            "import os; from meddeid.model_source import resolve_model_source; resolve_model_source(os.environ['MEDDEID_MODEL'], revision=os.environ['MEDDEID_REVISION'])"
       - name: Run hardened offline smoke test
         run: |
           docker run --rm --entrypoint python meddeid-api:ci -c \
             "import importlib.util, torch; assert torch.version.cuda is None; assert all(importlib.util.find_spec(name) is None for name in ('tensorrt', 'tritonclient', 'onnxruntime', 'triton'))"
+          docker run --rm --entrypoint sh meddeid-api:ci -c \
+            "test ! -e /opt/meddeid-model"
           docker network create --internal meddeid-smoke
           docker run --detach --name meddeid-smoke \
             --network meddeid-smoke \
             --read-only \
+            --volume "${RUNNER_TEMP}/meddeid-model-cache:/var/cache/meddeid/huggingface" \
             --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
             --cap-drop ALL \
             --security-opt no-new-privileges \
             --pids-limit 256 \
             --env MEDDEID_API_KEY=ci-smoke-secret \
             --env MEDDEID_REQUIRE_API_KEY=true \
+            --env MEDDEID_MODEL="${SMOKE_MODEL}" \
+            --env MEDDEID_REVISION="${SMOKE_MODEL_REVISION}" \
+            --env MEDDEID_OFFLINE=true \
             meddeid-api:ci
           docker run --rm \
             --network meddeid-smoke \

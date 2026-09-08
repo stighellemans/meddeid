@@ -104,6 +104,15 @@ def _resolve_and_validate_input(
 
     positional = args.input_positional
     explicit = args.input_option
+    text = getattr(args, "text", None)
+    if text is not None and (positional is not None or explicit is not None):
+        parser.exit(
+            2,
+            "meddeid: error: pass either an input file or `--text`, not both.\n",
+        )
+    if text is not None:
+        args.input = None
+        return
     if positional is not None and explicit is not None:
         parser.exit(
             2,
@@ -112,10 +121,11 @@ def _resolve_and_validate_input(
         )
     input_path = explicit if explicit is not None else positional
     if input_path is None:
+        text_hint = " or `--text <text>`" if args.command == "deidentify" else ""
         parser.exit(
             2,
             "meddeid: error: no input file provided; pass it positionally or with "
-            "`--input <path>`.\n",
+            f"`--input <path>`{text_hint}.\n",
         )
     if not input_path.exists():
         parser.exit(2, f"meddeid: error: input file not found: {input_path}\n")
@@ -246,8 +256,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="meddeid")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    deidentify = sub.add_parser("deidentify", help="de-identify one UTF-8 text file locally")
+    deidentify = sub.add_parser("deidentify", help="de-identify one text locally")
     _add_input_arguments(deidentify, description="UTF-8 text input file")
+    deidentify.add_argument(
+        "--text",
+        help="literal text to de-identify instead of reading an input file",
+    )
     deidentify.add_argument("--output")
     deidentify.add_argument("--json", action="store_true")
     _add_model_arguments(deidentify)
@@ -350,7 +364,12 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(manifest["counts"], indent=2))
             return 0
 
-        result = engine(args.input.read_text(encoding="utf-8"))
+        source_text = (
+            args.text
+            if args.text is not None
+            else args.input.read_text(encoding="utf-8")
+        )
+        result = engine(source_text)
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         parser.exit(2, f"meddeid: error: {exc}\n")
     finally:

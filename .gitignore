@@ -1,5 +1,7 @@
 .venv/
+.DS_Store
 .env
+.env.cpu
 .env.cuda
 .env.triton
 meddeid-server.env
@@ -17,6 +19,9 @@ model/
 deploy/triton/model_source/
 deploy/triton/model_sources/
 deploy/triton/model_repository/
+deploy/triton/local_model_repository/
+deploy/triton/local_build_reports/
+deploy/triton/release-artifacts/
 deploy/triton/builds/
 deploy/triton/benchmark_source/
 deploy/triton/parity-report.json
@@ -26,3 +31,6 @@ deploy/triton/trivy-report.json
 deploy/pytorch-cuda/validation-report.json
 deploy/pytorch-cuda/candidate-image-inspect.json
 .azure-validation/
+/evidence/
+/test-models/
+/deploy/triton/dutch-plan-evidence/

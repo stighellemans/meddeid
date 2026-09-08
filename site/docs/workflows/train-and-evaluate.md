@@ -33,7 +33,7 @@ Install the released tools:
 python -m pip install \
   meddeid-data \
   'meddeid-training[train]' \
-  'meddeid-eval[plots]'
+  'meddeid-eval[infer,plots]'
 ```
 
 The training extra also installs `meddeid`, which is used later to generate
@@ -50,11 +50,12 @@ Pass the three completed assignments to `prepare-training`:
 meddeid-data project prepare-training my-project \
   --selection-train my-project/assignments/train-reviewed.jsonl \
   --selection-validation my-project/assignments/validation-reviewed.jsonl \
-  --test-gold my-project/assignments/test-reviewed.jsonl
+  --test-gold my-project/assignments/test-reviewed.jsonl \
+  --output prepared-data/experiment-01
 ```
 
 The command verifies completion, document membership, text, labels, and
-checksums before creating three views under `my-project/prepared/`:
+checksums before creating three views under `prepared-data/experiment-01/`:
 
 | Directory | What it contains | Use it for |
 |---|---|---|
@@ -65,6 +66,11 @@ checksums before creating three views under `my-project/prepared/`:
 Use `--development` instead of the two `--selection-*` options only when train
 and validation were deliberately reviewed as one combined development
 assignment.
+
+`--output` defaults to `my-project/prepared` for compatibility. Give different
+data or split snapshots distinct output directories. When several training
+runs use the same prepared snapshot, reuse this directory and give every
+training invocation a distinct `--run` directory instead.
 
 The command does not modify the reviewed source files and will not overwrite a
 non-empty `prepared/` directory.
@@ -80,8 +86,12 @@ model_name: stighellemans/meddeid-dutch-synth
 model_revision: <immutable-hub-revision>
 language_profile: nl-BE
 device: auto
-epochs: 8
+epochs: 12
 seed: 42
+save_best_metric: entity_f1
+early_stopping_patience: 3
+early_stopping_min_delta: 0.001
+early_stopping_min_epochs: 3
 ```
 
 `model_name` is the model from which training starts. Use its immutable Hub
@@ -108,6 +118,14 @@ they are part of the experiment you intend to run. The
 [`meddeid-training` repository](https://github.com/stighellemans/meddeid-training)
 documents the complete configuration.
 
+In the configuration above, `epochs` is a ceiling. Selection keeps the absolute
+best validation checkpoint and stops after three epochs without a meaningful
+validation improvement, beginning after epoch 3. Refit then restarts from the
+pinned source model and trains on all development data for the selected count;
+it does not use its now in-sample validation metrics for another selection.
+This reduces overfitting risk, but it cannot replace a sufficiently large,
+representative validation split and a test set that is consulted only once.
+
 ## 3. Run one ordinary fit
 
 Use this route for exploration or an ordinary train/validation/test
@@ -116,13 +134,13 @@ experiment:
 ```bash
 meddeid-train fit \
   --config training.yaml \
-  --data my-project/prepared/fit \
-  --run runs/fit
+  --data prepared-data/experiment-01/fit \
+  --run runs/experiment-01/fit
 ```
 
 Training uses the validation set to retain the best checkpoint, then evaluates
 that checkpoint on the test set. The selected checkpoint is written to
-`runs/fit/checkpoints/best.pt`.
+`runs/experiment-01/fit/checkpoints/best.pt`.
 
 Do not use repeated ordinary fits on the same test set to select
 hyperparameters. Once test results influence another training decision, the
@@ -139,12 +157,13 @@ validation data:
 ```bash
 meddeid-train select-epochs \
   --config training.yaml \
-  --data my-project/prepared/selection \
-  --run runs/selection
+  --data prepared-data/experiment-01/selection \
+  --run runs/experiment-01/selection
 ```
 
-This writes the selected epoch count to `runs/selection/run.json`. The test
-file in this view is empty, so this stage cannot score the test set.
+This writes the selected epoch count to
+`runs/experiment-01/selection/run.json`. The test file in this view is empty,
+so this stage cannot score the test set.
 
 Then restart from the original model and train on all development data for that
 fixed number of epochs:
@@ -152,9 +171,9 @@ fixed number of epochs:
 ```bash
 meddeid-train refit \
   --config training.yaml \
-  --selection runs/selection/run.json \
-  --data my-project/prepared/refit \
-  --run runs/refit
+  --selection runs/experiment-01/selection/run.json \
+  --data prepared-data/experiment-01/refit \
+  --run runs/experiment-01/refit
 ```
 
 Refit does not continue from the selection checkpoint. It starts again from the
@@ -164,12 +183,13 @@ evaluates once on the sealed test set.
 ## Export the trained model
 
 Export the checkpoint from the route you chose. This example uses the refit
-run; replace `runs/refit` with `runs/fit` after an ordinary fit:
+run; use the corresponding `runs/experiment-01/fit` paths after an ordinary
+fit:
 
 ```bash
 meddeid-train export \
-  --checkpoint runs/refit/checkpoints/best.pt \
-  --run-metadata runs/refit/train_metrics.json \
+  --checkpoint runs/experiment-01/refit/checkpoints/best.pt \
+  --run-metadata runs/experiment-01/refit/train_metrics.json \
   --output release/my-model
 ```
 
@@ -185,16 +205,43 @@ Generate predictions from the exact exported bundle. The example uses the
 refit test view; use `prepared/fit/test.jsonl` for an ordinary fit:
 
 ```bash
-meddeid batch my-project/prepared/refit/test.jsonl \
+meddeid batch prepared-data/experiment-01/refit/test.jsonl \
   --model release/my-model \
   --output predictions/test.jsonl
 ```
 
-Score those predictions against the unchanged test gold:
+Run the complete paper-style evaluation battery against the unchanged test
+gold:
+
+```bash
+meddeid-eval battery \
+  --gold prepared-data/experiment-01/refit/test.jsonl \
+  --predictions predictions/test.jsonl \
+  --name my-model \
+  --output-dir results/battery
+```
+
+The command reads `metadata.lang` from the gold data and automatically runs the
+matching public MedDeID baseline on the same documents. It produces a Markdown
+report, aggregate and per-label CSV/JSON tables, PNG/PDF figures, a primary-label
+confusion matrix with explicit missed and spurious outcomes, subannotation
+detected-versus-missed coverage, and paired 95% intervals from 10,000
+complete-document bootstrap samples.
+
+The main figure keeps four outcomes in one panel: label-agnostic core-PII
+coverage, primary-label accuracy among one-to-one matched overlapping spans,
+exact-span F1, and non-PII redaction. This makes boundary, label-assignment,
+privacy-coverage, and over-redaction failures distinguishable at a glance.
+
+Subannotation categories are gold-only analysis labels; MedDeID does not predict
+them. They therefore have a coverage matrix rather than a predicted-subcategory
+confusion matrix.
+
+For a lower-level single-system score without baseline inference or uncertainty:
 
 ```bash
 meddeid-eval score \
-  --gold my-project/prepared/refit/test.jsonl \
+  --gold prepared-data/experiment-01/refit/test.jsonl \
   --predictions predictions/test.jsonl \
   --name my-model \
   --output results/my-model.json
@@ -204,9 +251,6 @@ The result includes exact-span and character-level metrics, core-PII recall,
 and unnecessary redaction outside the reviewed identifiers. Detailed
 subannotation metrics appear only when the test gold contains those optional
 labels.
-
-Add `--seconds` and `--device` only when you measured runtime and want that
-context stored with the score. They do not run a benchmark themselves.
 
 ## Compare systems and create figures
 
@@ -225,6 +269,36 @@ meddeid-eval plot \
 The command writes PNG and searchable PDF figures. Consult the
 [`meddeid-eval` repository](https://github.com/stighellemans/meddeid-eval)
 for metric definitions, stability analysis, and additional plot options.
+
+The following figures illustrate this output using a synthetic Dutch chatbot
+domain-shift experiment. The 60-document corpus was divided into 40 training,
+10 validation, and 10 sealed test documents; all 14 primary labels were
+represented in every split.
+
+<figure markdown="span">
+  ![Four-row evaluation overview comparing the public Dutch baseline with a chatbot-domain fine-tuned model.](../assets/evaluation/chatbot-domain-shift-performance-overview.png){ loading=lazy }
+  <figcaption>
+    The headline panel separates privacy coverage, matched-span label accuracy,
+    exact boundary-and-label performance, and unnecessary redaction. On this
+    constructed test set, fine-tuning raised exact-span F1 from 64.1% to 100%
+    and label accuracy from 76.9% to 100%.
+  </figcaption>
+</figure>
+
+<figure markdown="span">
+  ![Primary-label confusion matrices for the public Dutch baseline and chatbot-domain fine-tuned model.](../assets/evaluation/chatbot-domain-shift-label-confusion.png){ loading=lazy }
+  <figcaption>
+    Gold labels are rows and predictions are columns. The public baseline shows
+    role and subtype confusion, including Other names predicted as caregivers,
+    caregiver IDs predicted as patient IDs, address-role confusion, missed
+    professions, and spurious predictions. The fine-tuned candidate is diagonal
+    on this synthetic test partition.
+  </figcaption>
+</figure>
+
+These are integration-test illustrations, not estimates of clinical or
+production performance. Real deployment claims require independently reviewed,
+representative local test data.
 
 ## Keep with the result
 

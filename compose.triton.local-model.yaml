@@ -1,0 +1,13 @@
+# Supply the gateway with the same local bundle used by plan-builder.
+services:
+  plan:
+    environment:
+      MEDDEID_LOCAL_BUNDLE: "true"
+  meddeid:
+    environment:
+      MEDDEID_LOCAL_BUNDLE: "true"
+      MEDDEID_MODEL: /input-model
+      MEDDEID_REVISION: ""
+      MEDDEID_OFFLINE: "true"
+    volumes:
+      - ${MEDDEID_LOCAL_MODEL_DIRECTORY:?set the local model bundle directory}:/input-model:ro

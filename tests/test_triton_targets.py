@@ -57,15 +57,51 @@ def test_target_host_validation_checks_name_and_compute_capability() -> None:
         )
 
 
-def test_target_image_tag_keeps_gpu_and_runtime_identity_visible() -> None:
+def test_target_is_detected_from_nvidia_name() -> None:
+    catalog = targets.load_catalog()
+
+    assert targets.detect_target(
+        catalog,
+        gpu_name="NVIDIA A10G",
+        compute_capability="8.6",
+    )["id"] == "a10g-sm86"
+
+
+def test_unlisted_gpu_receives_a_local_build_target() -> None:
+    catalog = targets.load_catalog()
+
+    target = targets.detect_target(
+        catalog,
+        gpu_name="NVIDIA RTX 6000 Ada Generation",
+        compute_capability="8.9",
+        allow_local=True,
+    )
+
+    assert target["id"] == "nvidia-rtx-6000-ada-generation"
+    assert target["compute_capability"] == "8.9"
+    assert target["release_status"] == "local"
+
+
+def test_target_artifact_tag_keeps_gpu_and_runtime_identity_visible() -> None:
     target = targets.get_target(targets.load_catalog(), "l4-sm89")
 
-    assert targets.image_tag(
+    assert targets.artifact_tag(
         target,
         version="0.3.0",
         triton_stack="26.07",
         precision="fp16",
-    ) == ("ghcr.io/stighellemans/meddeid-triton-l4-sm89:0.3.0-trt26.07-fp16")
+    ) == ("ghcr.io/stighellemans/meddeid-triton-plan-l4-sm89:0.3.0-trt26.07-fp16")
+
+    assert targets.artifact_tag(
+        target,
+        version="0.3.0",
+        triton_stack="26.07",
+        precision="fp16",
+        model_key="english-synthetic",
+    ) == (
+        "ghcr.io/stighellemans/meddeid-triton-plan-l4-sm89:"
+        "0.3.0-trt26.07-fp16-english-synthetic"
+    )
 
 
 def test_manifest_is_bound_to_the_reviewed_target_spec(tmp_path: Path) -> None:
@@ -80,7 +116,7 @@ def test_manifest_is_bound_to_the_reviewed_target_spec(tmp_path: Path) -> None:
                     "display_name": target["display_name"],
                     "catalog_spec_sha256": targets.target_spec_sha256(target),
                     "release_status": target["release_status"],
-                    "image_repository": target["image_repository"],
+                    "artifact_repository": target["artifact_repository"],
                     "compute_capability": target["compute_capability"],
                 },
             }
@@ -127,7 +163,11 @@ def test_gpu_workflow_is_target_driven_and_publishes_only_ready_targets() -> Non
     assert "inputs.gpu_target || 't4-sm75'" in workflow
     assert '"${GPU_TARGET}" 0' in workflow
     assert '"${target_status}" != ready' in workflow
-    assert 'triton_name="${TRITON_IMAGE_REPOSITORY}"' in workflow
+    assert (
+        'triton_name="ghcr.io/${GITHUB_REPOSITORY_OWNER}/meddeid-triton-runtime"'
+        in workflow
+    )
+    assert "MEDDEID_TRITON_MODEL_REPOSITORY" in workflow
     assert 'triton_targets.py" verify-host' in preflight
     assert 'case "${target}"' not in preflight
     assert "BUILD_MANIFEST_SCHEMA" in manifest_writer
@@ -164,17 +204,15 @@ def test_mps_summary_records_parity_and_measured_recommendations() -> None:
 
 def test_t4_summary_records_target_bound_parity_size_and_performance() -> None:
     summary = json.loads(
-        (ROOT / "deploy/triton/t4-benchmark-summary.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "deploy/triton/t4-benchmark-summary.json").read_text(encoding="utf-8")
     )
     catalog_target = targets.get_target(targets.load_catalog(), "t4-sm75")
 
     assert summary["schema"] == "meddeid.triton-benchmark-summary.v1"
     assert summary["target"]["id"] == catalog_target["id"]
-    assert summary["target"]["compute_capability"] == catalog_target[
-        "compute_capability"
-    ]
+    assert (
+        summary["target"]["compute_capability"] == catalog_target["compute_capability"]
+    )
     assert catalog_target["release_status"] == "ready"
     assert summary["parity"] == {
         "passed": True,

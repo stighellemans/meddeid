@@ -1,4 +1,5 @@
 .git
+.venv
 .pytest_cache
 __pycache__
 *.pyc
@@ -7,6 +8,13 @@ build
 *.egg-info
 tests
 deploy/triton/model_repository
+deploy/triton/local_model_repository
+deploy/triton/local_build_reports
+evidence
+test-models
+deploy/triton/dutch-plan-evidence
+deploy/triton/model_source
+deploy/triton/release-artifacts
 deploy/triton/benchmark_source
 .env.cuda
 deploy/pytorch-cuda/validation-report.json

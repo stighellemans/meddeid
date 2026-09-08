@@ -47,7 +47,7 @@ identifiers and splits, validate data, or generate synthetic data.
 Use this local browser application to review identifiers in an assigned JSONL
 file and save completed primary annotations.
 
-**GHCR:** `docker pull ghcr.io/stighellemans/meddeid-annotate:0.2.0`
+**GHCR:** `docker pull ghcr.io/stighellemans/meddeid-annotate:0.3.0`
 
 </div>
 
@@ -57,7 +57,7 @@ file and save completed primary annotations.
 Use this only when multiple reviewers annotated the same documents and a
 curator needs to resolve their differences.
 
-**GHCR:** `docker pull ghcr.io/stighellemans/meddeid-curate:0.2.0`
+**GHCR:** `docker pull ghcr.io/stighellemans/meddeid-curate:0.3.0`
 
 </div>
 
@@ -67,7 +67,7 @@ curator needs to resolve their differences.
 Use this only when a benchmark needs detailed character-level labels inside
 reviewed identifiers. Ordinary annotation and training do not require it.
 
-**GHCR:** `docker pull ghcr.io/stighellemans/meddeid-subannotate:0.2.0`
+**GHCR:** `docker pull ghcr.io/stighellemans/meddeid-subannotate:0.3.0`
 
 </div>
 

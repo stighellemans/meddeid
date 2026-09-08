@@ -33,6 +33,32 @@ The shared data structure, annotation applications, training workflow, and evalu
 
     Python and JavaScript tools should use the same packaged lookup resources where practical, with a shared record of their origin and version.
 
+## Add optimized support for another NVIDIA GPU
+
+If MedDeID detects a GPU for which no optimized plan is published, you can
+still [build and use a local plan](../workflows/production-deployment.md#advanced-build-a-plan-locally).
+Compiling the public synthetic models requires no hospital patient notes.
+
+The CLI does not ask for contributions or upload plans. If you want to report
+that MedDeID works on your hardware, you can open an issue yourself. Share only
+GPU/software versions and the public model identity, not hospital model files
+or clinical notes. Official plans are built and validated by maintainers.
+
+Start with a [GitHub issue](https://github.com/stighellemans/meddeid/issues) or
+email [stig.hellemans@uantwerpen.be](mailto:stig.hellemans@uantwerpen.be). Share
+the GPU name reported by `nvidia-smi`, its memory size and driver version, and
+the public model and revision you want to run. A maintainer can then help add
+the release target and run the existing parity, performance, size, and
+publication checks on that GPU.
+
+The existing release workflow automates parity checks, benchmarks, container
+checks, and publication on a configured GPU runner. A maintainer still reviews
+the new target and authorizes its inclusion in an official release. A successful
+local compilation alone does not prove equivalent predictions or runtime
+compatibility. After validation and review, publication and catalog updates can
+make the plan available automatically to subsequent users. Use public synthetic
+benchmark data; never submit hospital notes or private-model plans.
+
 ## Get in touch
 
 If your hospital, research group, or open-source team wants to evaluate MedDeID or help add a language, contact [stig.hellemans@uantwerpen.be](mailto:stig.hellemans@uantwerpen.be) with a short description of your setting, language, and proposed contribution.

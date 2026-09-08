@@ -1,0 +1,56 @@
+name: meddeid-triton-build
+
+services:
+  gateway-image:
+    image: meddeid-triton-gateway:local
+    build:
+      context: .
+      dockerfile: deploy/triton-gateway.Dockerfile
+      args:
+        MEDDEID_VERSION: ${MEDDEID_VERSION:-0.4.0}
+        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-13a5b5d6049611e0c64e0d375d1cb5d99266bc15}
+        MEDDEID_LANGUAGE_EN_COMMIT: ${MEDDEID_LANGUAGE_EN_COMMIT:-7958b77ee83295de7d809a8f52d6de2c2732c35e}
+        MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-c316c06669789fd16b2405a1ca8076d878f3d730}
+        TRITON_CLIENT_VERSION: ${MEDDEID_TRITON_SERVER_VERSION:-2.71.0}
+
+  runtime-builder:
+    image: meddeid-triton-runtime-builder:${MEDDEID_VERSION:-0.4.0}
+    build:
+      context: .
+      dockerfile: deploy/triton-runtime-builder.Dockerfile
+    command:
+      - meddeid-triton-runtime:local
+    volumes:
+      - .:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  plan-builder:
+    image: meddeid-triton-builder:${MEDDEID_VERSION:-0.4.0}
+    build:
+      context: .
+      dockerfile: deploy/triton-builder.Dockerfile
+      args:
+        TENSORRT_BUILDER_IMAGE: ${MEDDEID_TENSORRT_BUILDER_IMAGE:-nvcr.io/nvidia/tensorrt:26.07-py3@sha256:715352ed6840166888d79b135dd2a8d3f23ffe3169b8cacb6ca4df270388a8df}
+    environment:
+      MEDDEID_MODEL: ${MEDDEID_MODEL:?set MEDDEID_MODEL}
+      MEDDEID_REVISION: ${MEDDEID_REVISION:-}
+      MEDDEID_LANGUAGE_PROFILE: ${MEDDEID_LANGUAGE_PROFILE:?set MEDDEID_LANGUAGE_PROFILE}
+      MEDDEID_BUNDLE_SHA256: ${MEDDEID_BUNDLE_SHA256:-}
+      MEDDEID_SUITE_VERSION: ${MEDDEID_SUITE_VERSION:-0.3.0}
+      MEDDEID_VERSION: ${MEDDEID_VERSION:-0.4.0}
+      MEDDEID_GPU_DEVICE_ID: ${MEDDEID_GPU_DEVICE_ID:-0}
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ${MEDDEID_TRITON_BUILD_OUTPUT_DIRECTORY:-./deploy/triton/local_model_repository}:/output/model_repository
+      - meddeid-builder-model-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${MEDDEID_GPU_DEVICE_ID:-0}"]
+              capabilities: [gpu]
+    network_mode: bridge
+
+volumes:
+  meddeid-builder-model-cache:

@@ -3,7 +3,7 @@ name: meddeid
 services:
   meddeid:
     volumes:
-      - meddeid-model-cache:/var/cache/meddeid
+      - meddeid-model-cache:/var/cache/meddeid/huggingface
 
 volumes:
   meddeid-model-cache:

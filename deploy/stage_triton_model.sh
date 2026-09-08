@@ -36,7 +36,8 @@ bundle = load_model_bundle(Path(sys.argv[1]) / "bundle.json", validate_package=T
 print(bundle.contract_hash())
 PY
 )"
-if [[ "${actual_bundle_sha256}" != "${MEDDEID_BUNDLE_SHA256}" ]]; then
+if [[ -n "${MEDDEID_BUNDLE_SHA256}" ]] && \
+   [[ "${actual_bundle_sha256}" != "${MEDDEID_BUNDLE_SHA256}" ]]; then
   printf 'Bundle contract mismatch: expected %s, got %s.\n' \
     "${MEDDEID_BUNDLE_SHA256}" "${actual_bundle_sha256}" >&2
   exit 1

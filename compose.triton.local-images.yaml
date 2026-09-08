@@ -1,0 +1,15 @@
+services:
+  plan:
+    image: meddeid-triton-gateway:local
+    volumes:
+      - ./deploy/triton/local_model_repository:/models
+
+  triton:
+    image: meddeid-triton-runtime:local
+    volumes:
+      - ./deploy/triton/local_model_repository:/models:ro
+
+  meddeid:
+    image: meddeid-triton-gateway:local
+    volumes:
+      - ./deploy/triton/local_model_repository:/models:ro

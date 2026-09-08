@@ -36,6 +36,16 @@ meddeid deidentify note.txt \
   --model stighellemans/meddeid-dutch-synth
 ```
 
+For a quick synthetic example, pass literal text explicitly:
+
+```bash
+meddeid deidentify --text "mijn naam is Noor Janssens" \
+  --model stighellemans/meddeid-dutch-synth
+```
+
+Literal text is visible in shell history and may briefly be visible in the
+process list, so prefer an input file for patient data.
+
 `meddeid models` ends by stating where to use the selected model ID.
 
 ## Try MedDeID in your browser
@@ -227,6 +237,8 @@ meddeid batch project/splits/test.jsonl \
 The input path may instead be written explicitly as
 `meddeid batch --input project/splits/test.jsonl ...`. Both forms are
 equivalent for `batch` and `deidentify`; do not supply both in one command.
+For single-note inference, `deidentify` also accepts `--text <text>` instead of
+a file. Do not combine `--text` with either file-input form.
 MedDeID checks that the input is a readable file before resolving or loading
 the model, so path mistakes fail immediately.
 
@@ -291,22 +303,13 @@ The service provides:
 - `POST /deidentify-batch` for throughput-oriented batches; and
 - `GET /health` for minimal readiness and enabled model/profile information.
 
-Server operators can optionally restrict startup and request profile selection:
-
-```bash
-export MEDDEID_ALLOWED_MODELS=stighellemans/meddeid-dutch-synth
-export MEDDEID_ALLOWED_LANGUAGE_PROFILES=nl-BE
-```
-
-The model allowlist contains exact accepted `MEDDEID_MODEL` values. The profile
-allowlist limits the regional profiles that requests may select. Both are
-optional and do not affect ordinary Python, CLI, or batch use.
-
 For a shared service, choose CPU for the simplest portable deployment, PyTorch
-CUDA when the NVIDIA GPU may vary, or a target-specific TensorRT runtime for a
-fixed, optimized GPU target. Native Apple MPS is also available through the
+CUDA when the NVIDIA GPU may vary, or TensorRT with a target-specific compiled
+plan for a fixed, optimized GPU target. Native Apple MPS is also available through the
 Python installation. All paths retain the same API, tokenization, decoding,
-and locale-selected post-processing contract. The PyTorch CUDA image runs with:
+and locale-selected post-processing contract. The CPU and CUDA images contain
+no model weights: select a model in the environment file and the service caches
+it on first startup. The PyTorch CUDA image runs with:
 
 ```bash
 docker compose \
@@ -316,9 +319,13 @@ docker compose \
   up --detach meddeid
 ```
 
-TensorRT is optimized for a specific GPU. The first supported target is NVIDIA
-T4; choose CUDA instead when the GPU model may vary. For an optimized A10G, L4,
-or another target, contact
+TensorRT is optimized for a specific GPU and exact model revision. Its runtime
+and API gateway are weight-free, while the compiled model repository is
+supplied separately. For an NVIDIA T4, select the hardware, model, revision,
+and language profile in `.env.triton`; Compose downloads and verifies the
+matching Dutch or English plan for this release. Choose CUDA instead when the
+GPU or model must change without a matching compiled plan. For
+an optimized A10G, L4, or another target, contact
 [stig.hellemans@uantwerpen.be](mailto:stig.hellemans@uantwerpen.be) without
 sending sensitive data.
 

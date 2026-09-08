@@ -20,11 +20,11 @@ batch 32 reached 39.51 documents/s while roughly doubling p50 HTTP latency, so
 16 is the native Mac ETL starting point.
 
 The latency profile keeps eager request-local execution. In the throughput
-profile, a 1 ms cross-request microbatch increased an eight-way short-note
-burst from 113.70 to 167.05 documents/s, batch-1 ETL from 39.60 to 40.72, and
-batch-16 ETL from 40.08 to 42.10. Automatic throughput microbatching is
-therefore enabled for both MPS and CUDA, while the latency profile never waits
-for an unrelated request.
+profile, isolated short-note p50 latency was 26.06 ms and a 1 ms cross-request
+microbatch increased an eight-way short-note burst from 113.70 to 167.05
+documents/s, batch-1 ETL from 39.60 to 40.72, and batch-16 ETL from 40.08 to
+42.10. Automatic throughput microbatching is therefore enabled for both MPS
+and CUDA, while the latency profile never waits for an unrelated request.
 
 `torch.compile(mode="default", dynamic=True)` was not useful on this target. It
 added 6.44 seconds for the first short graph and another 7.39 seconds for the

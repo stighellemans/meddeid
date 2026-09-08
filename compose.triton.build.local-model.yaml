@@ -1,0 +1,6 @@
+services:
+  plan-builder:
+    environment:
+      MEDDEID_LOCAL_MODEL: /input-model
+    volumes:
+      - ${MEDDEID_LOCAL_MODEL_DIRECTORY:?set MEDDEID_LOCAL_MODEL_DIRECTORY to the model bundle}:/input-model:ro

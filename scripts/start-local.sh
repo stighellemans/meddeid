@@ -91,25 +91,19 @@ if [ ! -f .env ]; then
 fi
 
 MEDDEID_LANGUAGE_PROFILE=${selected_profile}
-export MEDDEID_LANGUAGE_PROFILE
+MEDDEID_MODEL=${selected_model}
+MEDDEID_REVISION=${selected_revision}
+MEDDEID_OFFLINE=false
+export MEDDEID_LANGUAGE_PROFILE MEDDEID_MODEL MEDDEID_REVISION MEDDEID_OFFLINE
 
 if [ "${build_local}" = "true" ]; then
   MEDDEID_API_IMAGE=${MEDDEID_API_IMAGE:-meddeid-api:local}
-  MEDDEID_MODEL_ID=${selected_model}
-  MEDDEID_MODEL_REVISION=${selected_revision:-main}
-  MEDDEID_MODEL=/opt/meddeid-model
-  MEDDEID_OFFLINE=true
-  export MEDDEID_API_IMAGE MEDDEID_MODEL_ID MEDDEID_MODEL_REVISION
-  export MEDDEID_MODEL MEDDEID_OFFLINE
-  printf '%s\n' "Building the local development image from this checkout."
+  export MEDDEID_API_IMAGE
+  printf '%s\n' "Building the weight-free local development image from this checkout."
   compose build meddeid
   printf '%s\n' "Starting the locally built image ${MEDDEID_API_IMAGE}."
   compose up --detach --no-build meddeid
 else
-  MEDDEID_MODEL=${selected_model}
-  MEDDEID_OFFLINE=false
-  MEDDEID_REVISION=${selected_revision}
-  export MEDDEID_MODEL MEDDEID_OFFLINE MEDDEID_REVISION
   printf '%s\n' "Downloading and starting the published MedDeID image."
   compose pull meddeid
   compose up --detach --no-build

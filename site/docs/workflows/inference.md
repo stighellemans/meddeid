@@ -48,6 +48,13 @@ representative data from your setting.
       --language-profile en-GB  # Use en-US for US formats
     ```
 
+For a quick test, pass text directly instead of creating a file:
+
+```bash
+meddeid deidentify --text "mijn naam is Noor Janssens" \
+  --model stighellemans/meddeid-dutch-synth
+```
+
 Add `--json` when another tool needs the de-identified text, detected spans,
 warnings, and provenance as structured output. The note is processed locally;
 Hugging Face is used only to acquire the selected model when it is not already

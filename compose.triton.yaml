@@ -1,8 +1,59 @@
 name: meddeid-triton
 
 services:
+  plan:
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0}
+    user: "0:0"
+    entrypoint:
+      - python
+      - -m
+      - meddeid.triton_artifact
+    command:
+      - fetch
+      - --catalog
+      - /release/triton.json
+      - --model
+      - ${MEDDEID_MODEL:?set MEDDEID_MODEL}
+      - --revision
+      - ${MEDDEID_REVISION:-}
+      - --language-profile
+      - ${MEDDEID_LANGUAGE_PROFILE:?set MEDDEID_LANGUAGE_PROFILE}
+      - --output
+      - /models
+      - --artifact
+      - ${MEDDEID_TRITON_MODEL_ARTIFACT:-}
+    environment:
+      MEDDEID_REGISTRY_USERNAME: ${MEDDEID_REGISTRY_USERNAME:-}
+      MEDDEID_REGISTRY_TOKEN: ${MEDDEID_REGISTRY_TOKEN:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      NVIDIA_DRIVER_CAPABILITIES: utility
+    volumes:
+      - ./deploy/triton/release.json:/release/triton.json:ro
+      - ${MEDDEID_TRITON_MODEL_REPOSITORY:-./deploy/triton/model_repository}:/models
+    networks:
+      - gateway
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${MEDDEID_GPU_DEVICE_ID:-0}"]
+              capabilities: [gpu]
+    restart: "no"
+
   triton:
-    image: ${MEDDEID_TRITON_IMAGE:?set MEDDEID_TRITON_IMAGE to a target-specific MedDeID Triton image}
+    image: ${MEDDEID_TRITON_RUNTIME_IMAGE:-ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07}
+    depends_on:
+      plan:
+        condition: service_completed_successfully
+    user: "10000:10000"
     command:
       - tritonserver
       - --model-repository=/models
@@ -11,6 +62,8 @@ services:
       - --model-config-name=${MEDDEID_SERVING_PROFILE:-latency}
     expose:
       - "8000"
+    volumes:
+      - ${MEDDEID_TRITON_MODEL_REPOSITORY:-./deploy/triton/model_repository}:/models:ro
     deploy:
       resources:
         reservations:
@@ -37,7 +90,8 @@ services:
     restart: unless-stopped
 
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.3.0}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0}
+    command: ["python", "-m", "meddeid.triton_gateway"]
     depends_on:
       triton:
         condition: service_healthy
@@ -48,12 +102,44 @@ services:
       - inference
     environment:
       MEDDEID_BACKEND: triton
-      MEDDEID_TRITON_URL: http://triton:8000
+      MEDDEID_TRITON_URL: ${MEDDEID_TRITON_URL:-http://triton:8000}
+      MEDDEID_TRITON_TIMEOUT: ${MEDDEID_TRITON_TIMEOUT:-30}
+      MEDDEID_TRITON_TRANSPORT: ${MEDDEID_TRITON_TRANSPORT:-binary}
+      MEDDEID_WINDOW_BATCH_SIZE: ${MEDDEID_WINDOW_BATCH_SIZE:-64}
       MEDDEID_SERVING_PROFILE: ${MEDDEID_SERVING_PROFILE:-latency}
+      MEDDEID_MICROBATCH_ENABLED: ${MEDDEID_MICROBATCH_ENABLED:-auto}
+      MEDDEID_MICROBATCH_MAX_WINDOWS: ${MEDDEID_MICROBATCH_MAX_WINDOWS:-16}
+      MEDDEID_MICROBATCH_MAX_TOKENS: ${MEDDEID_MICROBATCH_MAX_TOKENS:-8192}
+      MEDDEID_MICROBATCH_MAX_WAIT_MS: ${MEDDEID_MICROBATCH_MAX_WAIT_MS:-1}
+      MEDDEID_MICROBATCH_QUEUE_MAX_WINDOWS: ${MEDDEID_MICROBATCH_QUEUE_MAX_WINDOWS:-8192}
+      MEDDEID_MICROBATCH_QUEUE_MAX_REQUESTS: ${MEDDEID_MICROBATCH_QUEUE_MAX_REQUESTS:-256}
+      MEDDEID_SEQUENCE_LENGTH_BUCKETS: ${MEDDEID_SEQUENCE_LENGTH_BUCKETS:-auto}
+      MEDDEID_MODEL: ${MEDDEID_MODEL:?set MEDDEID_MODEL to the Hub model used to compile the TensorRT repository}
+      MEDDEID_REVISION: ${MEDDEID_REVISION:-}
+      MEDDEID_OFFLINE: ${MEDDEID_OFFLINE:-false}
+      MEDDEID_LANGUAGE_PROFILE: ${MEDDEID_LANGUAGE_PROFILE:-}
+      HF_TOKEN: ${HF_TOKEN:-}
       MEDDEID_API_KEY: ${MEDDEID_API_KEY:?set MEDDEID_API_KEY to a strong secret}
-      MEDDEID_REQUIRE_API_KEY: "true"
-      MEDDEID_ALLOWED_MODELS: /opt/meddeid-model
-      MEDDEID_ALLOWED_LANGUAGE_PROFILES: nl-BE
+      MEDDEID_REQUIRE_API_KEY: ${MEDDEID_REQUIRE_API_KEY:-true}
+      MEDDEID_DOCS_ENABLED: ${MEDDEID_DOCS_ENABLED:-false}
+      MEDDEID_UI_ENABLED: ${MEDDEID_UI_ENABLED:-false}
+      MEDDEID_ACCESS_LOG: ${MEDDEID_ACCESS_LOG:-true}
+      MEDDEID_PROXY_HEADERS: ${MEDDEID_PROXY_HEADERS:-false}
+      MEDDEID_FORWARDED_ALLOW_IPS: ${MEDDEID_FORWARDED_ALLOW_IPS:-127.0.0.1}
+      MEDDEID_WORKERS: ${MEDDEID_WORKERS:-4}
+      MEDDEID_MAX_CONCURRENT_REQUESTS: ${MEDDEID_MAX_CONCURRENT_REQUESTS:-auto}
+      MEDDEID_QUEUE_TIMEOUT_SECONDS: ${MEDDEID_QUEUE_TIMEOUT_SECONDS:-30}
+      MEDDEID_MAX_INPUT_CHARS: ${MEDDEID_MAX_INPUT_CHARS:-20000}
+      MEDDEID_MAX_BATCH_DOCUMENTS: ${MEDDEID_MAX_BATCH_DOCUMENTS:-32}
+      MEDDEID_MAX_BATCH_CHARS: ${MEDDEID_MAX_BATCH_CHARS:-200000}
+      MEDDEID_MAX_REQUEST_BYTES: ${MEDDEID_MAX_REQUEST_BYTES:-2000000}
+      MEDDEID_AGE_GRANULARITY_CONFIG: ${MEDDEID_AGE_GRANULARITY_CONFIG:-}
+      MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS: ${MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS:-366}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
+      MKL_NUM_THREADS: ${MKL_NUM_THREADS:-4}
+    volumes:
+      - meddeid-model-cache:/var/cache/meddeid/huggingface
+      - ${MEDDEID_TRITON_MODEL_REPOSITORY:-./deploy/triton/model_repository}:/models:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
@@ -69,3 +155,6 @@ networks:
   gateway:
   inference:
     internal: true
+
+volumes:
+  meddeid-model-cache:

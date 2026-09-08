@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: docker compose config --quiet
-      - run: MEDDEID_MODEL_DIR=/tmp docker compose -f compose.yaml -f compose.offline.yaml config --quiet
-      - run: MEDDEID_PYTORCH_CUDA_IMAGE=meddeid-api:cuda-test MEDDEID_API_KEY=test-only docker compose -f compose.yaml -f compose.cuda.yaml config --quiet
-      - run: MEDDEID_TRITON_IMAGE=meddeid-triton:test MEDDEID_API_KEY=test-only docker compose -f compose.triton.yaml config --quiet
-      - run: MEDDEID_TRITON_IMAGE=meddeid-triton:test MEDDEID_API_KEY=test-only docker compose -f compose.triton.yaml -f compose.triton.validation.yaml config --quiet
+      - run: MEDDEID_MODEL=test/model docker compose config --quiet
+      - run: MEDDEID_MODEL=test/model MEDDEID_MODEL_DIR=/tmp docker compose -f compose.yaml -f compose.offline.yaml config --quiet
+      - run: MEDDEID_MODEL=test/model MEDDEID_PYTORCH_CUDA_IMAGE=meddeid-api:cuda-test MEDDEID_API_KEY=test-only docker compose -f compose.yaml -f compose.cuda.yaml config --quiet
+      - run: MEDDEID_MODEL=test/model MEDDEID_LANGUAGE_PROFILE=nl-BE MEDDEID_TRITON_RUNTIME_IMAGE=meddeid-triton-runtime:test MEDDEID_TRITON_MODEL_REPOSITORY=/tmp MEDDEID_API_KEY=test-only docker compose -f compose.triton.yaml config --quiet
+      - run: MEDDEID_MODEL=test/model MEDDEID_LANGUAGE_PROFILE=nl-BE MEDDEID_TRITON_RUNTIME_IMAGE=meddeid-triton-runtime:test MEDDEID_TRITON_MODEL_REPOSITORY=/tmp MEDDEID_API_KEY=test-only docker compose -f compose.triton.yaml -f compose.triton.validation.yaml config --quiet

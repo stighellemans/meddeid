@@ -12,6 +12,9 @@ report="${3:-${script_dir}/pytorch-cuda/validation-report.json}"
 run_id="$$"
 network_name="meddeid-cuda-validation-${run_id}"
 container_name="meddeid-cuda-validation-${run_id}"
+model_cache="$(mktemp -d)"
+model_id="stighellemans/meddeid-dutch-synth"
+model_revision="1f20655454dcbd042647cacdfff6b6802a970959"
 
 if [[ "$(uname -s)" != Linux ]]; then
   printf 'PyTorch CUDA validation requires a Linux NVIDIA host; found %s.\n' "$(uname -s)" >&2
@@ -53,20 +56,34 @@ docker run --rm \
 cleanup() {
   docker container rm --force "${container_name}" >/dev/null 2>&1 || true
   docker network rm "${network_name}" >/dev/null 2>&1 || true
+  rm -rf -- "${model_cache}"
 }
 trap cleanup EXIT
+
+chmod 0777 "${model_cache}"
+docker run --rm \
+  --volume "${model_cache}:/var/cache/meddeid/huggingface" \
+  --env MEDDEID_MODEL="${model_id}" \
+  --env MEDDEID_REVISION="${model_revision}" \
+  --entrypoint python \
+  "${image}" -c \
+  "import os; from meddeid.model_source import resolve_model_source; resolve_model_source(os.environ['MEDDEID_MODEL'], revision=os.environ['MEDDEID_REVISION'])" >/dev/null
 
 docker network create --internal "${network_name}" >/dev/null
 docker run --detach --name "${container_name}" \
   --network "${network_name}" \
   --gpus "device=${gpu_device_id}" \
   --read-only \
+  --volume "${model_cache}:/var/cache/meddeid/huggingface" \
   --tmpfs /tmp:size=64m,noexec,nosuid,nodev \
   --cap-drop ALL \
   --security-opt no-new-privileges \
   --pids-limit 256 \
   --env MEDDEID_API_KEY=cuda-validation-only-secret \
   --env MEDDEID_REQUIRE_API_KEY=true \
+  --env MEDDEID_MODEL="${model_id}" \
+  --env MEDDEID_REVISION="${model_revision}" \
+  --env MEDDEID_OFFLINE=true \
   "${image}" >/dev/null
 
 docker run --rm \

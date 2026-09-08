@@ -1,9 +1,10 @@
 # PyTorch CUDA image
 
-This release variant packages the ordinary MedDeID API and pinned model with a
-CUDA-enabled PyTorch wheel. It preserves the CPU image's API, offline model,
-non-root user, read-only-root compatibility, health check, and security
-defaults. Only the neural execution device changes.
+This release variant packages the ordinary MedDeID API with a CUDA-enabled
+PyTorch wheel. It contains no model weights: startup downloads the selected
+revision into the persistent cache, or loads a mounted local bundle. It
+preserves the CPU image's API and security defaults; only the neural execution
+device changes.
 
 The public image naming contract is:
 
@@ -11,8 +12,8 @@ The public image naming contract is:
 ghcr.io/stighellemans/meddeid-api:<meddeid-version>-cuda<cuda-version>
 ```
 
-For release `0.3.0`, the candidate tag is
-`ghcr.io/stighellemans/meddeid-api:0.3.0-cuda12.9`. Production deployments
+For release `0.4.0`, the candidate tag is
+`ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9`. Production deployments
 must resolve and pin its immutable digest. There is deliberately no `gpu` or
 `latest-gpu` tag: the CUDA compatibility line remains visible in every tag.
 
@@ -22,8 +23,8 @@ Run these commands on a Linux NVIDIA host with Docker Engine, Docker Buildx,
 the NVIDIA Container Toolkit, and a compatible NVIDIA driver:
 
 ```bash
-./deploy/build_pytorch_cuda_image.sh meddeid-api:0.3.0-cuda12.9-test
-./deploy/validate_pytorch_cuda_image.sh meddeid-api:0.3.0-cuda12.9-test
+./deploy/build_pytorch_cuda_image.sh meddeid-api:0.4.0-cuda12.9-test
+./deploy/validate_pytorch_cuda_image.sh meddeid-api:0.4.0-cuda12.9-test
 ```
 
 Validation performs a real CUDA matrix multiplication, starts the complete
@@ -66,11 +67,8 @@ concurrency 8. Peak GPU memory was 1,655 MiB. Registry transfer size and real
 note distributions can differ; use these values as comparison evidence, not a
 capacity promise.
 
-The embedded model directory accounts for about 503 MB unpacked. Of the 6.72
-GB virtual environment, 4.61 GB is the CUDA/NVIDIA runtime and 1.71 GB is
-PyTorch. The compiler-only Triton package is absent. This makes the remaining
-size a portability trade-off of the general PyTorch CUDA runtime rather than
-download-cache or build-tool residue.
+The model is not part of the image size. Most of the image is the portable
+CUDA/NVIDIA runtime and PyTorch; the compiler-only Triton package is absent.
 
 The serving-profile sweep used three measured repetitions per case. Short
 notes averaged 314 characters; the mixed fixture averaged 1,399 characters;

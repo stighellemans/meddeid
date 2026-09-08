@@ -7,9 +7,6 @@ FROM ${PYTHON_IMAGE} AS builder
 ARG MEDDEID_CORE_COMMIT=13a5b5d6049611e0c64e0d375d1cb5d99266bc15
 ARG MEDDEID_LANGUAGE_EN_COMMIT=7958b77ee83295de7d809a8f52d6de2c2732c35e
 ARG MEDDEID_LANGUAGE_NL_COMMIT=c316c06669789fd16b2405a1ca8076d878f3d730
-ARG MEDDEID_MODEL_ID=stighellemans/meddeid-dutch-synth
-ARG MEDDEID_MODEL_REVISION=1f20655454dcbd042647cacdfff6b6802a970959
-ARG MEDDEID_BUNDLE_SHA256=001123dbc1184751e4bae3c29633d14a5e041acae0c173773f186127ae3fd944
 ARG TRITON_CLIENT_VERSION=2.71.0
 
 ENV VIRTUAL_ENV=/opt/venv \
@@ -35,32 +32,14 @@ RUN python -m venv "${VIRTUAL_ENV}" \
       "meddeid-language-en @ git+https://github.com/stighellemans/meddeid-language-en.git@${MEDDEID_LANGUAGE_EN_COMMIT}" \
       "meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@${MEDDEID_LANGUAGE_NL_COMMIT}"
 
-RUN hf download "${MEDDEID_MODEL_ID}" \
-      --revision "${MEDDEID_MODEL_REVISION}" \
-      --local-dir /opt/meddeid-model-source \
-    && find /opt/meddeid-model-source/.cache -depth -delete \
-    && hf cache verify "${MEDDEID_MODEL_ID}" \
-      --revision "${MEDDEID_MODEL_REVISION}" \
-      --local-dir /opt/meddeid-model-source \
-      --fail-on-missing-files \
-      --fail-on-extra-files
-
 WORKDIR /build/meddeid
 COPY pyproject.toml README.md LICENSE NOTICE ./
 COPY src ./src
-COPY deploy/prepare_triton_gateway_model.py /tmp/prepare-triton-gateway-model.py
 
 RUN python -m pip install --no-deps '.[server]' \
-    && python /tmp/prepare-triton-gateway-model.py \
-      /opt/meddeid-model-source /opt/meddeid-model \
-      --model-id "${MEDDEID_MODEL_ID}" \
-      --revision "${MEDDEID_MODEL_REVISION}" \
-      --bundle-sha256 "${MEDDEID_BUNDLE_SHA256}" \
-    && python -c "from meddeid.bundle import load_model_bundle; bundle=load_model_bundle('/opt/meddeid-model/bundle.json', validate_package=True, require_weights=False); assert not bundle.checkpoint_path.exists()" \
     && python -c "import importlib.util; assert all(importlib.util.find_spec(name) is None for name in ('torch', 'tensorrt', 'onnxruntime')); from meddeid.server import create_app" \
     && find /opt/venv -type d -name __pycache__ -prune -exec rm -rf {} + \
-    && python -m pip uninstall --yes hf-xet pip setuptools wheel \
-    && rm -rf /opt/meddeid-model-source
+    && python -m pip uninstall --yes hf-xet pip setuptools wheel
 
 
 FROM ${PYTHON_IMAGE} AS runtime
@@ -68,9 +47,6 @@ FROM ${PYTHON_IMAGE} AS runtime
 ARG MEDDEID_CORE_COMMIT=13a5b5d6049611e0c64e0d375d1cb5d99266bc15
 ARG MEDDEID_LANGUAGE_EN_COMMIT=7958b77ee83295de7d809a8f52d6de2c2732c35e
 ARG MEDDEID_LANGUAGE_NL_COMMIT=c316c06669789fd16b2405a1ca8076d878f3d730
-ARG MEDDEID_MODEL_ID=stighellemans/meddeid-dutch-synth
-ARG MEDDEID_MODEL_REVISION=1f20655454dcbd042647cacdfff6b6802a970959
-ARG MEDDEID_BUNDLE_SHA256=001123dbc1184751e4bae3c29633d14a5e041acae0c173773f186127ae3fd944
 ARG TRITON_CLIENT_VERSION=2.71.0
 
 ENV VIRTUAL_ENV=/opt/venv \
@@ -79,9 +55,7 @@ ENV VIRTUAL_ENV=/opt/venv \
     PYTHONUNBUFFERED=1 \
     HOME=/home/meddeid \
     HF_HOME=/var/cache/meddeid/huggingface \
-    MEDDEID_MODEL=/opt/meddeid-model \
-    MEDDEID_REVISION=${MEDDEID_MODEL_REVISION} \
-    MEDDEID_OFFLINE=true \
+    MEDDEID_OFFLINE=false \
     MEDDEID_BACKEND=triton \
     MEDDEID_TRITON_TRANSPORT=binary \
     MEDDEID_SERVING_PROFILE=latency \
@@ -106,23 +80,21 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /opt/meddeid-model /opt/meddeid-model
 COPY LICENSE NOTICE /licenses/meddeid/
 
 RUN python -c "import importlib.util; assert all(importlib.util.find_spec(name) is None for name in ('torch', 'tensorrt', 'onnxruntime')); from meddeid.server import create_app" \
     && groupadd --gid 10001 meddeid \
     && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/meddeid meddeid \
     && mkdir -p /var/cache/meddeid/huggingface \
-    && chown -R 10001:10001 /var/cache/meddeid /home/meddeid \
-    && test "$(stat -c %U /opt/meddeid-model)" = root
+    && chown -R 10001:10001 /var/cache/meddeid /home/meddeid
 
 # OCI release metadata stays after filesystem construction so changing it does
 # not invalidate the gateway runtime layers.
-ARG MEDDEID_VERSION=0.3.0
+ARG MEDDEID_VERSION=0.4.0
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="MedDeID TensorRT gateway" \
-      org.opencontainers.image.description="Weight-free MedDeID API and preprocessing gateway for NVIDIA Triton" \
+      org.opencontainers.image.description="Model-independent MedDeID API and preprocessing gateway for NVIDIA Triton" \
       org.opencontainers.image.source="https://github.com/stighellemans/meddeid" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.version="${MEDDEID_VERSION}" \
@@ -131,9 +103,6 @@ LABEL org.opencontainers.image.title="MedDeID TensorRT gateway" \
       io.meddeid.core-revision="${MEDDEID_CORE_COMMIT}" \
       io.meddeid.language-en-revision="${MEDDEID_LANGUAGE_EN_COMMIT}" \
       io.meddeid.language-nl-revision="${MEDDEID_LANGUAGE_NL_COMMIT}" \
-      io.meddeid.model-id="${MEDDEID_MODEL_ID}" \
-      io.meddeid.model-revision="${MEDDEID_MODEL_REVISION}" \
-      io.meddeid.bundle-sha256="${MEDDEID_BUNDLE_SHA256}" \
       io.meddeid.runtime-role="triton-gateway" \
       io.meddeid.triton-client-version="${TRITON_CLIENT_VERSION}" \
       io.meddeid.torch-included="false"

@@ -14,10 +14,10 @@ infrastructure:
 approved client -> TLS/auth/rate limits -> MedDeID API -> local CPU or GPU model
 ```
 
-The published CPU image contains the model and sets `MEDDEID_OFFLINE=true`.
-GPU deployments should provide the same local model and offline configuration,
-so no note or model request needs to leave the deployment boundary. MedDeID
-provides API-key authentication and workload limits. The surrounding platform
+The published CPU and CUDA images contain no model weights. They download the
+selected model revision once into a persistent cache, or load a mounted local
+bundle. Set `MEDDEID_OFFLINE=true` after staging the model when startup may not
+contact the Hub. MedDeID provides API-key authentication and workload limits. The surrounding platform
 must provide TLS, client identity where required, network policy, rate limits,
 central secret storage, monitoring, backup policy, and incident response.
 
@@ -31,11 +31,12 @@ language profiles, and post-processing remain the same.
 |---|---|---|
 | Simplest shared service, or no accelerator | Published CPU API image with `compose.yaml` | Published for AMD64 and ARM64 |
 | NVIDIA GPU model may vary between hosts | CUDA-tagged PyTorch API image with `compose.cuda.yaml` | AMD64 release candidate with a completed T4 validation path |
-| Fixed NVIDIA T4 deployment | Target-specific TensorRT server with the weight-free MedDeID gateway | T4 release candidate; the only optimized target prepared for publication |
+| Fixed NVIDIA T4 deployment | Weight-free Triton runtime and gateway with a separately compiled plan | T4 is the first optimized target prepared for publication |
 | Native Apple-silicon service | PyTorch MPS from the Python installation | Validated on one M4 Pro; Linux containers cannot use the host Metal device |
 
-The CUDA and T4 images are published products only after their GPU release
-gates pass and their immutable digests are recorded. A10G and L4 are
+The CUDA, Triton runtime, and gateway images are published products only after
+their GPU release gates pass and their immutable digests are recorded. The
+model-specific TensorRT plan is distributed separately. A10G and L4 are
 build-on-request TensorRT targets, not interchangeable alternatives to the T4
 plan; each needs its own target evidence before publication.
 
@@ -49,15 +50,13 @@ median of three warm runs at batch size 16. CPU used concurrency 1; the GPU
 paths used concurrency 8 and processed 948 documents and 1,307,107 characters
 per run.
 
-| Deployment | Pull-size proxy | Unpacked | Ready | Documents/s | HTTP p50 / p95 | Peak GPU memory |
-|---|---:|---:|---:|---:|---:|---:|
-| PyTorch CPU | 0.73 GB | 1.61 GB | 20.1 s | 1.85 | 6.78 / 15.74 s | — |
-| PyTorch CUDA, FP16 | 4.54 GB | 7.40 GB | 68.8 s | 65.0 | 1.87 / 2.49 s | 1,655 MiB |
-| T4 TensorRT server + gateway | 1.13 GB (1.017 + 0.116) | 2.47 GB | 10.0 s | 168.8 | 0.725 / 1.418 s | 911 MiB |
+| Deployment | Documents/s | HTTP p50 / p95 | Peak GPU memory |
+|---|---:|---:|---:|
+| PyTorch CPU | 1.85 | 6.78 / 15.74 s | — |
+| PyTorch CUDA, FP16 | 65.0 | 1.87 / 2.49 s | 1,655 MiB |
+| T4 TensorRT | 168.8 | 0.725 / 1.418 s | 911 MiB |
 
-The pull-size proxy is a gzip-compressed `docker image save`; registry transfer
-size varies with compression and shared layers. Readiness was measured after
-the image was present. Latency includes queueing under the stated concurrency.
+Latency includes queueing under the stated concurrency.
 An exact semantic comparison of CPU and TensorRT output passed for all 300
 pinned fixture documents with zero differences.
 Treat these as comparative evidence for this host, not a capacity promise or a
@@ -96,7 +95,8 @@ unified graphics allocations.
 For sustained concurrent traffic, the throughput profile now automatically
 uses the same bounded 1 ms PyTorch microbatcher on MPS as on CUDA. It increased
 the MPS short-note burst from 113.70 to 167.05 documents/s and batch-16 ETL
-from 40.08 to 42.10 documents/s. Keep the latency profile for isolated calls.
+from 40.08 to 42.10 documents/s, while isolated short-note p50 latency was
+26.06 ms instead of 9.4 ms. Keep the latency profile for isolated calls.
 Dynamic compilation was rejected as a default: it added 6.44 seconds for the
 first short graph and 7.39 seconds for the first batch-16 graph, then reduced
 matched eager throughput. The complete reproducible record is in
@@ -110,19 +110,16 @@ required setup. Do not publish an “MPS Docker image.” Batch 16 is the starti
 ETL request size on this host because batch 32 did not improve throughput and
 roughly doubled queued latency.
 
-The embedded PyTorch model occupies about 503 MB in both CPU and CUDA images.
-The CUDA virtual environment is 6.72 GB unpacked, dominated by 4.61 GB of
-NVIDIA runtime libraries and 1.71 GB of PyTorch; the compiler package, headers,
-tests, and static CUDA archives are already absent. The TensorRT pair replaces
-that general runtime with a 250 MB target plan: its gateway has only a 5 MB
-weight-free model contract and its separate runtime retains the TensorRT/Triton
-shared-library closure. Further large CUDA reductions would therefore require a
-different execution runtime, not another cache cleanup.
+The model is not included in the CPU or CUDA images. The measured CUDA virtual
+environment was dominated by the CUDA/NVIDIA runtime and PyTorch. The compiler
+package, headers,
+tests, and static CUDA archives are absent. The TensorRT path keeps its compiled
+plan outside the runtime and gateway images.
 
 CPU is the simplest choice for occasional traffic. Use PyTorch CUDA when the
 NVIDIA GPU class may vary. For a fixed, validated T4, the TensorRT pair is
-preferable in this test: about one quarter of CUDA's pull proxy and 2.6 times
-its throughput. The plan remains T4-specific.
+preferable in this test for throughput: it delivered 2.6 times the CUDA rate.
+The plan remains model- and T4-specific.
 
 ### Latency and throughput serving profiles
 
@@ -187,9 +184,9 @@ docker compose \
 ```
 
 The versioned tag exposes the CUDA runtime line, for example
-`ghcr.io/stighellemans/meddeid-api:0.3.0-cuda12.9`. Pin its registry digest in
-production. The image contains the official CUDA-enabled PyTorch wheel and the
-model; the host supplies a compatible NVIDIA driver, Docker Engine, and NVIDIA
+`ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9`. Pin its registry digest in
+production. The image contains the official CUDA-enabled PyTorch wheel but no
+model weights; the host supplies a compatible NVIDIA driver, Docker Engine, and NVIDIA
 Container Toolkit. The overlay requests one selected GPU and forces the CUDA
 device, so an unavailable GPU fails startup instead of silently falling back to
 CPU.
@@ -211,15 +208,14 @@ For optimized NVIDIA serving, use the [TensorRT/Triton delivery
 kit](../deploy/triton/README.md). TensorRT plans depend on the GPU class and
 CUDA/TensorRT stack, so every target needs its own build, output-parity test,
 benchmark, digest, and compatibility record. The initial target is NVIDIA T4
-(`t4-sm75`), with a versioned name such as
-`ghcr.io/stighellemans/meddeid-triton-t4-sm75:0.3.0-trt26.07-fp16`.
-There is no universal TensorRT `latest` tag. Until an exact target image and its
-evidence are published, treat it as a locally validated custom build rather
-than a supported MedDeID release. The `fp16` suffix identifies the plan's
-weights and compute. Logits cross Triton's binary HTTP tensor extension as FP32.
-The gateway image contains the suite's current API validation, tokenization,
-language profiles, post-processing, and provenance logic, but intentionally
-omits PyTorch and the original model weights. NVIDIA's pinned container
+(`t4-sm75`). The runtime and gateway images are model-independent; the compiled
+repository mounted at `/models` contains the target- and model-specific plan.
+The public Dutch and English models share the dual-head classifier and label
+set, but their different base encoders, tokenizers, and vocabulary sizes still
+require separate plans.
+Logits cross Triton's binary HTTP tensor extension as FP32. At startup, the
+gateway resolves only the matching bundle metadata and tokenizer; it does not
+download checkpoint weights. NVIDIA's pinned container
 composer defines the TensorRT-only source. The final runtime projects its
 measured dependency closure onto the matching CUDA base, excluding compiler
 toolchains, profilers, headers, unused backends, and TensorRT engine-builder
@@ -244,44 +240,139 @@ target, but publication is refused until its reviewed catalog status changes to
 `ready` and the workflow is dispatched from a version tag. Ask the maintainers
 for a target build rather than treating the T4 plan as portable.
 
-The T4 suffix is a real compatibility boundary, not merely a name. A serialized
+The T4 target is a real compatibility boundary, not merely a name. A serialized
 TensorRT plan is not the portable GPU artifact. Use the PyTorch CUDA image when
-one artifact must run across supported NVIDIA GPU models; use TensorRT only when
-the exact target image has parity and performance evidence for that GPU class
-and runtime stack.
+one runtime must accept different compatible MedDeID models without a compile
+step; use TensorRT only when the exact model plan has parity and performance
+evidence for that GPU class and runtime stack.
 
-For external users, prefer the published images pinned by digest. A local
-TensorRT build is for auditing or validating a new target, not an installation
-shortcut: its pinned builder is about 18.2 GB unpacked before the Triton build
-inputs, versus about 1.13 GB compressed and 2.47 GB unpacked for the final T4
-server and gateway.
+For external users, prefer the published runtime and gateway images pinned by
+digest and a separately checksummed model repository. A local TensorRT build is
+for a new model revision or GPU target, not an installation shortcut; its
+pinned builder is substantially larger than the serving runtime.
 
-Release `0.3.0` is available for AMD64 and ARM64. Resolve the release tag to
+Release `0.4.0` is available for AMD64 and ARM64. Resolve the release tag to
 its current multi-platform digest, record that digest in the deployment
 manifest, and pin the immutable digest in production:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.3.0
+docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.0
 ```
+
+## Environment variable reference
+
+The checked-in environment templates contain only the choices most operators
+need to make. The settings below are available when a deployment has a measured
+reason to override a default. Values shown are the supplied Compose defaults;
+the CUDA and Triton overlays replace the runtime-specific values noted below.
+
+### Model and public service settings
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `MEDDEID_MODEL` | Required | Hugging Face model ID or mounted MedDeID bundle directory. |
+| `MEDDEID_REVISION` | Model default | Immutable Hub revision. Leave empty for a local directory or to use the model's declared default. |
+| `MEDDEID_LANGUAGE_PROFILE` | Model default | Language and regional profile used when a request omits `metadata.lang`. |
+| `MEDDEID_OFFLINE` | `false` | Require model files to be present locally instead of contacting the Hub. |
+| `MEDDEID_SERVING_PROFILE` | `latency` | Use `latency` for individual requests or `throughput` for sustained accelerated traffic. |
+| `MEDDEID_API_KEY` | Empty | Bearer token or `X-API-Key` value accepted by the service. |
+| `MEDDEID_REQUIRE_API_KEY` | `false` | Reject unauthenticated inference requests. The production templates set this to `true`. |
+| `MEDDEID_BIND_ADDRESS` | `127.0.0.1` | Host address published by Compose. Direct Python startup otherwise uses `0.0.0.0`. |
+| `MEDDEID_PORT` | `8000` | Host port for the API. |
+| `MEDDEID_DOCS_ENABLED` | `false` | Expose `/docs`, `/redoc`, and `/openapi.json`. Direct Python startup otherwise enables them. |
+| `MEDDEID_UI_ENABLED` | `false` | Expose the single-note browser interface. Direct Python startup otherwise follows the documentation setting. |
+
+### HTTP and workload limits
+
+| Setting | Default | Purpose |
+|---|---:|---|
+| `MEDDEID_MAX_INPUT_CHARS` | `20000` | Maximum characters in one note. |
+| `MEDDEID_MAX_BATCH_DOCUMENTS` | `32` | Maximum documents in one batch request. |
+| `MEDDEID_MAX_BATCH_CHARS` | `200000` | Maximum combined characters in one batch request. |
+| `MEDDEID_MAX_REQUEST_BYTES` | `2000000` | Maximum HTTP request-body size in bytes. |
+| `MEDDEID_MAX_CONCURRENT_REQUESTS` | `auto` | Requests admitted per worker. Automatic values follow the backend and serving profile. |
+| `MEDDEID_QUEUE_TIMEOUT_SECONDS` | `30` | Maximum wait for an inference slot before returning HTTP 503. |
+| `MEDDEID_WORKERS` | `1` | API worker processes. Each worker loads its own model; the Triton overlay uses four gateway workers. |
+| `MEDDEID_ACCESS_LOG` | `true` | Write HTTP access logs. Request and response bodies are never included. |
+| `MEDDEID_PROXY_HEADERS` | `false` | Trust supported forwarded headers from a reverse proxy. |
+| `MEDDEID_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Comma-separated proxy IPs allowed to supply forwarded headers. |
+| `MEDDEID_AGE_GRANULARITY_CONFIG` | Packaged policy | Path to a reviewed age-generalization policy. |
+| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | `366` | Warn when the supplied absolute date shift is smaller than this value. |
+
+### Inference runtime
+
+These are implementation controls, not additional setup choices. Keep the
+values supplied by the selected deployment unless you benchmark the changed
+configuration on the target hardware.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `MEDDEID_BACKEND` | `torch` | Inference backend: `torch` or `triton`. |
+| `MEDDEID_DEVICE` | `cpu` in Compose | Torch device. Direct Python startup selects an available local device automatically; the CUDA overlay uses `cuda`. |
+| `MEDDEID_TORCH_PRECISION` | `fp32` | Torch precision. The CUDA overlay uses `fp16`. |
+| `MEDDEID_TORCH_COMPILE_MODE` | `off` | Optional `torch.compile` mode. The published configuration remains eager. |
+| `MEDDEID_TORCH_COMPILE_DYNAMIC` | `true` | Allow dynamic shapes when Torch compilation is enabled. |
+| `MEDDEID_WINDOW_BATCH_SIZE` | `32` | Maximum note windows in one runtime call. The Triton overlay uses `64`. |
+| `OMP_NUM_THREADS` | `4` | OpenMP threads per process in Compose. |
+| `MKL_NUM_THREADS` | `4` | MKL threads per process in Compose. |
+
+### Advanced throughput controls
+
+The `throughput` profile selects the measured behavior automatically. These
+settings exist for workload-specific experiments; changing them should not be
+part of an initial deployment.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `MEDDEID_MICROBATCH_ENABLED` | `auto` | Enable bounded cross-request batching for accelerated Torch throughput. |
+| `MEDDEID_MICROBATCH_MAX_WINDOWS` | `32` | Maximum windows combined in one microbatch; Triton uses `16`. |
+| `MEDDEID_MICROBATCH_MAX_TOKENS` | `16384` | Maximum tokens combined in one microbatch; Triton uses `8192`. |
+| `MEDDEID_MICROBATCH_MAX_WAIT_MS` | `1` | Maximum time spent collecting a microbatch. |
+| `MEDDEID_MICROBATCH_QUEUE_MAX_WINDOWS` | `8192` | Maximum queued windows. |
+| `MEDDEID_MICROBATCH_QUEUE_MAX_REQUESTS` | `256` | Maximum queued requests. |
+| `MEDDEID_SEQUENCE_LENGTH_BUCKETS` | `auto` | Token-length buckets, `off`, or comma-separated sizes. |
+
+### Triton connection and plan selection
+
+The optimized NVIDIA Compose file supplies these values. Normal users select
+only the model, revision, and language profile in `.env.triton`; the plan
+service detects the GPU and obtains the matching release artifact.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `MEDDEID_TRITON_URL` | `http://triton:8000` | Internal Triton inference endpoint. |
+| `MEDDEID_TRITON_TIMEOUT` | `30` | Triton request timeout in seconds. |
+| `MEDDEID_TRITON_TRANSPORT` | `binary` | Tensor transport used by the gateway; the generic backend default is `json`. |
+| `MEDDEID_TRITON_MODEL_ARTIFACT` | Automatic | Explicit OCI plan artifact override. |
+| `MEDDEID_TRITON_MODEL_REPOSITORY` | `./deploy/triton/model_repository` | Local directory where the selected plan is unpacked and then mounted read-only into Triton. |
+| `MEDDEID_TRITON_RUNTIME_IMAGE` | Release runtime image | Weight-free Triton serving image. |
+| `MEDDEID_GPU_DEVICE_ID` | `0` | NVIDIA device exposed to the CUDA or Triton deployment. |
+| `MEDDEID_REGISTRY_USERNAME` | Empty | Registry username when the selected plan artifact is private. |
+| `MEDDEID_REGISTRY_TOKEN` | Empty | Registry token when the selected plan artifact is private. |
+| `HF_TOKEN` | Empty | Hugging Face token only when a selected Hub model is private or gated. |
+
+`MEDDEID_API_IMAGE` selects the CPU image or, in the Triton Compose file, the
+weight-free gateway image. `MEDDEID_PYTORCH_CUDA_IMAGE` selects the CUDA image.
+Pin either to an approved digest in production. Source-build pins and local
+TensorRT builder settings are documented with the corresponding advanced build
+workflow rather than in the end-user templates.
 
 ## Minimum secure configuration
 
 1. Pull an immutable image digest, not a moving tag.
 2. Store a random `MEDDEID_API_KEY` in the platform secret manager.
 3. Set `MEDDEID_REQUIRE_API_KEY=true`.
-4. Set `MEDDEID_ALLOWED_MODELS` and `MEDDEID_ALLOWED_LANGUAGE_PROFILES` when the
-   deployment must refuse unapproved server configuration or request locales.
-5. Keep `MEDDEID_DOCS_ENABLED=false` for an unattended service unless approved
+4. Keep `MEDDEID_DOCS_ENABLED=false` for an unattended service unless approved
    operators need interactive documentation. When enabled for integration or
    acceptance testing, restrict `/docs`, `/redoc`, and `/openapi.json` at the
    reverse proxy because MedDeID's API-key check does not protect those routes.
-6. Keep `MEDDEID_UI_ENABLED=false` unless the single-note browser interface is
+5. Keep `MEDDEID_UI_ENABLED=false` unless the single-note browser interface is
    explicitly needed.
-7. Bind MedDeID only to a private interface. The supplied Compose file defaults
+6. Bind MedDeID only to a private interface. The supplied Compose file defaults
    to `127.0.0.1`.
-8. Terminate TLS at a maintained reverse proxy or service mesh and enforce its
+7. Terminate TLS at a maintained reverse proxy or service mesh and enforce its
    request-body limit at or below `MEDDEID_MAX_REQUEST_BYTES`.
-9. Do not log request bodies, response bodies, headers containing API keys, or
+8. Do not log request bodies, response bodies, headers containing API keys, or
    metadata. Treat all input, output, manifests, caches, and traces as
    sensitive.
 10. Validate recall and unnecessary redaction on representative local notes
@@ -307,8 +398,8 @@ file from the reviewed template:
 ```bash
 git clone https://github.com/stighellemans/meddeid.git
 cd meddeid
-cp .env.example meddeid-production.env
-chmod 600 meddeid-production.env
+cp .env.example .env.cpu
+chmod 600 .env.cpu
 ```
 
 Set `MEDDEID_API_IMAGE` to the approved immutable image digest. Require an API
@@ -335,16 +426,16 @@ documentation routes does not disable the inference API.
 Use ordinary Compose commands to start and inspect the service:
 
 ```bash
-docker compose --env-file meddeid-production.env pull meddeid
-docker compose --env-file meddeid-production.env up --detach meddeid
-docker compose --env-file meddeid-production.env ps
-docker compose --env-file meddeid-production.env logs --follow meddeid
+docker compose --env-file .env.cpu pull meddeid
+docker compose --env-file .env.cpu up --detach meddeid
+docker compose --env-file .env.cpu ps
+docker compose --env-file .env.cpu logs --follow meddeid
 ```
 
 For a planned stop, run:
 
 ```bash
-docker compose --env-file meddeid-production.env down
+docker compose --env-file .env.cpu down
 ```
 
 To upgrade, change the pinned digest, repeat `pull` and `up --detach`, and

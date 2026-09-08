@@ -69,13 +69,6 @@ MEDDEID_LANGUAGE_PROFILE=en-GB \
 meddeid-server
 ```
 
-An operator can additionally set `MEDDEID_ALLOWED_LANGUAGE_PROFILES` to a
-comma-separated subset of the bundle profiles. The server validates the list at
-startup and rejects a document selecting any other profile. When exactly one
-profile is allowed and no fallback was configured, that profile becomes the
-service fallback automatically. This serving policy does not change Python or
-CLI profile selection.
-
 The browser UI reads the model and supported profiles from `/health`. It always
 shows the active model and profile, disables profile changes for a
 single-profile model, and offers locale names—not rule versions—for a

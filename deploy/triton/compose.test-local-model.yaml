@@ -1,0 +1,10 @@
+# CPU parity reference for the same mounted local bundle (test-only).
+# Combine with compose.yaml, not compose.triton.yaml.
+services:
+  meddeid:
+    environment:
+      MEDDEID_MODEL: /input-model
+      MEDDEID_REVISION: ""
+      MEDDEID_OFFLINE: "true"
+    volumes:
+      - ${MEDDEID_LOCAL_MODEL_DIRECTORY:?set the synthetic test bundle directory}:/input-model:ro

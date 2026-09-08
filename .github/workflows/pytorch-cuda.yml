@@ -62,6 +62,7 @@ jobs:
           } >>"${GITHUB_ENV}"
       - name: Verify Compose contract
         run: |
+          MEDDEID_MODEL=stighellemans/meddeid-dutch-synth \
           MEDDEID_PYTORCH_CUDA_IMAGE="${CANDIDATE_IMAGE}" \
           MEDDEID_API_KEY=cuda-validation-only-secret \
           docker compose -f compose.yaml -f compose.cuda.yaml config --quiet

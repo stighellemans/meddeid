@@ -569,7 +569,25 @@ def test_server_environment_template_contains_only_supported_settings() -> None:
         if line.strip() and not line.lstrip().startswith("#")
     }
 
-    assert template_keys == server.SERVER_ENVIRONMENT_KEYS
+    assert template_keys <= server.SERVER_ENVIRONMENT_KEYS
+    assert {
+        "MEDDEID_ALLOWED_MODELS",
+        "MEDDEID_ALLOWED_LANGUAGE_PROFILES",
+    }.isdisjoint(template_keys)
+
+
+def test_production_reference_covers_public_server_environment_settings() -> None:
+    reference = (
+        Path(__file__).parents[1] / "docs" / "production.md"
+    ).read_text(encoding="utf-8")
+    public_settings = server.SERVER_ENVIRONMENT_KEYS - {
+        "MEDDEID_ALLOWED_MODELS",
+        "MEDDEID_ALLOWED_LANGUAGE_PROFILES",
+    }
+
+    assert "## Environment variable reference" in reference
+    for setting in public_settings:
+        assert f"`{setting}`" in reference
 
 
 def test_openapi_describes_the_current_typed_result_contract() -> None:

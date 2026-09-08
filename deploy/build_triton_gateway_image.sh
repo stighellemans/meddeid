@@ -14,9 +14,6 @@ build_date="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 docker build \
   --file deploy/triton-gateway.Dockerfile \
-  --build-arg "MEDDEID_MODEL_ID=${MEDDEID_MODEL_ID}" \
-  --build-arg "MEDDEID_MODEL_REVISION=${MEDDEID_MODEL_REVISION}" \
-  --build-arg "MEDDEID_BUNDLE_SHA256=${MEDDEID_BUNDLE_SHA256}" \
   --build-arg "TRITON_CLIENT_VERSION=${MEDDEID_TRITON_SERVER_VERSION}" \
   --build-arg "MEDDEID_VERSION=${package_version}" \
   --build-arg "VCS_REF=${vcs_ref}" \

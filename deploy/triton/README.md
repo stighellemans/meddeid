@@ -1,21 +1,27 @@
 # TensorRT/Triton delivery kit
 
-This directory defines a reproducible **target-specific** TensorRT/Triton
-artifact. It does not claim that one TensorRT plan is portable across NVIDIA
-GPU classes or TensorRT/CUDA stacks.
+This directory contains the advanced build and validation path for MedDeID's
+TensorRT deployment. Most operators should use `compose.triton.yaml`: they
+select a model, optional revision, and language profile, and Compose detects the GPU and retrieves
+the matching released plan.
 
-The deliverable has two parts:
+The deliverable has three parts:
 
-1. an immutable Triton image containing `model.plan`, `config.pbtxt`, and
-   `build-manifest.json`; and
-2. a weight-free gateway image containing the current MedDeID API,
-   tokenization, profile, post-processing, and provenance logic, joined by
-   `compose.triton.yaml` so only the authenticated gateway is exposed.
+1. a weight-free Triton runtime image;
+2. a weight-free MedDeID API gateway; and
+3. a separately supplied model repository containing `model.plan`,
+   `config.pbtxt`, and `build-manifest.json`.
 
-Compose alone is not a complete deliverable because a TensorRT plan must first
-be compiled and validated on the supported target GPU. Conversely, publishing
-only the model image would leave operators to reconstruct the gateway,
-authentication, health, and network configuration.
+The TensorRT plan is the compiled model and contains the learned parameters.
+It must match the exact model revision, tokenizer and label contract, TensorRT
+stack, and GPU target. A plan cannot be reused for another checkpoint merely
+because the API output schema is the same.
+
+`deploy/triton/release.json` connects each MedDeID suite release to its gateway,
+runtime, and validated model plans. `compose.triton.yaml` verifies and keeps the
+selected plan under `deploy/triton/model_repository`, then mounts it read-only
+into Triton. Operators do not need to configure the internal gateway or model
+repository path.
 
 NVIDIA's pinned `compose.py` and pinned minimal/full images produce the
 auditable TensorRT-only source image. MedDeID then projects the measured runtime
@@ -27,12 +33,10 @@ so both composition and projection happen before the release image is emitted.
 
 ## Current release target
 
-`versions.env` pins the model, bundle contract, Triton server and minimal
-images, NVIDIA container-composer revision, TensorRT builder image, compute
-precision, output precision, and optimization profile. `targets.json` is the
-machine-readable publication catalog; `triton_targets.py` validates target
-identity, host compatibility, image naming, and the target-spec hash recorded
-in every build manifest.
+`versions.env` pins the build stack and its default model. `release.json` lists
+the public model plans belonging to this suite release. `targets.json` defines
+the supported hardware targets; `triton_targets.py` validates the detected GPU,
+artifact naming, and the target-spec hash recorded in every build manifest.
 The T4 plan uses FP16 weights and compute, then casts logits to FP32 at the
 Triton boundary. The gateway uses Triton's binary HTTP tensor extension while
 preserving the existing MedDeID JSON API contract.
@@ -49,15 +53,14 @@ the remaining build and evidence machinery is shared. An `on-request` target
 may be validated, but the workflow refuses publication until a reviewed change
 makes it `ready` and the run uses a version tag.
 
-No target image is a released artifact merely because these source files
-exist. A release requires a successful run of the GPU gate below and published
-evidence.
+No plan is a released artifact merely because these source files exist. A
+release requires a successful run of the GPU gate below and published evidence.
 
 `t4-sm75` is an intentional compatibility limit of that serialized plan. It is
-not a universal NVIDIA image. External operators who need one GPU image across
+not a universal NVIDIA plan. External operators who need one GPU image across
 different supported NVIDIA devices should use the PyTorch CUDA artifact;
-operators choosing TensorRT must select an image whose GPU target and runtime
-stack match their validated deployment.
+operators choosing TensorRT must select a plan whose model revision, GPU target,
+and runtime stack match their validated deployment.
 
 ## Current T4 validation snapshot
 
@@ -68,12 +71,11 @@ result, and stated measurement limitations.
 
 On an Azure `Standard_NC4as_T4_v3` (4 vCPU, Tesla T4 16 GiB), NVIDIA's official
 TensorRT-only composition measured 17,243,385,469 unpacked bytes. The projected
-runtime measured 1,674,701,600 bytes, a 90.3% reduction. With the T4 plan, the
-model-server image was 1.925 GB unpacked and 1.017 GB as a gzip-compressed
-`docker image save`; the weight-free gateway was 549 MB unpacked and 116 MB
-compressed. The complete pair therefore measured 2.474 GB unpacked with a
-1.133 GB pull-size proxy. The serialized plan itself is 250 MB; the gateway's
-weight-free model contract and tokenizer payload are about 5 MB.
+runtime measured 1,674,701,600 bytes, a 90.3% reduction. The serialized plan
+measured 250 MB and the weight-free gateway measured 549 MB unpacked. Earlier
+validation packaged the runtime and plan together; current delivery keeps the
+plan outside both images so a different model does not require a new runtime
+or gateway image.
 
 Using the pinned 300-document public synthetic fixture, 60 HTTP requests at
 batch size 16 and concurrency 8 processed 948 documents and 1,307,107
@@ -108,41 +110,101 @@ isolated short/mixed throughput by 24–39%. The older 5 ms settings from the
 previous server improved two-worker batch-16 throughput by only 2.2%, regressed
 the other request shapes, and are not defaults for the current suite.
 
-## Build on the target NVIDIA host
+## Build locally on the target NVIDIA host
 
-Prerequisites are Linux, a compatible NVIDIA driver, Docker Engine, NVIDIA
-Container Toolkit, Python 3, the `hf` CLI, and a source environment containing
-MedDeID plus the ONNX export dependencies. Review and accept the applicable
-NVIDIA NGC/deep-learning-container terms before building or distributing the
-combined image; the MedDeID code and model terms do not replace the base-image
-terms.
+This path is for hospitals that must build inside their own boundary, custom
+MedDeID models, and maintainers publishing a new target. It requires Linux,
+Docker Engine, an NVIDIA driver, and NVIDIA Container Toolkit. Review and
+accept the applicable NVIDIA container terms before building or distributing
+the runtime.
 
-```bash
-python3 -m venv .venv-triton
-source .venv-triton/bin/activate
-python -m pip install --upgrade pip
-python -m pip install '.[dev]' distro requests onnx onnxscript
+Create `.env.triton` from the supplied example and set `MEDDEID_MODEL`,
+`MEDDEID_REVISION`, and `MEDDEID_LANGUAGE_PROFILE`. The builder reads the
+official GPU name and compute capability from `nvidia-smi`; you do not select a
+hardware label. Start by building only the plan tool:
 
-./deploy/preflight_triton_host.sh t4-sm75 0
-./deploy/stage_triton_model.sh deploy/triton/model_source
-./deploy/build_triton_repository.sh \
-  deploy/triton/model_source \
-  deploy/triton/model_repository \
-  t4-sm75 \
-  0
-
-./deploy/build_triton_image.sh \
-  deploy/triton/model_repository \
-  ghcr.io/stighellemans/meddeid-triton-t4-sm75:0.3.0-trt26.07-fp16 \
-  t4-sm75
-
-./deploy/build_triton_gateway_image.sh \
-  ghcr.io/stighellemans/meddeid-triton-gateway:0.3.0
+```dotenv
+MEDDEID_MODEL=stighellemans/meddeid-dutch-synth
+# Empty uses the default Hub revision; a commit makes the build repeatable.
+MEDDEID_REVISION=1f20655454dcbd042647cacdfff6b6802a970959
+MEDDEID_LANGUAGE_PROFILE=nl-BE
 ```
 
-The scripts refuse to overwrite non-empty model source or repository
-directories. Review `deploy/triton/model_repository/build-manifest.json`
-before testing or publishing.
+New local builds derive a key directly from NVIDIA's name, for example
+`NVIDIA A10G` becomes `nvidia-a10g`. Compute capability remains a separate field.
+Old target IDs remain readable in the release catalog for existing artifacts.
+No catalog entry is required to detect a GPU or build a local plan. A family plan can be tested on another GPU covered by its recorded compatibility
+mode. The driver/runtime and memory requirements still apply.
+
+```bash
+docker compose \
+  --env-file .env.triton \
+  -f compose.triton.build.yaml \
+  build plan-builder
+
+docker compose \
+  --env-file .env.triton \
+  -f compose.triton.build.yaml \
+  run --rm plan-builder
+```
+
+`plan-builder` downloads the exact Hub revision into a Docker cache volume,
+checks its MedDeID bundle, compiles it on the selected GPU, and writes
+`deploy/triton/local_model_repository`. It refuses to overwrite a different plan.
+To use an existing model directory, add the read-only local-model overlay:
+
+```bash
+MEDDEID_LOCAL_MODEL_DIRECTORY=/approved/models/my-meddeid-model \
+docker compose \
+  --env-file .env.triton \
+  -f compose.triton.build.yaml \
+  -f compose.triton.build.local-model.yaml \
+  run --rm plan-builder
+```
+
+Start with the release images and the local plan:
+
+```bash
+docker compose \
+  --env-file .env.triton \
+  -f compose.triton.yaml \
+  -f compose.triton.local-plan.yaml \
+  up --detach
+```
+
+For a mounted model directory, set `MEDDEID_LOCAL_MODEL_DIRECTORY` in
+`.env.triton` and add `-f compose.triton.local-model.yaml` at startup as well,
+so the gateway uses the same bundle. Set `MEDDEID_MODEL=/input-model`, the
+container mount path, and leave `MEDDEID_REVISION` empty (or use an institutional
+version label). No Hub token is needed for a local directory. Hospital models
+do not need to be published to Hugging Face. For a Hub model, an empty revision
+resolves `main` automatically; the gateway inherits the exact plan commit.
+
+To build the gateway and runtime too, use
+`docker compose --env-file .env.triton -f compose.triton.build.yaml build`, then
+`docker compose --env-file .env.triton -f compose.triton.build.yaml run --rm runtime-builder`.
+Use `compose.triton.local-images.yaml` instead of `compose.triton.local-plan.yaml`
+at startup. This is needed for an institution's build policy or a changed
+runtime stack, not merely for every new GPU. A newer stack must support the GPU
+and match between the builder and runtime.
+
+The plan stays local and the build finishes without contribution prompts.
+Local builds automatically use `sameComputeCapability` on Turing (7.5), or
+`ampere+` on supported newer GPUs. The manifest records the build GPU and the
+compatibility mode; older exact-GPU plans are never treated as family plans.
+The low-level release builder keeps native mode for existing release workflows.
+Family artifacts must pass GPU validation before being added to `release.json`.
+
+The plan builder is deliberately large: it contains PyTorch, ONNX, TensorRT,
+and compilation tools. It is not a parent layer of either deployed image. The
+runtime-builder also mounts `/var/run/docker.sock`; that grants it control over
+the host Docker daemon, so use only a reviewed checkout on a dedicated build
+host.
+
+Review `deploy/triton/local_model_repository/build-manifest.json` and run the parity
+gate below before treating a local build as deployable. The source checkpoint
+is not needed after compilation, but the generated plan contains its learned
+parameters and remains subject to the model's access and licence controls.
 
 ## Start the candidate and PyTorch reference
 
@@ -214,8 +276,8 @@ python deploy/benchmark_http.py deploy/triton/benchmark_source/data/test.jsonl \
 
 For every supported GPU target publish and retain together:
 
-- the target-specific image tag and immutable registry digest;
-- the paired gateway image tag and immutable registry digest;
+- the weight-free Triton runtime and gateway image digests;
+- the target- and model-specific repository archive and checksum;
 - `build-manifest.json` and its SHA-256;
 - the parity report and fixture version/hash;
 - an SBOM, provenance/attestation, and vulnerability-scan result;
@@ -224,12 +286,16 @@ For every supported GPU target publish and retain together:
 - cold-start, p50/p95/p99 latency, throughput, and peak GPU-memory results; and
 - the exact API image digest used for parity.
 
-Never publish a universal `latest` TensorRT tag. Operators should put the
-released image **digest** in `MEDDEID_TRITON_IMAGE`, then use
-`compose.triton.yaml` as the deployment wiring.
+Never describe a compiled plan as universal. The suite release records the
+gateway, runtime, and plan digests together. Normal operators select the model;
+MedDeID detects the GPU and resolves the matching artifact. Release engineering
+is responsible for validating, publishing, and pinning those artifacts. Users
+who build a public model on an unsupported GPU are directed to the
+[GPU contribution path](https://stighellemans.github.io/meddeid/project/contributing/#add-optimized-support-for-another-nvidia-gpu).
 
 Official compatibility references:
 
+- [ORAS artifact push and pull](https://oras.land/docs/quickstart/)
 - [TensorRT support matrix](https://docs.nvidia.com/deeplearning/tensorrt/latest/getting-started/support-matrix.html)
 - [TensorRT engine compatibility](https://docs.nvidia.com/deeplearning/tensorrt/latest/inference-library/engine-compatibility.html)
 - [Triton model repositories](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/model_repository.html)

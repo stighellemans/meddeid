@@ -7,22 +7,22 @@ recovery, and response contract. Only the neural runtime changes.
 
 ## What is available now
 
-Python release `0.3.0`, the public Dutch and English models, the shared public
-demo, and the production `0.3.0` CPU container are available now.
+Python release `0.4.0`, the public Dutch and English models, the shared public
+demo, and the production `0.4.0` CPU container are available now.
 
 | Path | Status now | Notes |
 |---|---|---|
 | Public model bundles | Available | `stighellemans/meddeid-dutch-synth` and `stighellemans/meddeid-english-synth` can be downloaded without authentication. |
-| Python API | Available from PyPI | Install `meddeid==0.3.0`; dependencies resolve from PyPI. |
+| Python API | Available from PyPI | Install `meddeid==0.4.0`; dependencies resolve from PyPI. |
 | Single-file CLI | Available from PyPI | `meddeid deidentify` uses the same local engine. |
 | Canonical JSONL batch | Available from PyPI | `meddeid batch` writes results and a sidecar manifest. |
 | HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU image; native Apple MPS; AMD64 PyTorch/CUDA image recipe | Device selection supports `cpu`, `mps`, and `cuda`; MPS was validated natively on an M4 Pro, while the CUDA image has its own T4 validation and publishing gate. |
-| PyPI install | Available | `meddeid==0.3.0` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.0`. |
-| PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.3.0` supports AMD64 and ARM64 and explicitly includes the pinned Dutch synthetic model, SBOM, and provenance. |
+| PyPI install | Available | `meddeid==0.4.0` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.1`. |
+| PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.0` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
 | PyTorch CUDA container | Release candidate | The AMD64 tag contract is `ghcr.io/stighellemans/meddeid-api:<version>-cuda<runtime>`; `compose.cuda.yaml` requests the selected NVIDIA device and refuses CPU fallback. |
 | Local Compose evaluation | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the local service with a browser UI. Production operators use Compose directly. |
-| TensorRT/Triton deployment | Target-specific source release-candidate kit | Pinned export/build scripts, build manifest, image recipe, Compose wiring, and parity gate are present; no GPU-specific image is published until its target evidence passes. |
+| TensorRT/Triton deployment | T4 release candidate | Compose resolves the selected Dutch or English plan; the source also includes a containerized local builder and the target validation gate. |
 | Hosted demo | Available for non-sensitive text | The [MedDeID interactive demo](https://huggingface.co/spaces/stighellemans/meddeid-demo) offers Dutch and English selection. Do not submit patient information. |
 | Managed clinical endpoint | Not available | No managed service for sensitive clinical text is provided. |
 
@@ -32,11 +32,11 @@ Install all Python interfaces from PyPI:
 python -m pip install 'meddeid[server]'
 ```
 
-The `server` extra includes every implemented interface. Add `==0.3.0` when an
+The `server` extra includes every implemented interface. Add `==0.4.0` when an
 exact package version is required. Docker users can pull the release directly:
 
 ```bash
-docker pull ghcr.io/stighellemans/meddeid-api:0.3.0
+docker pull ghcr.io/stighellemans/meddeid-api:0.4.0
 ```
 
 GPU-optimized TensorRT targets still require separate hardware-specific builds
@@ -57,6 +57,16 @@ meddeid models
 meddeid deidentify note.txt \
   --model stighellemans/meddeid-dutch-synth
 ```
+
+For quick tests with synthetic text, no temporary file is needed:
+
+```bash
+meddeid deidentify --text "mijn naam is Noor Janssens" \
+  --model stighellemans/meddeid-dutch-synth
+```
+
+Do not use `--text` for patient data when shell history or process-argument
+visibility is a concern; use an input file instead.
 
 Model selection is mandatory. The public entries are synthetic-data baselines,
 not institution-validated clinical models. `meddeid models` shows their
@@ -238,8 +248,9 @@ meddeid batch input.jsonl \
 
 For scripts where named arguments are clearer, the equivalent command starts
 with `meddeid batch --input input.jsonl`. `deidentify` accepts the same two
-input forms. Supplying both forms is an error. Input existence, file type, and
-readability are checked before any model resolution or loading.
+file-input forms, plus `--text <text>` for literal text. Supplying more than one
+input form is an error. Input existence, file type, and readability are checked
+before any model resolution or loading.
 
 Automatic device selection prefers CUDA, then Apple MPS, and falls back to CPU.
 Pin `--revision` or set `--device` when the run requires explicit control.
@@ -260,7 +271,7 @@ details, warnings, and per-result provenance. The selected language profile is
 part of provenance because it describes how that specific result was produced:
 
 ```json
-{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}},"warnings":[],"provenance":{"contract_version":"meddeid.inference-provenance.v1","software":{"name":"meddeid","version":"0.3.0"},"model":{"name":"meddeid-dutch-synth","version":"1","resolved_revision":"<immutable-hub-commit>","bundle_sha256":"..."},"language_profile":{"profile_id":"nl-BE"}}}
+{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}},"warnings":[],"provenance":{"contract_version":"meddeid.inference-provenance.v1","software":{"name":"meddeid","version":"0.4.0"},"model":{"name":"meddeid-dutch-synth","version":"1","resolved_revision":"<immutable-hub-commit>","bundle_sha256":"..."},"language_profile":{"profile_id":"nl-BE"}}}
 ```
 
 The adjacent `.manifest.json` records hashes, immutable model identity, profile,
@@ -270,7 +281,7 @@ never silently replaced.
 
 ## HTTP API
 
-Start the embedded PyTorch service from the PyPI installation above:
+Start the PyTorch service from the PyPI installation above:
 
 ```bash
 MEDDEID_MODEL=stighellemans/meddeid-dutch-synth \
@@ -278,9 +289,9 @@ MEDDEID_DEVICE=cpu \
 meddeid-server
 ```
 
-The service also requires an explicit model. The published CPU container is a
-model-specific artifact and already sets `MEDDEID_MODEL` to its embedded,
-pinned Dutch synthetic bundle.
+The service also requires an explicit model. The published CPU and CUDA
+containers contain no model weights; they download the selected revision once
+and reuse it from the mounted Hugging Face cache.
 
 For a model bundle containing several locales, either send `metadata.lang` per
 document or configure a service fallback:
@@ -339,7 +350,7 @@ Response:
     "contract_version": "meddeid.inference-provenance.v1",
     "software": {
       "name": "meddeid",
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     "model": {
       "name": "meddeid-dutch-synth",
@@ -407,8 +418,6 @@ operational controls are:
 | Setting | Default | Purpose |
 |---|---:|---|
 | `MEDDEID_LANGUAGE_PROFILE` | bundle default when unambiguous | Set a locale fallback for a multi-profile service. Trusted request `metadata.lang` still wins. |
-| `MEDDEID_ALLOWED_MODELS` | unrestricted | Optional comma-separated allowlist of exact `MEDDEID_MODEL` values. Startup fails before model loading when the selected Hub ID or local directory is absent. |
-| `MEDDEID_ALLOWED_LANGUAGE_PROFILES` | all profiles declared by the model | Optional comma-separated allowlist of request-selectable regional profiles. Unknown configured profiles fail startup; disallowed request profiles return HTTP 422. A single allowed profile becomes the service fallback when none is configured. |
 | `MEDDEID_AGE_GRANULARITY_CONFIG` | packaged `meddeid-default` policy | Load one validated age-granularity JSON policy for the complete service. |
 | `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | 366 | Warn when a nonzero absolute date shift is smaller than this positive integer. |
 | `MEDDEID_MAX_REQUEST_BYTES` | 2,000,000 | Reject oversized requests with HTTP 413 when `Content-Length` is present. Enforce the same limit at the reverse proxy. |
@@ -466,16 +475,15 @@ Or run Compose directly:
 
 ```bash
 cp .env.example .env
-# Set MEDDEID_API_KEY and MEDDEID_REQUIRE_API_KEY=true in .env.
+# Set MEDDEID_MODEL, MEDDEID_REVISION, MEDDEID_LANGUAGE_PROFILE, and the API key.
 docker compose pull
 docker compose up --detach
 docker compose ps
 ```
 
-The image pins the public core and language-package source revisions and embeds
-a fallback model under `/opt/meddeid-model`. The local launcher explicitly
-selects the served Hub model and profile and persists downloads in a Docker
-volume. Direct production deployments can retain the embedded offline model.
+The image pins the public core and language-package source revisions but does
+not embed a model. The selected Hub model and profile are explicit, and model
+downloads persist in a Docker volume for later starts.
 Compose binds to `127.0.0.1`, runs as UID/GID 10001, uses a read-only root
 filesystem and restricted temporary filesystem, drops every Linux capability,
 sets `no-new-privileges`, bounds process count, rotates logs, and performs a
@@ -488,7 +496,7 @@ export MEDDEID_MODEL_DIR=/absolute/path/to/model
 docker compose -f compose.yaml -f compose.offline.yaml up --detach
 ```
 
-Release `0.3.0` is published for both `linux/amd64` and `linux/arm64`. Its tag
+Release `0.4.0` is published for both `linux/amd64` and `linux/arm64`. Its tag
 workflow produced an SBOM and provenance and published only after authenticated
 offline smoke inference and the fixable-high/critical vulnerability gate
 passed. Production operators should pin the immutable digest documented in the
@@ -496,8 +504,8 @@ passed. Production operators should pin the immutable digest documented in the
 
 ## PyTorch CUDA image
 
-The portable GPU artifact uses the same Dockerfile, API process, embedded
-model, and hardening controls as the CPU image, but selects PyTorch's official
+The portable GPU artifact uses the same weight-free Dockerfile, API process,
+model cache, and hardening controls as the CPU image, but selects PyTorch's official
 CUDA 12.9 wheel and sets `MEDDEID_DEVICE=cuda`. FP16 autocast with eager
 execution is its measured default. The image omits PyTorch's compiler-only
 Triton package, headers, and static archives. Its version contract is:
@@ -507,7 +515,7 @@ ghcr.io/stighellemans/meddeid-api:<meddeid-version>-cuda<cuda-version>
 ```
 
 The initial AMD64 candidate is
-`ghcr.io/stighellemans/meddeid-api:0.3.0-cuda12.9`. A host must provide a
+`ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9`. A host must provide a
 compatible NVIDIA driver, Docker Engine, and NVIDIA Container Toolkit. Copy
 `.env.cuda.example`, inject a real API key, and use the CUDA overlay:
 
@@ -524,51 +532,53 @@ batch API inference on NVIDIA T4 before publishing the image with SBOM and
 provenance. It also verifies that the service runs as UID/GID 10001 with a
 read-only root filesystem. The image does not silently fall back to CPU.
 
-## TensorRT and Triton: target-specific release candidate
+## TensorRT and Triton
 
-The repository contains a complete **source delivery kit**, but no GPU image is
-considered released until it has passed the documented target-GPU gate and its
-immutable digest and evidence have been published. Compose is intentionally not
-used to compile a plan at startup.
+The normal TensorRT deployment is release-driven. In `.env.triton`, an operator
+selects the hardware, model, revision, and language profile. Compose uses
+`deploy/triton/release.json` to obtain and verify the matching plan; compilation
+never happens during service startup.
 
-A complete delivery contains both:
+A complete delivery contains:
 
-1. a target-specific Triton image with `model.plan`, `config.pbtxt`, and a
-   checksummed build manifest; and
-2. a gateway-only image with the normal MedDeID API contract and language logic
-   but no PyTorch or checkpoint weights, connected through
-   `compose.triton.yaml` with authentication, health checks, and an internal
-   inference network.
+1. a weight-free Triton runtime image;
+2. a weight-free gateway with the normal MedDeID API and language logic; and
+3. a separately supplied repository with `model.plan`, `config.pbtxt`, and a
+   checksummed build manifest.
 
-Compose alone lacks the compiled model. A model image alone lacks the safe
-gateway wiring. TensorRT plans are tied to the TensorRT/CUDA stack and GPU
-compatibility, so do not publish a universal `latest` image.
+The plan contains the compiled learned parameters. It is tied to the exact
+model revision, tokenizer/label contract, TensorRT/CUDA stack, and GPU target;
+matching API outputs or a broadly similar architecture is not sufficient.
 
-On the target Linux NVIDIA host, install the source environment and run:
+For a released plan:
 
 ```bash
-python3 -m venv .venv-triton
-source .venv-triton/bin/activate
-python -m pip install --upgrade pip
-python -m pip install '.[dev]' distro requests onnx onnxscript
-
-./deploy/preflight_triton_host.sh t4-sm75 0
-./deploy/stage_triton_model.sh deploy/triton/model_source
-./deploy/build_triton_repository.sh \
-  deploy/triton/model_source \
-  deploy/triton/model_repository \
-  t4-sm75 0
-./deploy/build_triton_image.sh \
-  deploy/triton/model_repository \
-  ghcr.io/stighellemans/meddeid-triton-t4-sm75:0.3.0-trt26.07-fp16 \
-  t4-sm75
+cp .env.triton.example .env.triton
+# Set the API key and review the hardware and model selection.
+docker compose --env-file .env.triton -f compose.triton.yaml up --detach
 ```
 
-The pinned stack, NVIDIA container-composer revision, and model contract live in
-`deploy/triton/versions.env`. The resulting Triton runtime contains only the
-TensorRT backend. `deploy/build_triton_gateway_image.sh` produces the separate
-weight-free gateway and verifies the exact Hub revision before projecting away
-the checkpoint.
+The T4 release catalog includes separate plans for the public Dutch and English
+models. The runtime contains only the TensorRT backend, while the
+model-independent gateway downloads the tokenizer and bundle metadata for
+`MEDDEID_MODEL`.
+
+An institution can build a plan and both weight-free serving images inside its
+own boundary. The heavy builder remains a disposable image:
+
+```bash
+docker compose --env-file .env.triton -f compose.triton.build.yaml build
+docker compose --env-file .env.triton -f compose.triton.build.yaml \
+  run --rm runtime-builder
+docker compose --env-file .env.triton -f compose.triton.build.yaml \
+  run --rm plan-builder
+docker compose --env-file .env.triton \
+  -f compose.triton.yaml -f compose.triton.local-images.yaml up --detach
+```
+
+The pinned stack and NVIDIA container-composer revision live in
+`deploy/triton/versions.env`. The generated plan is written to
+`deploy/triton/local_model_repository` with a checksummed manifest.
 Defaults are min/opt/max shapes `1x8`, `16x256`, and `64x512`. The latency
 and throughput model configurations use the measured request-local path without
 cross-request queueing. A non-negative queue delay remains an explicit build
@@ -577,8 +587,7 @@ uses 64-window request-local chunks.
 The API sends INT32 token tensors and receives FP32 logits through Triton's
 binary HTTP extension, matching the generated `config.pbtxt`.
 
-Copy `.env.triton.example` to the ignored `.env.triton`, replace its secret,
-and start the TensorRT candidate beside the PyTorch reference:
+To compare a locally built plan with the PyTorch reference:
 
 ```bash
 docker compose --env-file .env.triton \
@@ -600,20 +609,21 @@ validation, publication-unit, and compatibility instructions are in the
 - The portable PyTorch API image is the universal default.
 - The checked catalog has one ready target, NVIDIA T4 (`t4-sm75`). A10G
   (`a10g-sm86`) and L4 (`l4-sm89`) can be built and validated on request but
-  are not supported image claims yet.
+  are not supported plan artifacts yet.
 - Maintainers use the same target-driven workflow to build, validate,
-  benchmark, and publish GPU-specific TensorRT images. It refuses publication
+  benchmark, and publish GPU-specific TensorRT plans. It refuses publication
   for an `on-request` target until its evidence is reviewed and its catalog
   status is promoted to `ready`.
-- Institutions use `build_triton_repository.sh` only for a requested target,
-  an unsupported GPU, or a deliberately different TensorRT/CUDA stack.
+- Institutions use `compose.triton.build.yaml` for a private model, a requested
+  target, or a deliberately different TensorRT/CUDA stack.
 - TensorRT compilation never happens during API or Triton startup. Startup only
   loads a previously built, identified, and tested plan.
 
 For the first supported target, release work must build the plan on that GPU
 class, run PyTorch-versus-TensorRT output parity, validate startup/readiness and
 single/batch HTTP requests, benchmark representative notes, publish the
-GPU/runtime compatibility metadata and immutable image digest, and document
+GPU/runtime compatibility metadata, plan checksum, and immutable runtime image
+digest, and document
 the NVIDIA driver/container-toolkit prerequisites.
 
 ## Throughput, sizing, and concurrency
