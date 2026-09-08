@@ -56,9 +56,9 @@ If you are choosing a runtime rather than looking up a version, start with the
 | `ghcr.io/stighellemans/meddeid-triton-gateway` | `0.4.0` | Weight-free API gateway; Compose connects it to Triton |
 | `ghcr.io/stighellemans/meddeid-triton-runtime` | `0.4.0-trt26.07` | Weight-free Triton runtime for the matching release stack |
 | `ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75` | release-, model-, and stack-specific | Compiled model plan; Compose selects and verifies the matching Dutch or English artifact |
-| `ghcr.io/stighellemans/meddeid-annotate` | `0.3.0` | Resolve and pin with `docker buildx imagetools inspect` |
-| `ghcr.io/stighellemans/meddeid-curate` | `0.3.0` | Resolve and pin with `docker buildx imagetools inspect` |
-| `ghcr.io/stighellemans/meddeid-subannotate` | `0.3.0` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-annotate` | `0.3.1` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-curate` | `0.3.1` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-subannotate` | `0.3.1` | Resolve and pin with `docker buildx imagetools inspect` |
 
 The T4 target is the first ready optimized TensorRT target. The deployment
 guide lets you select either public model without handling its plan directly.

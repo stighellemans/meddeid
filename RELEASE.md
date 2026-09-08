@@ -5,7 +5,7 @@ MedDeID suite 0.3.0 line. That line reuses `meddeid-core==0.2.1`,
 `meddeid-language-en==0.2.1`, `meddeid-language-nl==0.2.1`,
 and the legacy-site redirect snapshot at `v0.2.0`; publishes
 `meddeid-data==0.4.1`, `meddeid-eval==0.5.0`, and
-`meddeid-training==0.3.0`; publishes the three browser applications at 0.3.0;
+`meddeid-training==0.3.0`; publishes the three browser applications at 0.3.1;
 and publishes the coordinator at `v0.3.0`.
 
 Source defaults that mention `0.4.0` are candidate identities, not evidence
