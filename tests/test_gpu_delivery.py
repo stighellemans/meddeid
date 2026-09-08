@@ -183,6 +183,7 @@ def test_triton_gateway_is_weight_free_and_does_not_install_torch() -> None:
     assert "--model-config-name=${MEDDEID_SERVING_PROFILE:-latency}" in compose
     assert "MEDDEID_MICROBATCH_ENABLED=auto" in dockerfile
     assert validation.count("MEDDEID_MODEL: /model-source") == 2
+    assert validation.count('MEDDEID_LOCAL_BUNDLE: "true"') == 2
     assert validation.count(":/model-source:ro") == 2
     assert ":/models/meddeid:ro" not in validation
     assert not (ROOT / "deploy/triton-model.Dockerfile").exists()

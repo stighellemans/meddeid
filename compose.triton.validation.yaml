@@ -3,6 +3,7 @@ services:
     environment:
       MEDDEID_MODEL: /model-source
       MEDDEID_REVISION: ""
+      MEDDEID_LOCAL_BUNDLE: "true"
       MEDDEID_OFFLINE: "true"
     volumes:
       - ${MEDDEID_TRITON_SOURCE_MODEL_DIR:-./deploy/triton/model_source}:/model-source:ro
@@ -14,6 +15,7 @@ services:
     environment:
       MEDDEID_MODEL: /model-source
       MEDDEID_REVISION: ""
+      MEDDEID_LOCAL_BUNDLE: "true"
       MEDDEID_OFFLINE: "true"
       MEDDEID_BACKEND: torch
       MEDDEID_DEVICE: cpu
