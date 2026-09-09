@@ -93,10 +93,10 @@ jobs:
           runtime_revision=$(docker image inspect "${runtime}" \
             --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
           evidence_runtime_revision=$(jq -r \
-            '.[0].Config.Labels["org.opencontainers.image.revision"] // "<no value>"' \
+            '.[0].Config.Labels["org.opencontainers.image.revision"] // ""' \
             _release/image-evidence/candidate-image-inspect.json)
           test "${runtime_revision}" = "${evidence_runtime_revision}"
-          if [[ "${runtime_revision}" != '<no value>' ]]; then
+          if [[ -n "${runtime_revision}" ]]; then
             test "${runtime_revision}" = "${SOURCE_COMMIT}"
           fi
           gateway_revision=$(docker image inspect "${gateway}" \
