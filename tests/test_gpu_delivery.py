@@ -336,6 +336,11 @@ def test_triton_gate_builds_its_reference_from_the_same_checkout() -> None:
     )
     assert "'.[dev]' distro requests onnx onnxscript" in workflow
     assert "MEDDEID_API_IMAGE: ghcr.io/stighellemans/meddeid-api:0.4.0" not in workflow
-    assert 'fromJSON(\'["dutch_synthetic","english_synthetic"]\')' in workflow
-    assert "python -m meddeid.triton_artifact pack" in workflow
-    assert "oras push" in workflow
+    assert "validation_scope" in workflow
+    assert "plan-only" in workflow
+    assert "oras push" not in workflow
+    plan_publication = (
+        ROOT / ".github/workflows/publish-triton-plans.yml"
+    ).read_text()
+    assert "python -m meddeid.triton_artifact pack" in plan_publication
+    assert "oras push" in plan_publication

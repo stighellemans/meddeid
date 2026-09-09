@@ -18,15 +18,17 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 - `meddeid deidentify` now accepts literal input through `--text`, explicitly
   separated from its positional and `--input` file-path forms.
 - Split TensorRT delivery into a weight-free gateway and runtime plus separate,
-  immutable OCI model-plan artifacts for the Dutch and English public models.
-  Compose resolves the compatible plan from hardware, model revision, and
-  language profile.
+  immutable OCI model-plan artifacts for the Dutch and English public models
+  on exact T4 and hardware-compatible Ampere+ targets. Compose resolves the
+  compatible plan from hardware, model revision, and language profile.
 - Added a containerized local TensorRT build workflow that produces the plan,
   gateway, and slim runtime without shipping builder frameworks or model
   weights in the serving images.
 - Strengthened CPU and GPU release validation with external model staging,
   immutable revision checks, explicit GPU identity validation, and paired
-  T4 publication gates for both public models.
+  model gates for both public models. Separate promotion workflows publish the
+  exact retained plan repositories and validated TensorRT serving images
+  without recompiling them at the release tag.
 
 ## [0.3.0] - 2026-09-05
 

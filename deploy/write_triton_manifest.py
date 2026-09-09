@@ -104,6 +104,11 @@ def main() -> None:
     if set(profile_configs) != {"latency", "throughput"}:
         raise SystemExit("latency and throughput Triton profile configs are required")
 
+    published_family = (
+        args.hardware_family != "native"
+        and target_spec.get("family") == args.hardware_family
+        and target_spec["id"] == args.gpu_target
+    )
     payload = {
         "schema": BUILD_MANIFEST_SCHEMA,
         "release": {
@@ -135,8 +140,8 @@ def main() -> None:
             "catalog_spec_sha256": target_spec_sha256(target_spec),
             # A new family must not inherit an exact-GPU plan's approval or
             # publication destination merely because it used that build host.
-            "release_status": target_spec["release_status"] if args.hardware_family == "native" else "local",
-            "artifact_repository": target_spec["artifact_repository"] if args.hardware_family == "native" else "",
+            "release_status": target_spec["release_status"] if args.hardware_family == "native" or published_family else "local",
+            "artifact_repository": target_spec["artifact_repository"] if args.hardware_family == "native" or published_family else "",
             "gpu_name": args.gpu_name,
             "compute_capability": args.compute_capability,
             "driver_version": args.driver_version,

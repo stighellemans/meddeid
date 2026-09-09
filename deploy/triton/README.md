@@ -37,30 +37,31 @@ so both composition and projection happen before the release image is emitted.
 the public model plans belonging to this suite release. `targets.json` defines
 the supported hardware targets; `triton_targets.py` validates the detected GPU,
 artifact naming, and the target-spec hash recorded in every build manifest.
-The T4 plan uses FP16 weights and compute, then casts logits to FP32 at the
-Triton boundary. The gateway uses Triton's binary HTTP tensor extension while
-preserving the existing MedDeID JSON API contract.
+The T4 and Ampere+ plans use FP16 weights and compute, then cast logits to FP32
+at the Triton boundary. The gateway uses Triton's binary HTTP tensor extension
+while preserving the existing MedDeID JSON API contract.
 
 | Target | Status | Meaning |
 |---|---|---|
 | `t4-sm75` | `ready` | The optimized T4 plan and release path are ready to use. |
+| `ampere-plus` | `ready` | One hardware-compatible plan supports Ampere and newer GPUs. |
 | `a10g-sm86` | `on-request` | A matching runner can build and validate a candidate on request. |
 | `l4-sm89` | `on-request` | A matching runner can build and validate a candidate on request. |
 
 Inspect the catalog with `python deploy/triton_targets.py list`. Adding another
 GPU class is a data-only target declaration plus a matching self-hosted runner;
 the remaining build and evidence machinery is shared. An `on-request` target
-may be validated, but the workflow refuses publication until a reviewed change
-makes it `ready` and the run uses a version tag.
+may be validated, but it is not part of the release unless a reviewed change
+makes it `ready` and a publication workflow selects the retained candidate.
 
 No plan is a released artifact merely because these source files exist. A
 release requires a successful run of the GPU gate below and published evidence.
 
-`t4-sm75` is an intentional compatibility limit of that serialized plan. It is
-not a universal NVIDIA plan. External operators who need one GPU image across
-different supported NVIDIA devices should use the PyTorch CUDA artifact;
-operators choosing TensorRT must select a plan whose model revision, GPU target,
-and runtime stack match their validated deployment.
+`t4-sm75` is an intentional compatibility limit of its serialized plan. The
+separate `ampere-plus` plan is compiled with TensorRT's Ampere+ compatibility
+mode; neither is a universal NVIDIA plan. Operators choosing TensorRT must
+select a plan whose model revision, hardware family, and runtime stack match
+their deployment. Use the PyTorch CUDA artifact when no released plan matches.
 
 ## Current T4 validation snapshot
 
@@ -192,8 +193,9 @@ The plan stays local and the build finishes without contribution prompts.
 Local builds automatically use `sameComputeCapability` on Turing (7.5), or
 `ampere+` on supported newer GPUs. The manifest records the build GPU and the
 compatibility mode; older exact-GPU plans are never treated as family plans.
-The low-level release builder keeps native mode for existing release workflows.
-Family artifacts must pass GPU validation before being added to `release.json`.
+The low-level release builder keeps native mode unless the release workflow
+explicitly selects a published family target. Family artifacts must pass GPU
+validation before being added to `release.json`.
 
 The plan builder is deliberately large: it contains PyTorch, ONNX, TensorRT,
 and compilation tools. It is not a parent layer of either deployed image. The

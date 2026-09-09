@@ -31,14 +31,14 @@ language profiles, and post-processing remain the same.
 |---|---|---|
 | Simplest shared service, or no accelerator | Published CPU API image with `compose.yaml` | Published for AMD64 and ARM64 |
 | NVIDIA GPU model may vary between hosts | CUDA-tagged PyTorch API image with `compose.cuda.yaml` | AMD64 release candidate with a completed T4 validation path |
-| Fixed NVIDIA T4 deployment | Weight-free Triton runtime and gateway with a separately compiled plan | T4 is the first optimized target prepared for publication |
+| Fixed NVIDIA T4 or Ampere-and-newer deployment | Weight-free Triton runtime and gateway with a separately compiled plan | Separate T4 and Ampere+ plans are supplied for both public models |
 | Native Apple-silicon service | PyTorch MPS from the Python installation | Validated on one M4 Pro; Linux containers cannot use the host Metal device |
 
 The CUDA, Triton runtime, and gateway images are published products only after
 their GPU release gates pass and their immutable digests are recorded. The
-model-specific TensorRT plan is distributed separately. A10G and L4 are
-build-on-request TensorRT targets, not interchangeable alternatives to the T4
-plan; each needs its own target evidence before publication.
+model-specific TensorRT plan is distributed separately. The Ampere+ plan uses
+TensorRT's hardware-compatibility mode for compute capability 8.0 and newer;
+the exact T4 plan remains separate.
 
 ### Measured T4 snapshot
 
@@ -214,8 +214,9 @@ published CPU image is not a CUDA image.
 For optimized NVIDIA serving, use the [TensorRT/Triton delivery
 kit](../deploy/triton/README.md). TensorRT plans depend on the GPU class and
 CUDA/TensorRT stack, so every target needs its own build, output-parity test,
-benchmark, digest, and compatibility record. The initial target is NVIDIA T4
-(`t4-sm75`). The runtime and gateway images are model-independent; the compiled
+benchmark, digest, and compatibility record. This release supplies an exact
+NVIDIA T4 target (`t4-sm75`) and an Ampere+ family target. The runtime and
+gateway images are model-independent; the compiled
 repository mounted at `/models` contains the target- and model-specific plan.
 The public Dutch and English models share the dual-head classifier and label
 set, but their different base encoders, tokenizers, and vocabulary sizes still
@@ -235,6 +236,7 @@ that can be built on request:
 | TensorRT target | Compute capability | Availability |
 |---|---:|---|
 | `t4-sm75` | 7.5 | Ready-to-use optimized T4 plan and release path |
+| `ampere-plus` | 8.0 or newer | Ready-to-use hardware-compatible Ampere+ plan and release path |
 | `a10g-sm86` | 8.6 | Build on request; not a supported image until its target gate passes |
 | `l4-sm89` | 8.9 | Build on request; not a supported image until its target gate passes |
 
@@ -243,12 +245,12 @@ catalog in `deploy/triton/targets.json`. A request for another NVIDIA GPU class
 adds one reviewed catalog record and a matching self-hosted runner; the build,
 manifest, parity, benchmark, image-size, vulnerability, SBOM, and attestation
 steps are shared. The generic manual workflow can validate an `on-request`
-target, but publication is refused until its reviewed catalog status changes to
-`ready` and the workflow is dispatched from a version tag. Ask the maintainers
-for a target build rather than treating the T4 plan as portable.
+target. Release publication promotes only retained candidates whose reviewed
+catalog target is `ready`. Ask the maintainers for a target build rather than
+treating either released plan as universal.
 
-The T4 target is a real compatibility boundary, not merely a name. A serialized
-TensorRT plan is not the portable GPU artifact. Use the PyTorch CUDA image when
+The T4 target and Ampere+ family are real compatibility boundaries, not merely
+names. A serialized TensorRT plan is not the portable GPU artifact. Use the PyTorch CUDA image when
 one runtime must accept different compatible MedDeID models without a compile
 step; use TensorRT only when the exact model plan has parity and performance
 evidence for that GPU class and runtime stack.

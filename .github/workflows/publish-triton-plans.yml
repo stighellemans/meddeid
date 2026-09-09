@@ -1,0 +1,163 @@
+name: Publish retained TensorRT plans
+
+on:
+  workflow_dispatch:
+    inputs:
+      t4_dutch_run_id:
+        description: Successful T4 Dutch candidate run
+        required: true
+      t4_english_run_id:
+        description: Successful T4 English candidate run
+        required: true
+      ampere_plus_dutch_run_id:
+        description: Successful Ampere-plus Dutch candidate run
+        required: true
+      ampere_plus_english_run_id:
+        description: Successful Ampere-plus English candidate run
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: oras-project/setup-oras@v2
+        with:
+          version: 1.3.3
+      - name: Require the reviewed release tag
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" != tag ]]; then
+            printf 'Plan publication must be dispatched from the release tag.\n' >&2
+            exit 1
+          fi
+          package_version=$(python deploy/read_project_version.py)
+          if [[ "${GITHUB_REF_NAME}" != "v${package_version}" ]]; then
+            printf 'Tag %s does not match package version %s.\n' \
+              "${GITHUB_REF_NAME}" "${package_version}" >&2
+            exit 1
+          fi
+          python -m pip install .
+      - name: Download and verify all four retained candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          T4_DUTCH_RUN: ${{ inputs.t4_dutch_run_id }}
+          T4_ENGLISH_RUN: ${{ inputs.t4_english_run_id }}
+          AMPERE_DUTCH_RUN: ${{ inputs.ampere_plus_dutch_run_id }}
+          AMPERE_ENGLISH_RUN: ${{ inputs.ampere_plus_english_run_id }}
+          T4_SOURCE_COMMIT: 14dc3db3f75fbcc0bacbae4b64e4dc9b404e0e80
+        run: |
+          specs=(
+            "t4_dutch|t4-sm75|dutch_synthetic|${T4_DUTCH_RUN}|${T4_SOURCE_COMMIT}"
+            "t4_english|t4-sm75|english_synthetic|${T4_ENGLISH_RUN}|${T4_SOURCE_COMMIT}"
+            "ampere_dutch|ampere-plus|dutch_synthetic|${AMPERE_DUTCH_RUN}|${GITHUB_SHA}"
+            "ampere_english|ampere-plus|english_synthetic|${AMPERE_ENGLISH_RUN}|${GITHUB_SHA}"
+          )
+          for spec in "${specs[@]}"; do
+            IFS='|' read -r key target model run_id source_commit <<<"${spec}"
+            conclusion=$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+              --json conclusion --jq .conclusion)
+            run_commit=$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+              --json headSha --jq .headSha)
+            test "${conclusion}" = success
+            test "${run_commit}" = "${source_commit}"
+            gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+              --name "triton-${target}-${model}-model-repository-${run_id}" \
+              --dir "_release/plans/${key}"
+            gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+              --name "triton-${target}-${model}-evidence-${run_id}" \
+              --dir "_release/evidence/${key}"
+            python deploy/verify_triton_candidate_artifact.py \
+              --catalog deploy/triton/release.json \
+              --repository "_release/plans/${key}" \
+              --evidence "_release/evidence/${key}" \
+              --target "${target}" \
+              --model-key "${model}" \
+              --source-commit "${source_commit}" \
+              --minimum-documents 300
+          done
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the exact validated plan bytes
+        id: plans
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "${GHCR_TOKEN}" | oras login ghcr.io \
+            --username "${GITHUB_ACTOR}" --password-stdin
+          specs=(
+            "t4_dutch|t4-sm75|dutch_synthetic"
+            "t4_english|t4-sm75|english_synthetic"
+            "ampere_dutch|ampere-plus|dutch_synthetic"
+            "ampere_english|ampere-plus|english_synthetic"
+          )
+          for spec in "${specs[@]}"; do
+            IFS='|' read -r key target model <<<"${spec}"
+            reference=$(python - "${target}" "${model}" <<'PY'
+          import json, pathlib, sys
+          catalog = json.loads(pathlib.Path("deploy/triton/release.json").read_text())
+          plans = [p for p in catalog["plans"] if p["target"] == sys.argv[1] and p["model_key"] == sys.argv[2]]
+          if len(plans) != 1:
+              raise SystemExit("release catalog plan selection is not unique")
+          print(plans[0]["artifact"])
+          PY
+            )
+            if oras manifest fetch "${reference}" >/dev/null 2>&1; then
+              printf 'Refusing to overwrite existing plan tag %s.\n' "${reference}" >&2
+              exit 1
+            fi
+            mkdir -p "_release/packed/${key}" "_release/pull/${key}"
+            archive="_release/packed/${key}/model-repository.tar.gz"
+            python -m meddeid.triton_artifact pack \
+              "_release/plans/${key}" "${archive}"
+            result=$(cd "$(dirname "${archive}")" && oras push "${reference}" \
+              --artifact-type application/vnd.meddeid.triton-model-repository.v1 \
+              "model-repository.tar.gz:application/vnd.meddeid.triton-model-repository.v1.tar+gzip" \
+              --format json)
+            digest=$(python -c \
+              'import json,sys; print(json.load(sys.stdin)["digest"])' <<<"${result}")
+            repository="${reference%%:*}"
+            oras pull "${repository}@${digest}" --output "_release/pull/${key}"
+            cmp "${archive}" "_release/pull/${key}/model-repository.tar.gz"
+            {
+              echo "${key}_name=${repository}"
+              echo "${key}_digest=${digest}"
+            } >>"${GITHUB_OUTPUT}"
+          done
+      - name: Attest Dutch T4 plan
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.plans.outputs.t4_dutch_name }}
+          subject-digest: ${{ steps.plans.outputs.t4_dutch_digest }}
+          push-to-registry: true
+      - name: Attest English T4 plan
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.plans.outputs.t4_english_name }}
+          subject-digest: ${{ steps.plans.outputs.t4_english_digest }}
+          push-to-registry: true
+      - name: Attest Dutch Ampere-plus plan
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.plans.outputs.ampere_dutch_name }}
+          subject-digest: ${{ steps.plans.outputs.ampere_dutch_digest }}
+          push-to-registry: true
+      - name: Attest English Ampere-plus plan
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.plans.outputs.ampere_english_name }}
+          subject-digest: ${{ steps.plans.outputs.ampere_english_digest }}
+          push-to-registry: true

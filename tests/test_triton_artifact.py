@@ -121,22 +121,22 @@ def test_unknown_gpu_is_recognized_without_a_catalog_entry() -> None:
     ) == "nvidia-rtx-6000-ada-generation"
 
 
-def test_public_model_on_unpublished_gpu_only_offers_local_build(
-    tmp_path: Path,
-) -> None:
-    with pytest.raises(
-        ValueError,
-        match="detected NVIDIA A10G.*Build a local plan",
-    ):
-        triton_artifact.prepare_plan(
-            triton_artifact.load_catalog(CATALOG),
-            hardware=None,
-            model="stighellemans/meddeid-dutch-synth",
-            revision="1f20655454dcbd042647cacdfff6b6802a970959",
-            language_profile="nl-BE",
-            output=tmp_path / "model_repository",
-            gpu=triton_artifact.NvidiaGpu("NVIDIA A10G", "8.6"),
-        )
+def test_public_model_on_ampere_gpu_resolves_the_family_plan() -> None:
+    catalog = triton_artifact.load_catalog(CATALOG)
+    gpu = triton_artifact.NvidiaGpu("NVIDIA A10G", "8.6")
+    hardware = triton_artifact.detect_hardware(catalog, gpu)
+    selection = triton_artifact.select_plan(
+        catalog,
+        hardware=hardware,
+        model="stighellemans/meddeid-dutch-synth",
+        revision="1f20655454dcbd042647cacdfff6b6802a970959",
+        language_profile="nl-BE",
+        gpu=gpu,
+    )
+
+    assert selection.family == "ampere-plus"
+    assert selection.target == "ampere-plus"
+    assert "meddeid-triton-plan-ampere-plus" in selection.artifact
 
 
 def test_private_model_on_unlisted_gpu_only_offers_local_build(

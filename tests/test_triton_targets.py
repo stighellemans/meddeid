@@ -19,20 +19,22 @@ targets = load_script("triton_targets", "deploy/triton_targets.py")
 lengths = load_script("make_benchmark_lengths", "deploy/make_benchmark_lengths.py")
 
 
-def test_target_catalog_has_one_ready_default_and_requestable_candidates() -> None:
+def test_target_catalog_has_two_ready_release_families_and_requestable_candidates() -> None:
     catalog = targets.load_catalog()
     by_id = {target["id"]: target for target in catalog["targets"]}
 
     assert catalog["default_target"] == "t4-sm75"
     assert by_id["t4-sm75"]["release_status"] == "ready"
     assert by_id["t4-sm75"]["compute_capability"] == "7.5"
+    assert by_id["ampere-plus"]["release_status"] == "ready"
+    assert by_id["ampere-plus"]["compatibility_mode"] == "ampere+"
     assert by_id["a10g-sm86"]["release_status"] == "on-request"
     assert by_id["l4-sm89"]["release_status"] == "on-request"
     assert [
         target["id"]
         for target in catalog["targets"]
         if target["release_status"] == "ready"
-    ] == ["t4-sm75"]
+    ] == ["t4-sm75", "ampere-plus"]
 
 
 def test_target_host_validation_checks_name_and_compute_capability() -> None:
@@ -53,6 +55,36 @@ def test_target_host_validation_checks_name_and_compute_capability() -> None:
         targets.verify_host(
             target,
             gpu_name="NVIDIA RTX 2080",
+            compute_capability="7.5",
+        )
+
+
+@pytest.mark.parametrize(
+    "gpu_name,compute_capability",
+    [
+        ("NVIDIA A100-SXM4-40GB", "8.0"),
+        ("NVIDIA A10G", "8.6"),
+        ("NVIDIA L4", "8.9"),
+        ("NVIDIA H100", "9.0"),
+    ],
+)
+def test_ampere_plus_target_accepts_the_declared_family(
+    gpu_name: str, compute_capability: str
+) -> None:
+    target = targets.get_target(targets.load_catalog(), "ampere-plus")
+    targets.verify_host(
+        target,
+        gpu_name=gpu_name,
+        compute_capability=compute_capability,
+    )
+
+
+def test_ampere_plus_target_rejects_turing() -> None:
+    target = targets.get_target(targets.load_catalog(), "ampere-plus")
+    with pytest.raises(ValueError, match="does not support"):
+        targets.verify_host(
+            target,
+            gpu_name="NVIDIA T4",
             compute_capability="7.5",
         )
 
@@ -101,6 +133,18 @@ def test_target_artifact_tag_keeps_gpu_and_runtime_identity_visible() -> None:
     ) == (
         "ghcr.io/stighellemans/meddeid-triton-plan-l4-sm89:"
         "0.3.0-trt26.07-fp16-english-synthetic"
+    )
+
+    family = targets.get_target(targets.load_catalog(), "ampere-plus")
+    assert targets.artifact_tag(
+        family,
+        version="0.4.0",
+        triton_stack="26.07",
+        precision="fp16",
+        model_key="dutch-synthetic",
+    ) == (
+        "ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus:"
+        "0.4.0-trt26.07-fp16-dutch-synthetic"
     )
 
 
@@ -155,18 +199,26 @@ def test_length_fixture_generator_produces_exact_public_test_shapes(
     assert generated[0] == "Syntheti"
 
 
-def test_gpu_workflow_is_target_driven_and_publishes_only_ready_targets() -> None:
+def test_gpu_workflow_is_target_driven_and_keeps_publication_separate() -> None:
     workflow = (ROOT / ".github/workflows/triton-gpu-validation.yml").read_text()
+    plan_publication = (
+        ROOT / ".github/workflows/publish-triton-plans.yml"
+    ).read_text()
+    image_publication = (
+        ROOT / ".github/workflows/publish-triton-images.yml"
+    ).read_text()
     preflight = (ROOT / "deploy/preflight_triton_host.sh").read_text()
     manifest_writer = (ROOT / "deploy/write_triton_manifest.py").read_text()
 
     assert "inputs.gpu_target || 't4-sm75'" in workflow
     assert '"${GPU_TARGET}" 0' in workflow
-    assert '"${target_status}" != ready' in workflow
-    assert (
-        'triton_name="ghcr.io/${GITHUB_REPOSITORY_OWNER}/meddeid-triton-runtime"'
-        in workflow
-    )
+    assert "validation_scope" in workflow
+    assert "publish_image" not in workflow
+    assert "oras push" not in workflow
+    assert "Publish the exact validated plan bytes" in plan_publication
+    assert "Refusing to overwrite existing plan tag" in plan_publication
+    assert "Publish the validated runtime and gateway images" in image_publication
+    assert "Refusing to overwrite" in image_publication
     assert "MEDDEID_TRITON_MODEL_REPOSITORY" in workflow
     assert 'triton_targets.py" verify-host' in preflight
     assert 'case "${target}"' not in preflight

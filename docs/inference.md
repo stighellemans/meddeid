@@ -22,7 +22,7 @@ demo, and the production `0.4.0` CPU container are available now.
 | PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.0` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
 | PyTorch CUDA container | Release candidate | The AMD64 tag contract is `ghcr.io/stighellemans/meddeid-api:<version>-cuda<runtime>`; `compose.cuda.yaml` requests the selected NVIDIA device and refuses CPU fallback. |
 | Local Compose evaluation | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the local service with a browser UI. Production operators use Compose directly. |
-| TensorRT/Triton deployment | T4 release candidate | Compose resolves the selected Dutch or English plan; the source also includes a containerized local builder and the target validation gate. |
+| TensorRT/Triton deployment | T4 and Ampere+ release candidates | Compose resolves the selected Dutch or English plan for T4 or Ampere-and-newer GPUs; the source also includes a containerized local builder and the target validation gate. |
 | Hosted demo | Available for non-sensitive text | The [MedDeID interactive demo](https://huggingface.co/spaces/stighellemans/meddeid-demo) offers Dutch and English selection. Do not submit patient information. |
 | Managed clinical endpoint | Not available | No managed service for sensitive clinical text is provided. |
 
@@ -560,8 +560,8 @@ cp .env.triton.example .env.triton
 docker compose --env-file .env.triton -f compose.triton.yaml up --detach
 ```
 
-The T4 release catalog includes separate plans for the public Dutch and English
-models. The runtime contains only the TensorRT backend, while the
+The release catalog includes separate Dutch and English plans for T4 and for
+Ampere-or-newer GPUs. The runtime contains only the TensorRT backend, while the
 model-independent gateway downloads the tokenizer and bundle metadata for
 `MEDDEID_MODEL`.
 
@@ -609,20 +609,21 @@ validation, publication-unit, and compatibility instructions are in the
 ### TensorRT publication policy
 
 - The portable PyTorch API image is the universal default.
-- The checked catalog has one ready target, NVIDIA T4 (`t4-sm75`). A10G
-  (`a10g-sm86`) and L4 (`l4-sm89`) can be built and validated on request but
-  are not supported plan artifacts yet.
+- The checked catalog has two ready targets: exact NVIDIA T4 (`t4-sm75`) and
+  the TensorRT hardware-compatible Ampere+ family (`ampere-plus`). The named
+  A10G (`a10g-sm86`) and L4 (`l4-sm89`) targets remain available for
+  specialized build-on-request plans rather than separate release artifacts.
 - Maintainers use the same target-driven workflow to build, validate,
-  benchmark, and publish GPU-specific TensorRT plans. It refuses publication
-  for an `on-request` target until its evidence is reviewed and its catalog
-  status is promoted to `ready`.
+  benchmark, and retain target-specific TensorRT candidates. Separate
+  publication workflows promote only the exact candidates selected for the
+  release and refuse to overwrite existing tags.
 - Institutions use `compose.triton.build.yaml` for a private model, a requested
   target, or a deliberately different TensorRT/CUDA stack.
 - TensorRT compilation never happens during API or Triton startup. Startup only
   loads a previously built, identified, and tested plan.
 
-For the first supported target, release work must build the plan on that GPU
-class, run PyTorch-versus-TensorRT output parity, validate startup/readiness and
+For every supported target, release work must build the plan on an eligible GPU,
+run PyTorch-versus-TensorRT output parity, validate startup/readiness and
 single/batch HTTP requests, benchmark representative notes, publish the
 GPU/runtime compatibility metadata, plan checksum, and immutable runtime image
 digest, and document
@@ -637,7 +638,7 @@ Use these as starting configurations, not benchmark claims:
 | PyTorch CPU | 4 vCPU, 8 GiB RAM | One API worker and 4 Torch threads. Prefer `/deidentify-batch`; adding workers duplicates model memory. |
 | PyTorch CUDA | 1 NVIDIA GPU with at least 8 GiB | One worker per GPU, FP16, 32-window batches, and compilation off. |
 | PyTorch MPS | Apple silicon Mac, measured on an M4 Pro with 48 GiB unified memory | Native Python installation, one worker, FP32 eager execution, and batch 16 as the measured ETL starting point. Use throughput microbatching only for sustained concurrency. |
-| Triton/TensorRT | T4 16 GiB or a plan rebuilt for the chosen GPU | Four weight-free API workers on the measured 4-vCPU host, one Triton model instance, 64-window request-local chunks, and binary tensors. Dynamic or nested batching is target/workload-specific rather than the default. |
+| Triton/TensorRT | T4 16 GiB or an Ampere-or-newer GPU with a matching released plan | Four weight-free API workers on the measured 4-vCPU T4 host, one Triton model instance, 64-window request-local chunks, and binary tensors. Dynamic or nested batching is target/workload-specific rather than the default. |
 
 The local PyTorch runtime serializes inference within each `Deidentifier`. A
 single request can still use all available batch capacity through

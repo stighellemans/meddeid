@@ -51,17 +51,15 @@ For each repository:
 7. record the tag, commit, file hashes, and PyPI URL in the suite release
    manifest before moving to the dependent package.
 
-The `meddeid` tag also triggers the CPU, CUDA, and TensorRT workflows. Before
-pushing it, ensure that two clean, ephemeral T4 hosts are registered as
-self-hosted GitHub Actions runners with labels `linux`, `x64`, `nvidia`, and
-`t4-sm75`. Run the CUDA workflow and both model-specific TensorRT jobs manually
-from the exact candidate commit with publication disabled; retain their parity,
-benchmark, image-size, GPU-memory, scan, and image-inspection evidence. A tag
-must not be pushed while either T4 runner is offline because the release would
-be only partially published. The tag triggers three GPU jobs (CUDA plus Dutch
-and English TensorRT). With two one-job hosts, re-register the first host after
-its completed job/evidence upload so the third queued job receives a fresh JIT
-runner; two registrations alone are insufficient.
+The `meddeid` tag triggers the Python, CPU-image, and CUDA-image publication
+workflows. Before pushing it, ensure that one clean T4 runner with labels
+`linux`, `x64`, `nvidia`, and `t4-sm75` is online for the CUDA job. The Dutch
+and English T4 TensorRT plans are promoted from their retained successful
+candidate runs; they are not recompiled at the tag. Before tagging, run the
+Dutch and English Ampere+ plan gates sequentially on one clean A100 runner and
+retain that runner until its exact runtime and gateway images have been
+promoted. TensorRT plan and image publication are then dispatched manually from
+the signed tag with the four reviewed candidate run IDs.
 
 The CPU workflow builds and smoke-tests the hardened offline image, rejects
 fixable high or critical vulnerabilities, then publishes `linux/amd64` and
@@ -89,32 +87,37 @@ docker pull ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0
 docker pull ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07
 oras pull ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75:0.4.0-trt26.07-fp16-dutch-synthetic
 oras pull ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75:0.4.0-trt26.07-fp16-english-synthetic
+oras pull ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus:0.4.0-trt26.07-fp16-dutch-synthetic
+oras pull ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus:0.4.0-trt26.07-fp16-english-synthetic
 ```
 
 GPU images have separate hardware gates. The PyTorch CUDA workflow builds
 `meddeid-api:<version>-cuda12.9`, requires real CUDA and authenticated API
 inference on its T4 runner, then publishes an AMD64 image with SBOM and
 provenance on a matching release tag. The target-driven TensorRT workflow
-builds both public model plans on their matching runners, records a full semantic
-comparison with PyTorch, records benchmark evidence, and publishes only when the
-target is marked `ready`. A release-tag push publishes the weight-free runtime
-and gateway once plus distinct Dutch and English T4 plan artifacts. Manual runs
-may validate the `a10g-sm86` and `l4-sm89` build-on-request candidates, but the
-workflow refuses to publish them until their evidence is reviewed and their
-catalog status is promoted. A CPU image passing does not authorize either GPU
-artifact; a TensorRT runtime without a matching model-plan artifact is an
-incomplete release.
+builds each public model plan on an eligible runner and records its complete
+semantic comparison with PyTorch. For this release, run the Dutch and English
+Ampere+ candidates sequentially on one clean A100 runner. After all technical
+gates pass, the publication workflows promote the exact retained T4 and
+Ampere+ plan repositories, plus the exact validated weight-free runtime and
+gateway images; they do not recompile them. Named A10G and L4 targets remain
+available for optional specialized builds and are not additional release
+plans. A CPU image passing does not authorize either GPU artifact; a TensorRT
+runtime without matching model-plan artifacts is an incomplete release.
 
 Run `scripts/container_smoke.py` against each pulled API/gateway image with an
 internal Docker network and required API key. Confirm that `/docs` is disabled,
 the containers are non-root/read-only/capability-free, and the images report
-the expected software, model, and source revisions. Re-run the T4 semantic
-parity check against the pulled TensorRT/gateway pair, not only the local
-candidate. Record every immutable digest and attestation URL in the suite
-release candidate before finalizing its released lock.
+the expected software, model, and source revisions. Run pulled-artifact smoke
+and semantic checks for the T4 and Ampere+ plan families on the already
+provisioned matching hosts, not only against local candidates. Record every
+immutable digest and attestation URL in the suite release candidate before
+finalizing its released lock.
 
 Do not announce the release until the public PyPI install, pulled-image smoke
-test, rendered documentation, and rollback-by-digest exercise all pass.
+test, rendered documentation, and rollback-by-digest exercise all pass. The
+retained-plan and image publication workflows are manual and must be dispatched
+from the signed release tag with the reviewed candidate run IDs.
 
 ## Failure diagnosis before another paid candidate run
 
@@ -146,7 +149,9 @@ Before retrying, reproduce the exact failing contract using existing images
 on a diagnostic host. Do not register a new JIT runner for diagnosis: that
 registration intentionally destroys the preceding job's images and cache.
 Diagnostic reuse is not release evidence. Final release candidates must still
-pass every gate on clean one-job runners at the exact reviewed commit.
+pass every gate at the exact reviewed commit. The Ampere+ Dutch and English
+candidates intentionally run sequentially on the same dedicated A100 host so
+the validated runtime and gateway images can be promoted without rebuilding.
 
 For a parity failure, keep the selected model revision, bundle, language profile,
 fixture revision and original request batch fixed. The comparison helper builds

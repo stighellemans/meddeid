@@ -17,6 +17,18 @@
       "release_status": "ready"
     },
     {
+      "id": "ampere-plus",
+      "hardware": "ampere-plus",
+      "display_name": "NVIDIA Ampere and newer",
+      "compute_capability": "8.0",
+      "gpu_names": [],
+      "runner_label": "ampere-plus",
+      "artifact_repository": "ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus",
+      "release_status": "ready",
+      "family": "ampere-plus",
+      "compatibility_mode": "ampere+"
+    },
+    {
       "id": "a10g-sm86",
       "hardware": "a10g",
       "display_name": "NVIDIA A10G",

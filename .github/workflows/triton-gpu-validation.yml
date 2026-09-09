@@ -18,13 +18,14 @@ on:
         options:
           - dutch_synthetic
           - english_synthetic
-      publish_image:
-        description: Publish a ready target after validation; dispatch must use a version tag
+      validation_scope:
+        description: Run the complete accelerator comparison or only the plan release gate
         required: true
-        type: boolean
-        default: false
-  push:
-    tags: ["v*"]
+        type: choice
+        default: full
+        options:
+          - full
+          - plan-only
 
 permissions:
   contents: read
@@ -35,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model_key: ${{ github.event_name == 'push' && fromJSON('["dutch_synthetic","english_synthetic"]') || fromJSON(format('["{0}"]', inputs.model_key)) }}
+        model_key: ${{ fromJSON(format('["{0}"]', inputs.model_key)) }}
     runs-on: [self-hosted, linux, x64, nvidia, "${{ inputs.gpu_target || 't4-sm75' }}"]
     timeout-minutes: 180
     permissions:
@@ -46,7 +47,7 @@ jobs:
     env:
       GPU_TARGET: ${{ inputs.gpu_target || 't4-sm75' }}
       MODEL_KEY: ${{ matrix.model_key }}
-      SHOULD_PUBLISH: ${{ github.ref_type == 'tag' && (github.event_name == 'push' || inputs.publish_image) }}
+      PLAN_ONLY: ${{ inputs.validation_scope == 'plan-only' }}
       MEDDEID_API_KEY: triton-gpu-ci-only-secret
       MEDDEID_GPU_DEVICE_ID: "0"
       MEDDEID_SERVING_PROFILE: throughput
@@ -76,16 +77,13 @@ jobs:
           else
             image_version="${REQUESTED_VERSION:-${package_version}}"
           fi
-          if [[ "${{ inputs.publish_image || false }}" = true && "${GITHUB_REF_TYPE}" != tag ]]; then
-            printf 'manual publication must be dispatched from a version tag\n' >&2
-            exit 1
-          fi
           source deploy/triton/versions.env
-          mapfile -t model_values < <(python - "${MODEL_KEY}" <<'PY'
+          mapfile -t model_values < <(python - "${MODEL_KEY}" "${GPU_TARGET}" <<'PY'
           import json, pathlib, sys
           catalog = json.loads(pathlib.Path("deploy/triton/release.json").read_text())
           plan = next(
-              item for item in catalog["plans"] if item["model_key"] == sys.argv[1]
+              item for item in catalog["plans"]
+              if item["model_key"] == sys.argv[1] and item["target"] == sys.argv[2]
           )
           print(plan["model"])
           print(plan["revision"])
@@ -105,11 +103,8 @@ jobs:
             "${GPU_TARGET}" --field release_status)
           hardware=$(python deploy/triton_targets.py show \
             "${GPU_TARGET}" --field hardware)
-          if [[ "${SHOULD_PUBLISH}" = true && "${target_status}" != ready ]]; then
-            printf 'target %s is %s; change the reviewed catalog status to ready before publication\n' \
-              "${GPU_TARGET}" "${target_status}" >&2
-            exit 1
-          fi
+          target_family=$(python deploy/triton_targets.py show \
+            "${GPU_TARGET}" --field family 2>/dev/null || true)
           candidate="meddeid-triton-runtime:${image_version}-trt${MEDDEID_TRITON_STACK}-ci"
           gateway_candidate="meddeid-triton-gateway:${image_version}-ci"
           reference_candidate="meddeid-api:${image_version}-cpu-reference-ci"
@@ -121,6 +116,11 @@ jobs:
             echo "MEDDEID_TRITON_RUNTIME_IMAGE=${candidate}"
             echo "MEDDEID_TRITON_MODEL_REPOSITORY=${GITHUB_WORKSPACE}/deploy/triton/model_repository"
             echo "MEDDEID_HARDWARE=${hardware}"
+            if [[ -n "${target_family}" ]]; then
+              echo "MEDDEID_TRT_HARDWARE_COMPATIBILITY=auto"
+            else
+              echo "MEDDEID_TRT_HARDWARE_COMPATIBILITY=native"
+            fi
             echo "MEDDEID_MODEL=${MEDDEID_MODEL_ID}"
             echo "MEDDEID_REVISION=${MEDDEID_MODEL_REVISION}"
             echo "MEDDEID_MODEL_ID=${MEDDEID_MODEL_ID}"
@@ -181,6 +181,7 @@ jobs:
             -e MEDDEID_BUNDLE_SHA256 -e MEDDEID_MODEL_ID -e MEDDEID_MODEL_REVISION \
             meddeid -c 'import os; from pathlib import Path; from meddeid.triton_gateway import pin_gateway_revision; assert Path("/models").is_dir(); assert os.environ.get("MEDDEID_LOCAL_BUNDLE") == "true"; pin_gateway_revision(os.environ, {"model": {"id": os.environ["MEDDEID_MODEL_ID"], "revision": os.environ["MEDDEID_MODEL_REVISION"], "bundle_sha256": os.environ["MEDDEID_BUNDLE_SHA256"]}}); print("Merged gateway mounts and catalog bundle identity passed")'
       - name: Build CUDA comparison image
+        if: env.PLAN_ONLY != 'true'
         run: ./deploy/build_pytorch_cuda_image.sh "${CANDIDATE_CUDA_IMAGE}"
       - name: Start CPU reference for early CUDA correctness checks
         timeout-minutes: 6
@@ -191,9 +192,11 @@ jobs:
           python deploy/wait_for_health.py --base-url http://127.0.0.1:8001 \
             --started-at-ns "${started_at_ns}" --output deploy/triton/cpu-startup.json
       - name: Compare full CPU and CUDA FP32 baseline before TensorRT compilation
+        if: env.PLAN_ONLY != 'true'
         timeout-minutes: 15
         run: ./deploy/validate_cuda_comparison.sh parity baseline
       - name: Compare full CPU and optimized CUDA before TensorRT compilation
+        if: env.PLAN_ONLY != 'true'
         timeout-minutes: 15
         run: ./deploy/validate_cuda_comparison.sh parity optimized
       - name: Build TensorRT model repository
@@ -229,6 +232,7 @@ jobs:
             --reference-url http://127.0.0.1:8001 \
             --fail-fast --semantic-policy report-only --output deploy/triton/parity-report.json
       - name: Benchmark TensorRT and PyTorch CPU
+        if: env.PLAN_ONLY != 'true'
         run: |
           python deploy/monitor_nvidia.py \
             --output deploy/triton/triton-gpu-metrics.json &
@@ -256,8 +260,10 @@ jobs:
             -f compose.triton.validation.yaml \
             stop meddeid triton
       - name: Benchmark unoptimized PyTorch CUDA baseline
+        if: env.PLAN_ONLY != 'true'
         run: ./deploy/validate_cuda_comparison.sh benchmark baseline
       - name: Benchmark optimized PyTorch CUDA
+        if: env.PLAN_ONLY != 'true'
         run: ./deploy/validate_cuda_comparison.sh benchmark optimized
       - name: Record comparable image sizes and identities
         run: |
@@ -273,18 +279,22 @@ jobs:
             --budget-file deploy/image-size-budgets.json \
             --budget-key cpu \
             --output deploy/triton/cpu-image-size.json
-          python deploy/measure_container_image.py "${CANDIDATE_CUDA_IMAGE}" \
-            --budget-file deploy/image-size-budgets.json \
-            --budget-key pytorch-cuda \
-            --output deploy/triton/cuda-image-size.json
+          if [[ "${PLAN_ONLY}" != true ]]; then
+            python deploy/measure_container_image.py "${CANDIDATE_CUDA_IMAGE}" \
+              --budget-file deploy/image-size-budgets.json \
+              --budget-key pytorch-cuda \
+              --output deploy/triton/cuda-image-size.json
+          fi
           docker image inspect "${CANDIDATE_IMAGE}" \
             > deploy/triton/candidate-image-inspect.json
           docker image inspect "${MEDDEID_API_IMAGE}" \
             > deploy/triton/gateway-image-inspect.json
           docker image inspect "${MEDDEID_REFERENCE_IMAGE}" \
             > deploy/triton/reference-image-inspect.json
-          docker image inspect "${CANDIDATE_CUDA_IMAGE}" \
-            > deploy/triton/cuda-image-inspect.json
+          if [[ "${PLAN_ONLY}" != true ]]; then
+            docker image inspect "${CANDIDATE_CUDA_IMAGE}" \
+              > deploy/triton/cuda-image-inspect.json
+          fi
       - name: Verify container hardening
         run: |
           container_id=$(docker compose -f compose.triton.yaml ps --all --quiet triton)
@@ -295,11 +305,15 @@ jobs:
           test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "${gateway_id}")" = "true"
       - name: Reject fixable high or critical vulnerabilities
         run: |
-          for item in \
-            "triton|${CANDIDATE_IMAGE}" \
-            "gateway|${CANDIDATE_GATEWAY_IMAGE}" \
-            "cpu|${CANDIDATE_REFERENCE_IMAGE}" \
-            "cuda|${CANDIDATE_CUDA_IMAGE}"; do
+          scan_items=(
+            "triton|${CANDIDATE_IMAGE}"
+            "gateway|${CANDIDATE_GATEWAY_IMAGE}"
+            "cpu|${CANDIDATE_REFERENCE_IMAGE}"
+          )
+          if [[ "${PLAN_ONLY}" != true ]]; then
+            scan_items+=("cuda|${CANDIDATE_CUDA_IMAGE}")
+          fi
+          for item in "${scan_items[@]}"; do
             report_name="${item%%|*}"
             scan_image="${item#*|}"
             docker run --rm \
@@ -374,132 +388,3 @@ jobs:
       - name: Stop validation services
         if: always()
         run: docker compose -f compose.triton.yaml -f compose.triton.validation.yaml down || true
-      - uses: docker/login-action@v4
-        if: env.SHOULD_PUBLISH == 'true'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: oras-project/setup-oras@v2
-        if: env.SHOULD_PUBLISH == 'true'
-        with:
-          version: 1.3.3
-      - name: Publish validated TensorRT plan artifact
-        if: env.SHOULD_PUBLISH == 'true'
-        id: plan
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          plan_repository=$(python deploy/triton_targets.py show \
-            "${GPU_TARGET}" --field artifact_repository)
-          plan_reference=$(python deploy/triton_targets.py artifact-tag \
-            "${GPU_TARGET}" \
-            --version "${IMAGE_VERSION}" \
-            --triton-stack "${TRITON_STACK}" \
-            --precision "${TRT_PRECISION}" \
-            --model-key "${MODEL_KEY//_/-}")
-          mkdir -p deploy/triton/release-artifacts
-          plan_archive="deploy/triton/release-artifacts/model-repository.tar.gz"
-          python -m meddeid.triton_artifact pack \
-            deploy/triton/model_repository "${plan_archive}"
-          printf '%s' "${GHCR_TOKEN}" | oras login ghcr.io \
-            --username "${GITHUB_ACTOR}" --password-stdin
-          oras_result=$(cd deploy/triton/release-artifacts && oras push \
-            "${plan_reference}" \
-            --artifact-type application/vnd.meddeid.triton-model-repository.v1 \
-            "model-repository.tar.gz:application/vnd.meddeid.triton-model-repository.v1.tar+gzip" \
-            --format json)
-          plan_digest=$(python -c \
-            'import json,sys; print(json.load(sys.stdin)["digest"])' \
-            <<<"${oras_result}")
-          test -n "${plan_digest}"
-          rm -rf deploy/triton/release-artifacts/pull-check
-          oras pull "${plan_repository}@${plan_digest}" \
-            --output deploy/triton/release-artifacts/pull-check
-          test -s deploy/triton/release-artifacts/pull-check/model-repository.tar.gz
-          {
-            echo "name=${plan_repository}"
-            echo "digest=${plan_digest}"
-            echo "reference=${plan_repository}@${plan_digest}"
-          } >>"${GITHUB_OUTPUT}"
-      - name: Publish exact validated images
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        id: push
-        run: |
-          triton_name="ghcr.io/${GITHUB_REPOSITORY_OWNER}/meddeid-triton-runtime"
-          triton_tag="${triton_name}:${IMAGE_VERSION}-trt${TRITON_STACK}"
-          gateway_name="ghcr.io/${GITHUB_REPOSITORY_OWNER}/meddeid-triton-gateway"
-          gateway_tag="${gateway_name}:${IMAGE_VERSION}"
-          docker tag "${CANDIDATE_IMAGE}" "${triton_tag}"
-          docker tag "${CANDIDATE_GATEWAY_IMAGE}" "${gateway_tag}"
-          docker push "${triton_tag}"
-          docker push "${gateway_tag}"
-          triton_digest=$(docker image inspect "${triton_tag}" \
-            --format '{{range .RepoDigests}}{{println .}}{{end}}' \
-            | awk -F@ -v name="${triton_name}" '$1 == name {print $2; exit}')
-          gateway_digest=$(docker image inspect "${gateway_tag}" \
-            --format '{{range .RepoDigests}}{{println .}}{{end}}' \
-            | awk -F@ -v name="${gateway_name}" '$1 == name {print $2; exit}')
-          test -n "${triton_digest}"
-          test -n "${gateway_digest}"
-          {
-            echo "triton-name=${triton_name}"
-            echo "triton-digest=${triton_digest}"
-            echo "gateway-name=${gateway_name}"
-            echo "gateway-digest=${gateway_digest}"
-          } >>"${GITHUB_OUTPUT}"
-      - name: Attest published weight-free Triton runtime
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-name: ${{ steps.push.outputs.triton-name }}
-          subject-digest: ${{ steps.push.outputs.triton-digest }}
-          push-to-registry: true
-      - name: Attest published gateway image
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-name: ${{ steps.push.outputs.gateway-name }}
-          subject-digest: ${{ steps.push.outputs.gateway-digest }}
-          push-to-registry: true
-      - name: Attest published TensorRT plan
-        if: env.SHOULD_PUBLISH == 'true'
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-name: ${{ steps.plan.outputs.name }}
-          subject-digest: ${{ steps.plan.outputs.digest }}
-          push-to-registry: true
-      - name: Generate TensorRT image SBOM
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
-        with:
-          image: ${{ steps.push.outputs.triton-name }}@${{ steps.push.outputs.triton-digest }}
-          format: spdx-json
-          output-file: deploy/triton/triton-sbom.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
-      - name: Generate gateway image SBOM
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
-        with:
-          image: ${{ steps.push.outputs.gateway-name }}@${{ steps.push.outputs.gateway-digest }}
-          format: spdx-json
-          output-file: deploy/triton/gateway-sbom.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
-      - name: Attest TensorRT image SBOM
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-name: ${{ steps.push.outputs.triton-name }}
-          subject-digest: ${{ steps.push.outputs.triton-digest }}
-          sbom-path: deploy/triton/triton-sbom.spdx.json
-          push-to-registry: true
-      - name: Attest gateway image SBOM
-        if: env.SHOULD_PUBLISH == 'true' && env.MODEL_KEY == 'dutch_synthetic'
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-name: ${{ steps.push.outputs.gateway-name }}
-          subject-digest: ${{ steps.push.outputs.gateway-digest }}
-          sbom-path: deploy/triton/gateway-sbom.spdx.json
-          push-to-registry: true

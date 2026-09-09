@@ -105,14 +105,14 @@ For each deployment:
 
 ## Choose a deployment
 
-All options expose the same API and produce the same de-identification result.
+All options expose the same API.
 Choose primarily by the hardware your organization will operate.
 
 | Deployment                                       | Requirements                                     | Online response\* | Batch speed\* | Choose when                                            |
 | ------------------------------------------------ | ------------------------------------------------ | ----------------: | ------------: | ------------------------------------------------------ |
 | [CPU](#deploy-with-cpu)                          | Docker                                           |            110 ms |    1.85 doc/s | You want the simplest setup or have no GPU             |
-| [CUDA](#deploy-with-an-nvidia-gpu)               | Docker, NVIDIA driver, NVIDIA toolkit            |           13.6 ms |    65.0 doc/s | You want support across compatible NVIDIA GPUs         |
-| [TensorRT](#deploy-the-optimized-nvidia-service) | Docker, NVIDIA T4, NVIDIA driver, NVIDIA toolkit |            8.7 ms |   168.8 doc/s | You have a fixed T4 and want the fastest tested option |
+| [CUDA](#deploy-with-an-nvidia-gpu)<sup>**</sup>               | Docker, NVIDIA driver, NVIDIA toolkit            |           13.6 ms |    65.0 doc/s | You want support across compatible NVIDIA GPUs         |
+| [TensorRT](#deploy-the-optimized-nvidia-service)<sup>**</sup> | Docker, supported NVIDIA GPU, NVIDIA driver, NVIDIA toolkit |            8.7 ms |   168.8 doc/s | A released TensorRT plan matches your GPU and model |
 | [MPS](#run-on-apple-silicon)                     | Apple silicon, Python                            |            9.4 ms |    42.1 doc/s | You want to run natively on a Mac                      |
 
 <small>\* Online response is the median for one short note; short notes averaged
@@ -121,6 +121,14 @@ averaged about 1,400 characters. Results are medians of three runs using the
 recommended configuration for each workload. CPU, CUDA, and TensorRT were
 tested on an Azure T4 host; MPS was tested on an M4 Pro. Treat the figures as
 comparisons, not capacity guarantees.</small>
+
+<small>** CUDA and the published TensorRT plans use FP16 neural computation by
+default to increase performance. Validation has found only minimal output
+changes relative to FP32, so MedDeID treats these paths as quasi-consistent
+rather than identical. For the checked full-consistency CUDA configuration, set
+`MEDDEID_TORCH_PRECISION=fp32` and restart the service. A published TensorRT
+plan is precompiled for FP16 and cannot be changed dynamically to FP32; using
+FP32 requires building and validating a separate TensorRT plan.</small>
 
 MedDeID currently detects the
 installed GPU during startup. If no published plan matches it, startup explains
@@ -213,7 +221,10 @@ chmod 600 .env.triton
 ```
 
 MedDeID detects the GPU from the name reported by NVIDIA and selects the
-matching plan. It currently supports a plan for Turing-family GPUs (T4/RTX 20-series), and a plan for Ampere and newer GPUs. GPUs other than T4 still need performance validation.
+matching plan. This release provides one exact plan for NVIDIA T4 and one
+hardware-compatible plan for Ampere and newer GPUs. The displayed performance
+figures were measured on T4 and should not be treated as measurements of other
+GPUs.
 The template selects the Dutch public model by default. For a first deployment, replace only the API key. Change the following three settings
 together when using another validated model:
 

@@ -12,6 +12,7 @@ CATALOG_PATH = Path(__file__).resolve().parent / "triton" / "targets.json"
 CATALOG_SCHEMA = "meddeid.triton-target-catalog.v2"
 BUILD_MANIFEST_SCHEMA = "meddeid.triton-build.v2"
 RELEASE_STATUSES = frozenset({"ready", "on-request"})
+FAMILY_MODES = {"turing": "sameComputeCapability", "ampere-plus": "ampere+"}
 
 
 def _canonical_sha256(value: object) -> str:
@@ -66,12 +67,23 @@ def load_catalog(path: Path = CATALOG_PATH) -> dict[str, Any]:
         hardware_names.add(hardware)
         if not re.fullmatch(r"[0-9]+\.[0-9]+", str(target["compute_capability"])):
             raise ValueError(f"invalid compute capability for {target_id}")
+        family = target.get("family")
+        if family is not None:
+            if family not in FAMILY_MODES:
+                raise ValueError(f"invalid target family for {target_id}")
+            if target_id != family or hardware != family:
+                raise ValueError(f"family target {target_id} must use its family name")
+            if target.get("compatibility_mode") != FAMILY_MODES[family]:
+                raise ValueError(f"invalid compatibility mode for {target_id}")
+            if family == "ampere-plus" and target["compute_capability"] != "8.0":
+                raise ValueError("ampere-plus must declare its minimum capability as 8.0")
         gpu_names = target["gpu_names"]
         if (
             not isinstance(gpu_names, list)
-            or not gpu_names
             or not all(isinstance(name, str) and name.strip() for name in gpu_names)
         ):
+            raise ValueError(f"invalid GPU names for {target_id}")
+        if not gpu_names and family is None:
             raise ValueError(f"invalid GPU names for {target_id}")
         normalized_names = {_normalize_gpu_name(name) for name in gpu_names}
         overlap = known_gpu_names & normalized_names
@@ -131,6 +143,12 @@ def gpu_key(name: str) -> str:
     return key
 
 
+def _capability(value: str) -> tuple[int, int]:
+    if not re.fullmatch(r"[0-9]+\.[0-9]+", value):
+        raise ValueError(f"invalid NVIDIA compute capability: {value!r}")
+    return tuple(int(part) for part in value.split("."))
+
+
 def local_target(gpu_name: str, compute_capability: str) -> dict[str, Any]:
     slug = gpu_key(gpu_name)
     if not slug or not re.fullmatch(r"[0-9]+\.[0-9]+", compute_capability):
@@ -188,6 +206,14 @@ def detect_target(
 def verify_host(
     target: dict[str, Any], *, gpu_name: str, compute_capability: str
 ) -> None:
+    family = target.get("family")
+    if family is not None:
+        if family != "ampere-plus" or _capability(compute_capability) < (8, 0):
+            raise ValueError(
+                f"target {target['id']} does not support GPU {gpu_name!r} "
+                f"with compute capability {compute_capability}"
+            )
+        return
     expected_capability = str(target["compute_capability"])
     if compute_capability != expected_capability:
         raise ValueError(
@@ -239,8 +265,17 @@ def verify_manifest(target: dict[str, Any], manifest_path: Path) -> None:
         "catalog_spec_sha256": target_spec_sha256(target),
         "release_status": target["release_status"],
         "artifact_repository": target["artifact_repository"],
-        "compute_capability": target["compute_capability"],
     }
+    if target.get("family"):
+        checks["family"] = target["family"]
+        checks["compatibility_mode"] = target["compatibility_mode"]
+        verify_host(
+            target,
+            gpu_name=str(recorded.get("gpu_name", "")),
+            compute_capability=str(recorded.get("compute_capability", "")),
+        )
+    else:
+        checks["compute_capability"] = target["compute_capability"]
     for field, expected in checks.items():
         actual = recorded.get(field)
         if actual != expected:

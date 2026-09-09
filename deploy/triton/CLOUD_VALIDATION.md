@@ -1,9 +1,9 @@
 # Azure and Verda: prepared GPU acceptance tests
 
 Status: acceptance checklist. On 2026-09-08 the owner authorized temporary
-Azure T4 and Verda A100 hosts for public-model family builds. Provisioning or
+Azure T4 and Verda A100 hosts for public-model release builds. Provisioning or
 starting a build is not a passed acceptance test; record each result separately.
-Hospital models and artifact publication are outside this run's scope.
+Hospital models are outside this run's scope.
 The [user walkthrough](USER_EXPERIENCE.md) describes the experience to verify.
 
 ## Test matrix
@@ -12,14 +12,13 @@ The [user walkthrough](USER_EXPERIENCE.md) describes the experience to verify.
 |---|---|---|---|
 | Azure, one T4 | Pinned public Dutch model | Existing release artifact | An external user can download, verify, start and reuse a published plan |
 | Same Azure T4 | Public Dutch, revision empty | Resolved default revision | Default resolution works automatically; API and plan use one commit |
-| Verda, one A100 | Same pinned public Dutch | Locally compiled | Automatic Ampere-family build |
-| Same Verda GPU | English bundle in a local directory | Separately compiled | Switching to a different model, local mount, no Hub token or contribution prompt |
+| Verda, one A100 | Pinned public Dutch model | Retained release candidate | Ampere+ Dutch plan compilation and full technical gate |
+| Same Verda A100 | Pinned public English model | Retained release candidate | Ampere+ English plan compilation and full technical gate without another VM |
 | Optional follow-up | Newly trained, synthetic-only compatible bundle | Separately compiled | A genuinely new checkpoint, not merely a different existing public model |
 
-Using the English checkpoint locally tests the hospital-style directory route
-without exposing a hospital model. It is a different model, not a newly trained
-checkpoint. The optional final row needs an explicitly selected safe bundle.
-Do not transfer patient-trained weights or patient notes merely for this test.
+The optional final row needs an explicitly selected safe bundle and is not part
+of the release gate. Do not transfer patient-trained weights or patient notes
+merely for this test.
 
 ## Before testing a published plan
 
@@ -57,9 +56,10 @@ Azure's `Standard_NC4as_T4_v3` provides one T4. Confirm subscription quota,
 regional availability and price; no capacity or price is assumed here.
 See [Microsoft's NCasT4_v3 specification](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/ncast4v3-series).
 
-For Verda, select a full, single NVIDIA GPU supported by the pinned TensorRT
-stack but absent from the release's T4 plans. Do not select an older GPU merely
-because it is inexpensive. Check current options using the
+For Verda, select one full NVIDIA A100 supported by the pinned TensorRT stack.
+Build the Dutch and English Ampere+ plans sequentially on that same host. Do not
+rent a second GPU merely to repeat the compatibility check. Check current
+options using the
 [Verda CLI](https://docs.verda.com/cli/instances/):
 
 ```bash
@@ -74,8 +74,9 @@ After approval, create a dedicated VM through the provider console (or Verda's
 planning allowance of at least 128 GB disk for transient builder layers.
 Recheck actual space after pulling images. Prefer a non-interruptible instance
 for this acceptance run. Allow SSH only from the operator's approved address;
-leave ports 8000/8001 closed publicly. No GitHub Actions runner is needed for
-these direct end-user tests. Do not run the destructive runner-cleanup scripts
+leave ports 8000/8001 closed publicly. Register one repository runner with the
+`ampere-plus` label and retain it until the exact validated runtime and gateway
+images have been promoted. Do not run the destructive runner-cleanup scripts
 from `deploy/azure` on an existing personal or hospital server.
 
 Set a provider-side shutdown deadline where available and record who owns
@@ -165,19 +166,22 @@ This shows the selected plan commit. Also check response model provenance
 against it; a file by itself does not prove the API loaded the intended model.
 Restore the pinned commit before comparisons.
 
-## B. Verda: build a public plan for the detected GPU
+## B. Verda: build both Ampere+ release plans
 
-Use the pinned Dutch settings. First run normal startup and retain the expected
-missing-plan explanation. Then follow walkthrough section 5 to build only the
-plan and start it with `compose.triton.local-plan.yaml`.
+Dispatch the target-driven GPU workflow with `gpu_target=ampere-plus`,
+`validation_scope=plan-only`, and the Dutch model. Wait for technical success,
+then repeat with the English model on the same A100 runner. Each run must cover
+all 300 fixture documents, retain its compiled repository and evidence, and
+finish without technical errors. Semantic differences are reported but do not
+block this release. The plans are compiled with TensorRT's `ampere+` hardware
+compatibility mode; no second rented GPU is required by this release decision.
+Never relabel the exact T4 plan as family-wide.
 
-The builder must complete without reading stdin or preparing an issue. Preserve
-its plan and manifest. Test the same family artifact on a second compatible GPU
-before declaring cross-GPU support. Never relabel the old T4 plan as family-wide.
+## Optional non-release check: a different model from a local directory
 
-## C. Verda: a different model from a local directory
-
-Prepare a safe English bundle on the VM (this initial download is explicit;
+This is not required for the coordinated release. If the local-directory path
+needs separate acceptance later, prepare a safe English bundle on a VM (this
+initial download is explicit;
 the later directory build itself does not contact the Hub for the model):
 
 ```bash

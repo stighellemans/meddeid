@@ -319,13 +319,13 @@ docker compose \
   up --detach meddeid
 ```
 
-TensorRT is optimized for a specific GPU and exact model revision. Its runtime
-and API gateway are weight-free, while the compiled model repository is
-supplied separately. For an NVIDIA T4, select the hardware, model, revision,
-and language profile in `.env.triton`; Compose downloads and verifies the
-matching Dutch or English plan for this release. Choose CUDA instead when the
-GPU or model must change without a matching compiled plan. For
-an optimized A10G, L4, or another target, contact
+TensorRT is optimized for a supported GPU family and exact model revision. Its
+runtime and API gateway are weight-free, while the compiled model repository is
+supplied separately. This release provides separate Dutch and English plans for
+NVIDIA T4 and for Ampere-or-newer GPUs. Select the model, revision, and language
+profile in `.env.triton`; MedDeID detects the GPU and Compose downloads and
+verifies the matching plan. Choose CUDA instead when the GPU or model must
+change without a matching compiled plan. For another optimized target, contact
 [stig.hellemans@uantwerpen.be](mailto:stig.hellemans@uantwerpen.be) without
 sending sensitive data.
 

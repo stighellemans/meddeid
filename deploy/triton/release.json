@@ -46,7 +46,8 @@
   "images": {
     "gateway": "ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0",
     "runtimes": {
-      "t4": "ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07"
+      "t4": "ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07",
+      "ampere-plus": "ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07"
     }
   },
   "plans": [
@@ -84,6 +85,41 @@
         "file": "source/benchmark.jsonl"
       },
       "artifact": "ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75:0.4.0-trt26.07-fp16-english-synthetic"
+    },
+    {
+      "hardware": "ampere-plus",
+      "target": "ampere-plus",
+      "model_key": "dutch_synthetic",
+      "model": "stighellemans/meddeid-dutch-synth",
+      "revision": "1f20655454dcbd042647cacdfff6b6802a970959",
+      "bundle_sha256": "001123dbc1184751e4bae3c29633d14a5e041acae0c173773f186127ae3fd944",
+      "language_profiles": [
+        "nl-BE"
+      ],
+      "benchmark": {
+        "dataset": "stighellemans/meddeid-dutch-synthetic-benchmark",
+        "revision": "9b95ebbfb091a5390e4fc39e2ef74e7580aac068",
+        "file": "data/test.jsonl"
+      },
+      "artifact": "ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus:0.4.0-trt26.07-fp16-dutch-synthetic"
+    },
+    {
+      "hardware": "ampere-plus",
+      "target": "ampere-plus",
+      "model_key": "english_synthetic",
+      "model": "stighellemans/meddeid-english-synth",
+      "revision": "e519d454250ba67bef62c0063dbbf242c329b750",
+      "bundle_sha256": "8cb37a84c0ce91b88d511727a4f05f83b85f419cdb5bd277f5820e8e503478a7",
+      "language_profiles": [
+        "en-GB",
+        "en-US"
+      ],
+      "benchmark": {
+        "dataset": "stighellemans/meddeid-english-synthetic-benchmark",
+        "revision": "36879b454408a86548cdcb6f82657a9434fa2b80",
+        "file": "source/benchmark.jsonl"
+      },
+      "artifact": "ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus:0.4.0-trt26.07-fp16-english-synthetic"
     }
   ]
 }
