@@ -9,6 +9,9 @@ on:
       english_candidate_run_id:
         description: Successful Ampere-plus English candidate run whose local images are promoted
         required: true
+      release_tag:
+        description: Signed release tag to recover when the workflow is dispatched from the default branch
+        required: false
 
 permissions:
   contents: read
@@ -29,25 +32,48 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DUTCH_RUN: ${{ inputs.dutch_candidate_run_id }}
           ENGLISH_RUN: ${{ inputs.english_candidate_run_id }}
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [[ "${GITHUB_REF_TYPE}" != tag ]]; then
-            printf 'TensorRT image publication must run from the release tag.\n' >&2
-            exit 1
+          if [[ "${GITHUB_REF_TYPE}" = tag ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            source_commit="${GITHUB_SHA}"
+          else
+            release_tag="${REQUESTED_RELEASE_TAG}"
+            if [[ -z "${release_tag}" ]]; then
+              printf 'A signed release tag is required for default-branch recovery.\n' >&2
+              exit 1
+            fi
+            git fetch --force origin \
+              "refs/tags/${release_tag}:refs/tags/${release_tag}"
+            tag_object=$(git cat-file -p "${release_tag}")
+            if [[ "${tag_object}" != *"-----BEGIN SSH SIGNATURE-----"* ]]; then
+              printf 'Recovery tag %s is not an SSH-signed annotated tag.\n' \
+                "${release_tag}" >&2
+              exit 1
+            fi
+            source_commit=$(git rev-list -n 1 "${release_tag}")
           fi
-          package_version=$(python deploy/read_project_version.py)
-          if [[ "${GITHUB_REF_NAME}" != "v${package_version}" ]]; then
+          package_version="${release_tag#v}"
+          tagged_version=$(git show "${release_tag}:pyproject.toml" \
+            | python -c 'import sys, tomllib; print(tomllib.loads(sys.stdin.read())["project"]["version"])')
+          if [[ "${release_tag}" != "v${tagged_version}" ]] \
+            || [[ "${package_version}" != "${tagged_version}" ]]; then
             printf 'Tag %s does not match package version %s.\n' \
-              "${GITHUB_REF_NAME}" "${package_version}" >&2
+              "${release_tag}" "${tagged_version}" >&2
             exit 1
           fi
           for run_id in "${DUTCH_RUN}" "${ENGLISH_RUN}"; do
             conclusion=$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" \
               --json conclusion --jq .conclusion)
-            source_commit=$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+            run_source_commit=$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" \
               --json headSha --jq .headSha)
             test "${conclusion}" = success
-            test "${source_commit}" = "${GITHUB_SHA}"
+            test "${run_source_commit}" = "${source_commit}"
           done
+          {
+            echo "RELEASE_TAG=${release_tag}"
+            echo "SOURCE_COMMIT=${source_commit}"
+          } >>"${GITHUB_ENV}"
       - name: Verify the exact locally validated image identities
         env:
           ENGLISH_RUN: ${{ inputs.english_candidate_run_id }}
@@ -64,8 +90,21 @@ jobs:
           gateway_id=$(docker image inspect "${gateway}" --format '{{.Id}}')
           test "${runtime_id}" = "$(jq -r '.[0].Id' _release/image-evidence/candidate-image-inspect.json)"
           test "${gateway_id}" = "$(jq -r '.[0].Id' _release/image-evidence/gateway-image-inspect.json)"
-          test "$(docker image inspect "${runtime}" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "${GITHUB_SHA}"
-          test "$(docker image inspect "${gateway}" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "${GITHUB_SHA}"
+          runtime_revision=$(docker image inspect "${runtime}" \
+            --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+          evidence_runtime_revision=$(jq -r \
+            '.[0].Config.Labels["org.opencontainers.image.revision"] // "<no value>"' \
+            _release/image-evidence/candidate-image-inspect.json)
+          test "${runtime_revision}" = "${evidence_runtime_revision}"
+          if [[ "${runtime_revision}" != '<no value>' ]]; then
+            test "${runtime_revision}" = "${SOURCE_COMMIT}"
+          fi
+          gateway_revision=$(docker image inspect "${gateway}" \
+            --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+          evidence_source_commit=$(jq -r '.source_commit' \
+            _release/image-evidence/fixture-contract-preflight.json)
+          test "${gateway_revision}" = "${SOURCE_COMMIT}"
+          test "${evidence_source_commit}" = "${SOURCE_COMMIT}"
           {
             echo "PACKAGE_VERSION=${package_version}"
             echo "TRITON_STACK=${MEDDEID_TRITON_STACK}"
