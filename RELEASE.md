@@ -1,14 +1,13 @@
 # Release runbook
 
-This checkout prepares the `meddeid==0.4.0` release candidate in the coordinated
-MedDeID suite 0.3.0 line. That line reuses `meddeid-core==0.2.1`,
+This checkout prepares the `meddeid==0.4.2` corrective release in the coordinated
+MedDeID suite 0.3.1 line. That line reuses `meddeid-core==0.2.1`,
 `meddeid-language-en==0.2.1`, `meddeid-language-nl==0.2.1`,
-and the legacy-site redirect snapshot at `v0.2.0`; publishes
-`meddeid-data==0.4.1`, `meddeid-eval==0.5.0`, and
-`meddeid-training==0.3.0`; publishes the three browser applications at 0.3.1;
-and publishes the coordinator at `v0.3.0`.
+`meddeid-eval==0.5.0`, the browser applications at 0.3.1 and the legacy-site
+redirect snapshot at `v0.2.0`; publishes `meddeid-data==0.4.2` and
+`meddeid-training==0.3.1`; and publishes the coordinator at `v0.3.1`.
 
-Source defaults that mention `0.4.0` are candidate identities, not evidence
+Source defaults that mention `0.4.2` are candidate identities, not evidence
 that an artifact is already public. Do not update the suite's released lock or
 announce the release until the post-publication checks below have captured
 immutable PyPI hashes and GHCR digests.
@@ -70,19 +69,19 @@ details and publication guard are described below.
 
 ```bash
 python -m venv /tmp/meddeid-release-check
-/tmp/meddeid-release-check/bin/pip install 'meddeid[server]==0.4.0'
+/tmp/meddeid-release-check/bin/pip install 'meddeid[server]==0.4.2'
 /tmp/meddeid-release-check/bin/pip install \
-  'meddeid-data==0.4.1' \
+  'meddeid-data==0.4.2' \
   'meddeid-eval==0.5.0' \
-  'meddeid-training==0.3.0'
+  'meddeid-training==0.3.1'
 /tmp/meddeid-release-check/bin/pip check
 /tmp/meddeid-release-check/bin/meddeid model-info \
   --model stighellemans/meddeid-dutch-synth
 
-docker pull ghcr.io/stighellemans/meddeid-api:0.4.0
-docker image inspect ghcr.io/stighellemans/meddeid-api:0.4.0
-docker pull ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9
-docker image inspect ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9
+docker pull ghcr.io/stighellemans/meddeid-api:0.4.2
+docker image inspect ghcr.io/stighellemans/meddeid-api:0.4.2
+docker pull ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9
+docker image inspect ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9
 docker pull ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0
 docker pull ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07
 oras pull ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75:0.4.0-trt26.07-fp16-dutch-synthetic

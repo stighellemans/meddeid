@@ -5,6 +5,11 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-10
+
+- Ensure container builds package the MedDeID Private Fine-Tuning Exception
+  and install a directly readable copy under `/licenses/meddeid/`.
+
 ## [0.4.1] - 2026-09-10
 
 - Include and expressly adopt the MedDeID Private Fine-Tuning Exception 1.0.

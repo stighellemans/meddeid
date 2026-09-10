@@ -45,7 +45,7 @@ RUN python -m pip install \
     "meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@${MEDDEID_LANGUAGE_NL_COMMIT}"
 
 WORKDIR /build/meddeid
-COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY pyproject.toml README.md LICENSE NOTICE MEDDEID-PRIVATE-FINE-TUNING-EXCEPTION-1.0.txt ./
 COPY src ./src
 
 RUN python -m pip install --constraint /tmp/container-constraints.txt '.[server]' \
@@ -119,7 +119,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
-COPY LICENSE NOTICE /licenses/meddeid/
+COPY LICENSE NOTICE MEDDEID-PRIVATE-FINE-TUNING-EXCEPTION-1.0.txt /licenses/meddeid/
 
 RUN python -c "import torch; expected='${MEDDEID_CUDA_VERSION}'; actual=torch.version.cuda or 'none'; assert actual == expected, f'expected CUDA {expected}, found {actual}'"
 
@@ -132,7 +132,7 @@ RUN groupadd --gid 10001 meddeid \
 
 # Keep release-only metadata after filesystem construction so changing a tag,
 # source revision, or build date does not invalidate multi-gigabyte layers.
-ARG MEDDEID_VERSION=0.4.0
+ARG MEDDEID_VERSION=0.4.2
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="MedDeID API" \
