@@ -1,0 +1,108 @@
+name: Promote validated CUDA candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Signed release tag represented by the candidate
+        required: true
+        default: v0.4.2
+      candidate_tag:
+        description: Validated candidate tag
+        required: true
+        default: 0.4.2-cuda12.9-validation
+      candidate_digest:
+        description: Validated immutable candidate digest (sha256:...)
+        required: true
+      release_tag:
+        description: Final CUDA release tag
+        required: true
+        default: 0.4.2-cuda12.9
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/meddeid-api
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: Verify release identity and validated digest
+        env:
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          package_version=$(python deploy/read_project_version.py)
+          source_version="${SOURCE_REF#v}"
+          source deploy/pytorch-cuda/versions.env
+          expected_candidate="${package_version}-cuda${MEDDEID_PYTORCH_CUDA_VERSION}-validation"
+          expected_release="${package_version}-cuda${MEDDEID_PYTORCH_CUDA_VERSION}"
+          if [[ "${SOURCE_REF}" != v* || "${source_version}" != "${package_version}" ]]; then
+            printf 'source ref %s does not match package version %s\n' "${SOURCE_REF}" "${package_version}" >&2
+            exit 1
+          fi
+          if [[ "${CANDIDATE_TAG}" != "${expected_candidate}" ]]; then
+            printf 'candidate tag %s does not match expected %s\n' "${CANDIDATE_TAG}" "${expected_candidate}" >&2
+            exit 1
+          fi
+          if [[ "${RELEASE_TAG}" != "${expected_release}" ]]; then
+            printf 'release tag %s does not match expected %s\n' "${RELEASE_TAG}" "${expected_release}" >&2
+            exit 1
+          fi
+          if [[ ! "${CANDIDATE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            printf 'invalid candidate digest: %s\n' "${CANDIDATE_DIGEST}" >&2
+            exit 1
+          fi
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Confirm candidate tag still resolves to validated digest
+        env:
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+        run: |
+          candidate_raw=$(mktemp)
+          docker buildx imagetools inspect "${IMAGE_NAME}:${CANDIDATE_TAG}" --raw >"${candidate_raw}"
+          actual_digest="sha256:$(sha256sum "${candidate_raw}" | cut -d' ' -f1)"
+          if [[ "${actual_digest}" != "${CANDIDATE_DIGEST}" ]]; then
+            printf 'candidate tag moved: expected %s, found %s\n' "${CANDIDATE_DIGEST}" "${actual_digest}" >&2
+            exit 1
+          fi
+      - name: Promote immutable candidate manifest
+        env:
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:${RELEASE_TAG}" \
+            "${IMAGE_NAME}@${CANDIDATE_DIGEST}"
+      - name: Verify exact-digest promotion and record receipt
+        env:
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          release_raw=$(mktemp)
+          docker buildx imagetools inspect "${IMAGE_NAME}:${RELEASE_TAG}" --raw >"${release_raw}"
+          release_digest="sha256:$(sha256sum "${release_raw}" | cut -d' ' -f1)"
+          if [[ "${release_digest}" != "${CANDIDATE_DIGEST}" ]]; then
+            printf 'promotion changed digest: expected %s, found %s\n' "${CANDIDATE_DIGEST}" "${release_digest}" >&2
+            exit 1
+          fi
+          printf '%s@%s\n' \
+            "${IMAGE_NAME}:${RELEASE_TAG}" \
+            "${release_digest}" | tee cuda-release-receipt.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cuda-release-receipt-${{ github.run_id }}
+          path: cuda-release-receipt.txt
