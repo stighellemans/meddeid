@@ -2,5 +2,7 @@ MedDeID
 Copyright 2026 Stig Hellemans and contributors
 
 This package is part of the MedDeID suite and is distributed under the GNU
-Affero General Public License, version 3 only. Model weights are distributed
-separately under the terms stated in their model cards.
+Affero General Public License, version 3 only, with the MedDeID Private
+Fine-Tuning Exception, version 1.0. That Exception expressly applies to this
+software. Model weights are distributed separately under the terms stated in
+their model cards.

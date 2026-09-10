@@ -7,19 +7,19 @@ recovery, and response contract. Only the neural runtime changes.
 
 ## What is available now
 
-Python release `0.4.0`, the public Dutch and English models, the shared public
-demo, and the production `0.4.0` CPU container are available now.
+Python release `0.4.1`, the public Dutch and English models, the shared public
+demo, and the production `0.4.1` CPU container are available now.
 
 | Path | Status now | Notes |
 |---|---|---|
 | Public model bundles | Available | `stighellemans/meddeid-dutch-synth` and `stighellemans/meddeid-english-synth` can be downloaded without authentication. |
-| Python API | Available from PyPI | Install `meddeid==0.4.0`; dependencies resolve from PyPI. |
+| Python API | Available from PyPI | Install `meddeid==0.4.1`; dependencies resolve from PyPI. |
 | Single-file CLI | Available from PyPI | `meddeid deidentify` uses the same local engine. |
 | Canonical JSONL batch | Available from PyPI | `meddeid batch` writes results and a sidecar manifest. |
 | HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU image; native Apple MPS; AMD64 PyTorch/CUDA image recipe | Device selection supports `cpu`, `mps`, and `cuda`; MPS was validated natively on an M4 Pro, while the CUDA image has its own T4 validation and publishing gate. |
-| PyPI install | Available | `meddeid==0.4.0` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.1`. |
-| PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.0` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
+| PyPI install | Available | `meddeid==0.4.1` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.1`. |
+| PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.1` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
 | PyTorch CUDA container | Release candidate | The AMD64 tag contract is `ghcr.io/stighellemans/meddeid-api:<version>-cuda<runtime>`; `compose.cuda.yaml` requests the selected NVIDIA device and refuses CPU fallback. |
 | Local Compose evaluation | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the local service with a browser UI. Production operators use Compose directly. |
 | TensorRT/Triton deployment | T4 and Ampere+ release candidates | Compose resolves the selected Dutch or English plan for T4 or Ampere-and-newer GPUs; the source also includes a containerized local builder and the target validation gate. |
@@ -32,11 +32,11 @@ Install all Python interfaces from PyPI:
 python -m pip install 'meddeid[server]'
 ```
 
-The `server` extra includes every implemented interface. Add `==0.4.0` when an
+The `server` extra includes every implemented interface. Add `==0.4.1` when an
 exact package version is required. Docker users can pull the release directly:
 
 ```bash
-docker pull ghcr.io/stighellemans/meddeid-api:0.4.0
+docker pull ghcr.io/stighellemans/meddeid-api:0.4.1
 ```
 
 GPU-optimized TensorRT targets still require separate hardware-specific builds
@@ -271,7 +271,7 @@ details, warnings, and per-result provenance. The selected language profile is
 part of provenance because it describes how that specific result was produced:
 
 ```json
-{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}},"warnings":[],"provenance":{"contract_version":"meddeid.inference-provenance.v1","software":{"name":"meddeid","version":"0.4.0"},"model":{"name":"meddeid-dutch-synth","version":"1","resolved_revision":"<immutable-hub-commit>","bundle_sha256":"..."},"language_profile":{"profile_id":"nl-BE"}}}
+{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}},"warnings":[],"provenance":{"contract_version":"meddeid.inference-provenance.v1","software":{"name":"meddeid","version":"0.4.1"},"model":{"name":"meddeid-dutch-synth","version":"1","resolved_revision":"<immutable-hub-commit>","bundle_sha256":"..."},"language_profile":{"profile_id":"nl-BE"}}}
 ```
 
 The adjacent `.manifest.json` records hashes, immutable model identity, profile,
@@ -350,7 +350,7 @@ Response:
     "contract_version": "meddeid.inference-provenance.v1",
     "software": {
       "name": "meddeid",
-      "version": "0.4.0"
+      "version": "0.4.1"
     },
     "model": {
       "name": "meddeid-dutch-synth",
@@ -496,7 +496,7 @@ export MEDDEID_MODEL_DIR=/absolute/path/to/model
 docker compose -f compose.yaml -f compose.offline.yaml up --detach
 ```
 
-Release `0.4.0` is published for both `linux/amd64` and `linux/arm64`. Its tag
+Release `0.4.1` is published for both `linux/amd64` and `linux/arm64`. Its tag
 workflow produced an SBOM and provenance and published only after authenticated
 offline smoke inference and the fixable-high/critical vulnerability gate
 passed. Production operators should pin the immutable digest documented in the
@@ -517,7 +517,7 @@ ghcr.io/stighellemans/meddeid-api:<meddeid-version>-cuda<cuda-version>
 ```
 
 The initial AMD64 candidate is
-`ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9`. A host must provide a
+`ghcr.io/stighellemans/meddeid-api:0.4.1-cuda12.9`. A host must provide a
 compatible NVIDIA driver, Docker Engine, and NVIDIA Container Toolkit. Copy
 `.env.cuda.example`, inject a real API key, and use the CUDA overlay:
 

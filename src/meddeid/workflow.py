@@ -68,16 +68,16 @@ ALL_STATES = {
 
 BROWSER_IMAGES = {
     "annotate": (
-        "ghcr.io/stighellemans/meddeid-annotate:0.1.0@"
-        "sha256:72f3e0fa0935da41e635e668573ec9c434cc3e8e1ef97bc793917bdfe6a7b78d"
+        "ghcr.io/stighellemans/meddeid-annotate:0.3.1@"
+        "sha256:55c6ab5c578ebe1696eb5149c743b8e702470a8f9e1c3cd72e98a5f461bda271"
     ),
     "curate": (
-        "ghcr.io/stighellemans/meddeid-curate:0.1.0@"
-        "sha256:8b3dde675cadc81f42a7fc34917d7b472c1556d14bc3acd1babf5bee8699875b"
+        "ghcr.io/stighellemans/meddeid-curate:0.3.1@"
+        "sha256:e93cc2122a4e8cd88156396287df46d01c35480079ac4e65149848709b9d154f"
     ),
     "subannotate": (
-        "ghcr.io/stighellemans/meddeid-subannotate:0.1.0@"
-        "sha256:d7da6967cb29b6cf8377458959dca84626a9c0e157320b42fe8815f49e880c87"
+        "ghcr.io/stighellemans/meddeid-subannotate:0.3.1@"
+        "sha256:52259baa0fe2e99f94398701ee29ddefb19dc610f802c324677489575514b632"
     ),
 }
 

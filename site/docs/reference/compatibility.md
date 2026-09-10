@@ -20,11 +20,11 @@ normally selects the compatible supporting packages for you.
 | [`meddeid-core`](https://github.com/stighellemans/meddeid-core) | 0.2.1 | PyPI | None |
 | [`meddeid-language-nl`](https://github.com/stighellemans/meddeid-language-nl) | 0.2.1 / npm 0.2.1 | PyPI and npm | `meddeid-core >=0.2,<0.3` |
 | [`meddeid-language-en`](https://github.com/stighellemans/meddeid-language-en) | 0.2.1 / npm 0.2.1 | PyPI and npm | `meddeid-core >=0.2,<0.3` |
-| [`meddeid`](https://github.com/stighellemans/meddeid) | 0.4.0 | PyPI and CPU/CUDA/TensorRT deployment artifacts | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
-| [`meddeid-data`](https://github.com/stighellemans/meddeid-data) | 0.4.1 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
+| [`meddeid`](https://github.com/stighellemans/meddeid) | 0.4.1 | PyPI and CPU/CUDA deployment artifacts; compatible TensorRT artifacts remain at 0.4.0 | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
+| [`meddeid-data`](https://github.com/stighellemans/meddeid-data) | 0.4.2 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
 | [`meddeid-eval`](https://github.com/stighellemans/meddeid-eval) | 0.5.0 | PyPI | `meddeid-core >=0.2,<0.3`; Dutch and English profiles `>=0.2,<0.3` |
-| [`meddeid-training`](https://github.com/stighellemans/meddeid-training) | 0.3.0 | PyPI | `meddeid-core >=0.2,<0.3`; `meddeid-eval >=0.5,<0.6` |
-| Browser applications | 0.3.0 | Public GHCR images and source | Generated taxonomy contract version 1 |
+| [`meddeid-training`](https://github.com/stighellemans/meddeid-training) | 0.3.1 | PyPI | `meddeid-core >=0.2,<0.3`; `meddeid-eval >=0.5,<0.6` |
+| Browser applications | 0.3.1 | Public GHCR images and source | Generated taxonomy contract version 1 |
 
 All Python packages require Python 3.10 or later. You need Node.js 20 or later
 only when running a browser application from source; the published container
@@ -51,8 +51,8 @@ If you are choosing a runtime rather than looking up a version, start with the
 
 | Image | Version tag | Pinning |
 |---|---|---|
-| `ghcr.io/stighellemans/meddeid-api` | `0.4.0` | Resolve and pin with `docker buildx imagetools inspect` |
-| `ghcr.io/stighellemans/meddeid-api` (PyTorch CUDA) | `0.4.0-cuda12.9` | Resolve and pin the GPU tag independently from the CPU image |
+| `ghcr.io/stighellemans/meddeid-api` | `0.4.1` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-api` (PyTorch CUDA) | `0.4.1-cuda12.9` | Resolve and pin the GPU tag independently from the CPU image |
 | `ghcr.io/stighellemans/meddeid-triton-gateway` | `0.4.0` | Weight-free API gateway; Compose connects it to Triton |
 | `ghcr.io/stighellemans/meddeid-triton-runtime` | `0.4.0-trt26.07` | Weight-free Triton runtime for the matching release stack |
 | `ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75` | release-, model-, and stack-specific | Compiled model plan; Compose selects and verifies the matching Dutch or English artifact |

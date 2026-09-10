@@ -5,6 +5,12 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-10
+
+- Include and expressly adopt the MedDeID Private Fine-Tuning Exception 1.0.
+- Pin guided annotation, curation, and subannotation workflows to the validated
+  browser application 0.3.1 image digests.
+
 ## [0.4.0] - 2026-09-08
 
 - Keep FP16 as the CUDA release target and report full CPU/CUDA/TensorRT

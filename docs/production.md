@@ -186,7 +186,7 @@ docker compose \
 ```
 
 The versioned tag exposes the CUDA runtime line, for example
-`ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9`. Pin its registry digest in
+`ghcr.io/stighellemans/meddeid-api:0.4.1-cuda12.9`. Pin its registry digest in
 production. The image contains the official CUDA-enabled PyTorch wheel but no
 model weights; the host supplies a compatible NVIDIA driver, Docker Engine, and NVIDIA
 Container Toolkit. The overlay requests one selected GPU and forces the CUDA
@@ -260,12 +260,12 @@ digest and a separately checksummed model repository. A local TensorRT build is
 for a new model revision or GPU target, not an installation shortcut; its
 pinned builder is substantially larger than the serving runtime.
 
-Release `0.4.0` is available for AMD64 and ARM64. Resolve the release tag to
+Release `0.4.1` is available for AMD64 and ARM64. Resolve the release tag to
 its current multi-platform digest, record that digest in the deployment
 manifest, and pin the immutable digest in production:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.0
+docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.1
 ```
 
 ## Environment variable reference

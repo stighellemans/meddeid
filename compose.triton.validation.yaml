@@ -9,7 +9,7 @@ services:
       - ${MEDDEID_TRITON_SOURCE_MODEL_DIR:-./deploy/triton/model_source}:/model-source:ro
 
   torch-reference:
-    image: ${MEDDEID_REFERENCE_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.0}
+    image: ${MEDDEID_REFERENCE_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.1}
     ports:
       - "127.0.0.1:${MEDDEID_REFERENCE_PORT:-8001}:8000"
     environment:

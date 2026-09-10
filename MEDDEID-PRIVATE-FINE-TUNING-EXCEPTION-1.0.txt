@@ -1,0 +1,57 @@
+MEDDEID PRIVATE FINE-TUNING EXCEPTION
+Version 1.0
+
+This Exception is an additional permission under Section 7 of the GNU Affero
+General Public License, version 3 only ("AGPL-3.0-only"). It applies only to
+MedDeID software or model weights whose licence notice expressly states that
+this Exception applies.
+
+1. Private Training
+
+You may train, retrain, adapt, or fine-tune MedDeID using private,
+confidential, patient-sensitive, personal, or special-category health data
+("Private Training Data"), provided that you have an independent lawful basis
+and all necessary authorisations to process that data.
+
+2. Confidentiality
+
+To the extent that Sections 5, 6, or 13 of AGPL-3.0-only would otherwise
+require the following material to be included in or provided with the
+Corresponding Source, you are not required solely because of the MedDeID
+licence to disclose or publish:
+
+  a. Private Training Data;
+  b. labels, annotations, prompts, evaluation material, logs, or other data
+     derived from Private Training Data where disclosure could reveal
+     personal, confidential, or legally restricted information; or
+  c. model parameters or weights resulting from such training or fine-tuning
+     ("Private Fine-Tuned Weights").
+
+Private Fine-Tuned Weights may be kept confidential and may be used internally
+or in providing a service through a computer network.
+
+Private Training Data and Private Fine-Tuned Weights are not required to be
+included in the Corresponding Source of MedDeID solely because they were used
+with, or produced using, MedDeID.
+
+3. Code Remains Subject to AGPL
+
+This Exception applies only to Private Training Data and Private Fine-Tuned
+Weights. It does not waive or limit AGPL-3.0-only for modifications,
+adaptations, patches, extensions, or improvements to the MedDeID source code.
+
+MedDeID code modifications remain subject to the ordinary requirements of
+AGPL-3.0-only, including its requirements concerning distribution and remote
+network interaction.
+
+4. No Data-Protection Authorisation
+
+This Exception concerns copyright and licensing only. It does not provide a
+lawful basis for processing patient or personal data and does not replace any
+requirement arising under data-protection law, medical confidentiality, ethics
+approval, institutional policy, or contract.
+
+5. Remaining Licence Terms
+
+Except for the limited permissions expressly granted above, all terms of
+AGPL-3.0-only remain unchanged and continue to apply.

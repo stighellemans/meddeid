@@ -9,6 +9,7 @@ import pytest
 from meddeid_core import BERT_ENTITY_LABELS
 
 from meddeid.workflow import (
+    BROWSER_IMAGES,
     EXIT_CONFIRMATION,
     EXIT_NEEDS_INPUT,
     WorkflowError,
@@ -56,6 +57,23 @@ def _jsonl(path: Path, *, document_id: str = "doc-1", annotated: bool = True) ->
 
 def _states(status: dict) -> dict[str, str]:
     return {stage["id"]: stage["state"] for stage in status["stages"]}
+
+
+def test_browser_images_match_the_coordinated_release() -> None:
+    assert BROWSER_IMAGES == {
+        "annotate": (
+            "ghcr.io/stighellemans/meddeid-annotate:0.3.1@"
+            "sha256:55c6ab5c578ebe1696eb5149c743b8e702470a8f9e1c3cd72e98a5f461bda271"
+        ),
+        "curate": (
+            "ghcr.io/stighellemans/meddeid-curate:0.3.1@"
+            "sha256:e93cc2122a4e8cd88156396287df46d01c35480079ac4e65149848709b9d154f"
+        ),
+        "subannotate": (
+            "ghcr.io/stighellemans/meddeid-subannotate:0.3.1@"
+            "sha256:52259baa0fe2e99f94398701ee29ddefb19dc610f802c324677489575514b632"
+        ),
+    }
 
 
 def test_condition_language_has_three_valued_logic() -> None:

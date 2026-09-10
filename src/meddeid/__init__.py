@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from .api import Deidentifier, DeidentificationResult
 
 __all__ = ["Deidentifier", "DeidentificationResult", "ModelBundle", "load_model_bundle"]
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 
 def __getattr__(name: str) -> Any:

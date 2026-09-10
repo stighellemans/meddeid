@@ -12,8 +12,8 @@ The public image naming contract is:
 ghcr.io/stighellemans/meddeid-api:<meddeid-version>-cuda<cuda-version>
 ```
 
-For release `0.4.0`, the candidate tag is
-`ghcr.io/stighellemans/meddeid-api:0.4.0-cuda12.9`. Production deployments
+For release `0.4.1`, the candidate tag is
+`ghcr.io/stighellemans/meddeid-api:0.4.1-cuda12.9`. Production deployments
 must resolve and pin its immutable digest. There is deliberately no `gpu` or
 `latest-gpu` tag: the CUDA compatibility line remains visible in every tag.
 
@@ -23,8 +23,8 @@ Run these commands on a Linux NVIDIA host with Docker Engine, Docker Buildx,
 the NVIDIA Container Toolkit, and a compatible NVIDIA driver:
 
 ```bash
-./deploy/build_pytorch_cuda_image.sh meddeid-api:0.4.0-cuda12.9-test
-./deploy/validate_pytorch_cuda_image.sh meddeid-api:0.4.0-cuda12.9-test
+./deploy/build_pytorch_cuda_image.sh meddeid-api:0.4.1-cuda12.9-test
+./deploy/validate_pytorch_cuda_image.sh meddeid-api:0.4.1-cuda12.9-test
 ```
 
 Validation performs a real CUDA matrix multiplication, starts the complete
