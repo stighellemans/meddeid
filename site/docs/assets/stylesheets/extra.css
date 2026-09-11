@@ -224,6 +224,23 @@
   text-transform: uppercase;
 }
 
+.md-typeset .annotation-app-screenshot {
+  display: block;
+  width: 100%;
+  margin: 1rem 0 0;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 0.65rem 1.6rem color-mix(in srgb, var(--meddeid-ink) 9%, transparent);
+}
+
+.md-typeset .annotation-app-caption {
+  margin: 0;
+  padding: 0.65rem 0 1.1rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
 .organization-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

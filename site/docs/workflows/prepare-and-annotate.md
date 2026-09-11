@@ -234,6 +234,13 @@ This starts three containers; the single Compose command manages them together:
 | Subannotate | `http://127.0.0.1:5187` | Add optional detailed benchmark labels |
 | Curate      | `http://127.0.0.1:5188` | Reconcile independent reviewers        |
 
+The screenshots below show the released 0.3.1 applications with synthetic
+clinical examples. No real patient data is shown.
+
+![Annotate interface midway through a review, with three completed documents, pending documents, synthetic clinical text, highlighted identifier spans, and label controls](../assets/annotation-apps/annotate-interface.jpg){ .annotation-app-screenshot loading=lazy }
+
+<p class="annotation-app-caption"><strong>Annotate:</strong> review the complete note while adding, removing, resizing, or relabelling primary identifier spans.</p>
+
 Open Annotate and choose **Import dataset**. Select the starting JSONL from
 step 3, then give it a recognizable dataset and assignment name—for example,
 `Hospital study` and `Train · Reviewer A`. Each import creates an isolated
@@ -291,6 +298,10 @@ Use `meddeid-curate` when two or more people independently reviewed the same
 documents. It retains exact agreement automatically and asks a curator to
 decide where their spans differ.
 
+![Curate interface with synthetic clinical text, compared reviewer sets, disagreement navigation, candidate spans, and confirmation controls](../assets/annotation-apps/curate-interface.jpg){ .annotation-app-screenshot loading=lazy }
+
+<p class="annotation-app-caption"><strong>Curate:</strong> compare independent reviewer lanes, resolve only their differences, and confirm the whole document before publishing gold data.</p>
+
 Open Curate at `http://127.0.0.1:5188` and choose **New comparison → From
 workspace**. Select the completed reviewer assignments for one split, then
 enter a dataset name, comparison name and pseudonymous curator ID. Every
@@ -345,6 +356,10 @@ once into the comparison library, leaving the original files untouched.
 Ordinary training and span-level evaluation do not require this step.
 `meddeid-subannotate` divides confirmed identifier spans into smaller character
 segments for benchmarks that measure exactly which parts were removed.
+
+![Subannotate interface with a synthetic address divided into house number, postal code, municipality, and formatting subcategories](../assets/annotation-apps/subannotate-interface.jpg){ .annotation-app-screenshot loading=lazy }
+
+<p class="annotation-app-caption"><strong>Subannotate:</strong> divide a confirmed primary identifier into categories such as house number, postal code, municipality, and formatting for fine-grained evaluation.</p>
 
 In Curate, choose **Workspace → Continue in Subannotate** after publishing.
 Alternatively, open Subannotate at `http://127.0.0.1:5187` and choose **From
