@@ -42,16 +42,16 @@ Adrem Data Lab, the University of Antwerp and UZA. Correspondence:
 
 ## How to cite MedDeID
 
-Once the MedDeID article has a DOI, cite the article for the overall framework.
-Also cite the exact software, model or dataset release used so the work can be
-reproduced.
+Until the peer-reviewed MedDeID article has a DOI, cite the
+[arXiv preprint](https://arxiv.org/abs/2609.10049) for the overall framework.
+Once a journal DOI is available, cite the journal article instead. In either
+case, also cite the exact software, model or dataset release used so the work
+can be reproduced.
 
-Until then, use this project-level citation and replace the bracketed fields:
-
-> Hellemans, S., Stroobants, T., Scheurwegs, E., Meysman, P., Jorens, P., &
-> Laukens, K. (2026). *MedDeID for locally deployable clinical text
-> de-identification with real or synthetic training data* [Software]. Version
-> [version]. [repository or DOI].
+> Hellemans, S., Stroobants, T., Scheurwegs, E., Meysman, P., Jorens, P. G., &
+> Laukens, K. (2026). *MedDeID enables locally governed clinical-text
+> de-identification from real or synthetic training data*. arXiv:2609.10049.
+> https://arxiv.org/abs/2609.10049
 
 For a reproducible citation, include:
 
