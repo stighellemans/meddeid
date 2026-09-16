@@ -1047,7 +1047,21 @@ def create_app(
                 inference_slot.release()
         return add_security_headers(response, request_id)
 
-    @app.get("/health")
+    @app.get(
+        "/health",
+        tags=["Operations"],
+        summary="Check model and runtime readiness",
+        description=(
+            "Returns HTTP 200 when the selected model and inference runtime are ready, "
+            "or HTTP 503 while they are unavailable. This unauthenticated endpoint "
+            "contains no clinical text or sensitive runtime paths."
+        ),
+        responses={
+            503: {
+                "description": "The selected model or inference runtime is unavailable."
+            }
+        },
+    )
     def health():
         if hasattr(engine, "health_info"):
             runtime_health = engine.health_info()
@@ -1083,7 +1097,15 @@ def create_app(
             return JSONResponse(status_code=503, content=payload)
         return payload
 
-    @app.get("/live", include_in_schema=False)
+    @app.get(
+        "/live",
+        tags=["Operations"],
+        summary="Check process liveness",
+        description=(
+            "Returns HTTP 200 while the API process can respond. Use /health, not this "
+            "endpoint, to decide whether the model is ready to receive traffic."
+        ),
+    )
     def live():
         return {"status": "ok"}
 

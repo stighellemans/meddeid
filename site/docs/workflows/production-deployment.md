@@ -518,8 +518,20 @@ not disable the inference API.
 
 Use the health endpoints from inside the trusted network:
 
-- `GET /live` confirms that the server process is running.
-- `GET /health` confirms that the service and model are ready.
+- `GET /live` returns HTTP 200 while the API process can respond. Use it as the
+  liveness probe.
+- `GET /health` returns HTTP 200 when the model and runtime are ready and HTTP
+  503 when they are unavailable. Use it as the readiness and startup probe.
+
+```bash
+curl --fail http://127.0.0.1:8000/live
+curl --fail http://127.0.0.1:8000/health
+```
+
+Keep the probes separate. A model may still be loading while the process is
+healthy; using `/health` as a liveness probe can cause repeated restarts before
+startup completes. Both routes are intentionally unauthenticated for
+orchestration and return no clinical text.
 
 Use the response `X-Request-ID` to correlate failures without recording patient
 text. Treat HTTP 503 with `Retry-After` as an overload signal.

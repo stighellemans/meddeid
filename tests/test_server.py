@@ -592,6 +592,12 @@ def test_production_reference_covers_public_server_environment_settings() -> Non
 
 def test_openapi_describes_the_current_typed_result_contract() -> None:
     schema = create_app(engine=FakeEngine(), ui_enabled=False).openapi()
+    assert schema["paths"]["/live"]["get"]["summary"] == "Check process liveness"
+    assert (
+        schema["paths"]["/health"]["get"]["summary"]
+        == "Check model and runtime readiness"
+    )
+    assert "503" in schema["paths"]["/health"]["get"]["responses"]
     for request_schema_name in (
         "DeidentifyRequest",
         "BatchRequest",

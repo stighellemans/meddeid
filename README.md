@@ -300,7 +300,8 @@ without storing it in the file. Docker Compose continues to use `.env` or
 The service provides:
 
 - `POST /deidentify` for one document;
-- `POST /deidentify-batch` for throughput-oriented batches; and
+- `POST /deidentify-batch` for throughput-oriented batches;
+- `GET /live` for process liveness; and
 - `GET /health` for minimal readiness and enabled model/profile information.
 
 For a shared service, choose CPU for the simplest portable deployment, PyTorch

@@ -398,10 +398,12 @@ curl --fail-with-body http://localhost:8000/deidentify-batch \
   ]}'
 ```
 
-`GET /health` reports readiness, the safe model name/version, enabled language
-profiles, and the active serving profile, gateway-batching state, and admission
-limit. It deliberately omits revisions, paths, runtime internals, and other
-environment details. Validation
+`GET /live` reports process liveness and returns HTTP 200 while the API process
+can respond. `GET /health` reports model and runtime readiness, the safe model
+name/version, enabled language profiles, and the active serving profile,
+gateway-batching state, and admission limit. It returns HTTP 503 while the
+runtime is unavailable and deliberately omits revisions, paths, runtime
+internals, and other environment details. Validation
 errors are HTTP 422 with a structured `detail.code` and `detail.message`;
 oversized aggregate batches are HTTP 413; unavailable inference is HTTP 503.
 Defaults are 20,000 characters per document, 32 documents per request, and

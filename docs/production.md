@@ -490,6 +490,13 @@ Use:
 - `X-Request-ID` for request correlation without recording patient text; and
 - HTTP 503 plus `Retry-After` as the back-pressure signal.
 
+Configure orchestrators to use `/live` as the liveness probe and `/health` as
+the readiness and startup probe. Do not use readiness failures as a reason to
+restart a process that is still loading a model: `/health` can correctly return
+HTTP 503 while `/live` continues to return HTTP 200. Both endpoints are
+unauthenticated so infrastructure can call them, and neither accepts or returns
+clinical text.
+
 Measure p50/p95/p99 latency, documents and characters per second, memory, and
 restart time on the real note-length distribution. Configure client timeouts
 and retries only for idempotent requests, using bounded exponential backoff.

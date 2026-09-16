@@ -154,9 +154,9 @@ python -m pip install 'meddeid[server]'
 MEDDEID_MODEL=stighellemans/meddeid-dutch-synth meddeid-server
 ```
 
-The service provides `POST /deidentify`, `POST /deidentify-batch`, and
-`GET /health`. To inspect the browser interface and HTTP API in a local
-container, use the [local Docker
+The service provides `POST /deidentify`, `POST /deidentify-batch`, `GET /live`
+for process liveness, and `GET /health` for model/runtime readiness. To inspect
+the browser interface and HTTP API in a local container, use the [local Docker
 setup](../start/quickstart.md#try-meddeid-in-your-browser).
 
 Before exposing a service to a network or using it with clinical text, follow
