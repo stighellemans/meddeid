@@ -51,7 +51,7 @@ Issues = "https://github.com/stighellemans/meddeid/issues"
 
 [project.optional-dependencies]
 server = ["fastapi>=0.115", "uvicorn>=0.30"]
-triton = ["tritonclient[http]>=2.71,<2.72"]
+triton = ["tritonclient[http]>=2.71,<2.74"]
 research = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
