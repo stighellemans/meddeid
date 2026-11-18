@@ -35,3 +35,16 @@ Python results, batch manifests, `model-info`, and `/health`.
 
 Custom policy files contain configuration only. MedDeID never accepts Python
 code, formulas, or a policy supplied by an individual inference request.
+
+## Use the original document date
+
+Prefer `metadata.document_creation_date` on every document. With a nonzero
+`date_shift_days`, a full birthdate is converted to age at that original date,
+then generalized by this policy. For example, nl-BE birthdate `14/09/2022` with
+document date `2026-05-14` produces `[3 jaar, 7 maanden oud]`. Without a usable
+document date, birthdate `14/05/2013` with a 400-day shift yields `[2014]` and
+`birthdate_year_fallback`. Explicit age expressions do not require a document
+date. Omitting the shift retains `[Age_Birthdate]` regardless of reference date.
+
+The independent `name_replacement` Boolean does not change this behavior.
+See the [combined examples](name-replacement.md#names-alongside-dates-and-ages).

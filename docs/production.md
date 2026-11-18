@@ -305,6 +305,8 @@ the CUDA and Triton overlays replace the runtime-specific values noted below.
 | `MEDDEID_ACCESS_LOG` | `true` | Write HTTP access logs. Request and response bodies are never included. |
 | `MEDDEID_PROXY_HEADERS` | `false` | Trust supported forwarded headers from a reverse proxy. |
 | `MEDDEID_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Comma-separated proxy IPs allowed to supply forwarded headers. |
+| `MEDDEID_NAME_KEY` | Unset | Hex-encoded key of at least 32 bytes for stable names; inject from protected configuration. |
+| `MEDDEID_NAME_SCOPE` | Unset | Stable study scope shared by all workers using that name mapping. |
 | `MEDDEID_AGE_GRANULARITY_CONFIG` | Packaged policy | Path to a reviewed age-generalization policy. |
 | `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | `366` | Warn when the supplied absolute date shift is smaller than this value. |
 
@@ -528,3 +530,6 @@ identified artifact and roll back by digest.
 - Local recall and unnecessary-redaction acceptance thresholds signed off.
 - Human review and incident handling paths documented.
 - Data retention and deletion behavior verified for logs and outputs.
+
+For the 0.4.3 name Boolean, deployment requirements and release order, see
+[stable name replacement](name-replacement.md). Existing images need rebuilding.

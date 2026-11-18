@@ -5,6 +5,10 @@ This is the operational reference for the public `meddeid-dutch-synth` and
 tokenizer, windowing, decoder, locale-selected post-processing, metadata
 recovery, and response contract. Only the neural runtime changes.
 
+The 0.4.3 source adds [stable name replacement](name-replacement.md), requiring
+core and both language packages at 0.2.2. The published 0.4.2 artifacts listed
+below do not include that option; build/release the new source before using it.
+
 ## What is available now
 
 Python release `0.4.2`, the public Dutch and English models, the shared public

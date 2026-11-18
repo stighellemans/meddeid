@@ -59,6 +59,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Smoke-test a running MedDeID API")
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--api-key")
+    parser.add_argument(
+        "--check-name-replacement", action="store_true",
+        help="Check aliases using the documented synthetic study-a key fixture",
+    )
     parser.add_argument("--startup-timeout", type=float, default=90.0)
     parser.add_argument(
         "--request-timeout",
@@ -117,6 +121,27 @@ def main() -> None:
     )
     assert status == 200, body
     assert [item["document_id"] for item in body["documents"]] == ["one", "two"]
+    if args.check_name_replacement:
+        from meddeid_language_nl import pseudonymize_name_text
+
+        alias = pseudonymize_name_text("Jan Peeters", key=bytes(range(32)), scope="study-a")
+        named = {**sample, "metadata": {**sample["metadata"], "name_replacement": True}}
+        expected = f"Patiënt {alias} belde [Contactdetails]."
+        status, named_body = request_json(
+            args.base_url, "/deidentify", api_key=args.api_key,
+            payload=named, timeout=args.request_timeout,
+        )
+        assert status == 200, named_body
+        assert named_body["deid_text"] == expected, named_body
+        assert named_body["processing"]["name_replacement"]["replaced_spans"] == 1
+        status, named_batch = request_json(
+            args.base_url, "/deidentify-batch", api_key=args.api_key,
+            payload={"documents": [{"document_id": str(i), **named} for i in range(2)]},
+            timeout=args.request_timeout,
+        )
+        assert status == 200, named_batch
+        assert [item["deid_text"] for item in named_batch["documents"]] == [expected] * 2
+
     provenance = body["documents"][0]["provenance"]
     print(
         json.dumps(

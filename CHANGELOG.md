@@ -5,6 +5,10 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [Unreleased]
 
+- Added default-off `metadata.name_replacement` for all three Name subtypes in Python, JSONL batch and HTTP, plus `--name-replacement` / `--no-name-replacement` for single-text CLI.
+- Added deployment-wide key/scope configuration, strict pre-inference validation, safe label fallbacks and non-secret replacement counters.
+- Updated core/language dependencies and image build pins; documented name behavior alongside dates, ages and document-date examples.
+
 ## [0.4.2] - 2026-09-10
 
 - Ensure container builds package the MedDeID Private Fine-Tuning Exception

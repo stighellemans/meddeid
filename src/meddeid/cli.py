@@ -264,6 +264,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     deidentify.add_argument("--output")
     deidentify.add_argument("--json", action="store_true")
+    deidentify.add_argument(
+        "--name-replacement", action=argparse.BooleanOptionalAction, default=False,
+        help="Use stable name aliases; requires MEDDEID_NAME_KEY and MEDDEID_NAME_SCOPE",
+    )
     _add_model_arguments(deidentify)
 
     batch = sub.add_parser("batch", help="run canonical JSONL batch inference")
@@ -369,7 +373,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.text is not None
             else args.input.read_text(encoding="utf-8")
         )
-        result = engine(source_text)
+        result = (
+            engine(source_text, metadata={"name_replacement": True})
+            if args.name_replacement else engine(source_text)
+        )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         parser.exit(2, f"meddeid: error: {exc}\n")
     finally:

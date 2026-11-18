@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from contextlib import nullcontext
 from pathlib import Path
+import os
 import platform
 from threading import Lock
 from typing import Any, Callable, Mapping
@@ -12,6 +13,7 @@ from meddeid_core.age_policy import (
     load_age_granularity_policy,
 )
 from meddeid_core.language import LanguageProfile
+from meddeid_core.name_pseudonyms import NAME_ALGORITHM, name_configuration
 from meddeid_core.normalize import normalize_metadata
 from meddeid_core.taxonomy import BERT_ENTITY_LABELS
 
@@ -113,6 +115,8 @@ class Deidentifier:
             AgeGranularityPolicy | str | Path | Mapping[str, Any] | None
         ) = None,
         min_recommended_date_shift_days: int = 366,
+        name_key: bytes | None = None,
+        name_scope: str | None = None,
     ) -> None:
         if (
             isinstance(min_recommended_date_shift_days, bool)
@@ -122,6 +126,15 @@ class Deidentifier:
             raise ValueError(
                 "min_recommended_date_shift_days must be a positive integer"
             )
+        self._name_settings = (
+            name_configuration(name_key, name_scope)
+            if (
+                name_key is not None or name_scope is not None
+                or os.environ.get("MEDDEID_NAME_KEY")
+                or os.environ.get("MEDDEID_NAME_SCOPE")
+            )
+            else None
+        )
         self.bundle = bundle
         self.runtime = runtime
         self.model_source = model_source
@@ -224,6 +237,8 @@ class Deidentifier:
             AgeGranularityPolicy | str | Path | Mapping[str, Any] | None
         ) = None,
         min_recommended_date_shift_days: int = 366,
+        name_key: bytes | None = None,
+        name_scope: str | None = None,
     ) -> "Deidentifier":
         def emit(message: str) -> None:
             if on_status is not None:
@@ -291,6 +306,8 @@ class Deidentifier:
             language_profile=language_profile,
             age_granularity_config=policy,
             min_recommended_date_shift_days=min_recommended_date_shift_days,
+            name_key=name_key,
+            name_scope=name_scope,
         )
         emit("ready")
         return engine
@@ -324,6 +341,8 @@ class Deidentifier:
             deployment_only = sorted(
                 set(document_metadata)
                 & {
+                    "name_key",
+                    "name_scope",
                     "age_granularity_config",
                     "age_granularity_policy",
                     "min_recommended_date_shift_days",
@@ -333,6 +352,7 @@ class Deidentifier:
                 raise ValueError(
                     f"deployment-only setting(s) {deployment_only} cannot be selected per request"
                 )
+            self._names_for_metadata(document_metadata)  # validate before inference
             profile = self._profile_for_document(document_metadata)
             profile.validate_language(document_metadata.get("lang"))
             document_metadata = self._with_patient_birth_date_variants(
@@ -431,6 +451,19 @@ class Deidentifier:
                 existing.add(key)
         return {**metadata, "known_values": known_values}
 
+    def _names_for_metadata(self, metadata: dict[str, Any]) -> tuple[bytes, str] | None:
+        enabled = metadata.get("name_replacement", False)
+        if type(enabled) is not bool:
+            raise ValueError("metadata.name_replacement must be a boolean")
+        if not enabled:
+            return None
+        settings = getattr(self, "_name_settings", None)
+        if settings is None:
+            raise ValueError(
+                "Name replacement requires a configured name key and study scope"
+            )
+        return settings
+
     def _apply_replacements(
         self,
         text: str,
@@ -438,6 +471,8 @@ class Deidentifier:
         metadata: dict[str, Any],
         profile: LanguageProfile,
     ) -> tuple[list[dict[str, Any]], list[dict[str, str]], dict[str, Any]]:
+        name_settings = self._names_for_metadata(metadata)
+        name_counters = {"detected_spans": 0, "replaced_spans": 0, "placeholder_spans": 0}
         raw_shift = metadata.get("date_shift_days")
         if isinstance(raw_shift, bool) or (
             raw_shift is not None and not isinstance(raw_shift, int)
@@ -471,6 +506,30 @@ class Deidentifier:
             span = dict(source_span)
             label = str(span["label"])
             span["replacement"] = f"[{label}]"
+            if label in {"Name:Patient", "Name:Caregiver", "Name:Other"}:
+                name_counters["detected_spans"] += 1
+                candidate = None
+                if name_settings is not None:
+                    if profile.name_replacement_provider is None:
+                        warning_messages["name_replacement_unsupported"] = (
+                            f"language profile {profile.profile_id!r} does not provide name replacement"
+                        )
+                    else:
+                        begin, end = int(span["begin"]), int(span["end"])
+                        candidate = profile.replace_name(
+                            text[begin:end], key=name_settings[0], scope=name_settings[1]
+                        )
+                        if candidate is None:
+                            warning_messages["name_parse_fallback"] = (
+                                "one or more name spans could not be rendered; placeholders were used"
+                            )
+                if candidate is not None:
+                    span["replacement"] = f"[{candidate}]"
+                    name_counters["replaced_spans"] += 1
+                else:
+                    name_counters["placeholder_spans"] += 1
+                output.append(span)
+                continue
             if label not in {"Date", "Age_Birthdate"}:
                 output.append(span)
                 continue
@@ -527,6 +586,11 @@ class Deidentifier:
             for code, message in warning_messages.items()
         ]
         processing = {
+            "name_replacement": {
+                "enabled": name_settings is not None,
+                "algorithm": NAME_ALGORITHM if name_settings is not None else None,
+                **name_counters,
+            },
             "date_replacement": {
                 "mode": "shift" if date_shift_days not in {None, 0} else "placeholder",
                 "requested_shift_days": date_shift_days,

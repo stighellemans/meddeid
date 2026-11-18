@@ -169,3 +169,13 @@ network isolation, request limits, monitoring, and operational validation.
 - [Deploy a shared institutional service](production-deployment.md)
 - [Check released versions and compatibility](../reference/compatibility.md)
 - [Open the complete component reference](https://github.com/stighellemans/meddeid/blob/main/docs/inference.md)
+
+## Choose labels or stable names
+
+With the 0.4.3 source, set `metadata.name_replacement` to true for stable name
+aliases or false for the original bracketed Name labels. Administrators first
+configure a study key and scope and rebuild the application image. The option
+works for Dutch and English profiles and does not change date/age settings.
+Prefer the original `document_creation_date` when using birthdates so the
+output represents age at the time of the note. See the authoritative
+[name, date and age examples](https://github.com/stighellemans/meddeid/blob/main/docs/name-replacement.md).
