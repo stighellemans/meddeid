@@ -94,6 +94,8 @@ jobs:
             --env MEDDEID_MODEL="${SMOKE_MODEL}" \
             --env MEDDEID_REVISION="${SMOKE_MODEL_REVISION}" \
             --env MEDDEID_OFFLINE=true \
+            --env MEDDEID_NAME_KEY=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f \
+            --env MEDDEID_NAME_SCOPE=study-a \
             meddeid-api:ci
           docker run --rm \
             --network meddeid-smoke \
@@ -102,7 +104,8 @@ jobs:
             meddeid-api:ci \
             /smoke.py \
             --base-url http://meddeid-smoke:8000 \
-            --api-key ci-smoke-secret
+            --api-key ci-smoke-secret \
+            --check-name-replacement
           test "$(docker inspect --format '{{.Config.User}}' meddeid-smoke)" = "10001:10001"
           test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' meddeid-smoke)" = "true"
       - name: Collect CPU image-size evidence

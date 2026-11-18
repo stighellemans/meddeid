@@ -75,6 +75,15 @@ columns, and inference can use explicitly trusted values—such as a known
 patient or caregiver name—during local post-processing. Metadata is not added
 to the neural model input.
 
+The 0.4.3 inference source adds `metadata.name_replacement` (strict Boolean,
+false by default). True produces stable aliases for all Name subtypes; false
+retains labels such as `[Name:Patient]`. This is independent of `date_shift_days`.
+Supply the original `document_creation_date` whenever available so birthdates
+can become ages at the time of the note. Explicit ages do not require that date;
+without it, full birthdates fall back to a shifted year when shifting is enabled.
+See the [runtime contract and examples](https://github.com/stighellemans/meddeid/blob/main/docs/name-replacement.md)
+for fields, key configuration, label fallbacks and release requirements.
+
 Do not place reversible source identifiers, project secrets, or other values
 that should remain private in a dataset intended for sharing. Keep them in the
 project's protected private mapping.

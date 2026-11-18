@@ -169,6 +169,12 @@ meddeid deidentify note.txt \
   --language-profile en-GB
 ```
 
+Source version 0.4.3 also supports stable name aliases for all Name subtypes
+with `metadata.name_replacement=True` (Python/HTTP/batch) or `--name-replacement`
+(single-text CLI). False or omission keeps the original labels. Configure the
+study key and scope once; see [name replacement](docs/name-replacement.md) for
+examples, requirements, locale behavior and the image/release sequence.
+
 Dates use placeholders unless the caller explicitly supplies
 `metadata.date_shift_days`. A nonzero shift produces deterministic shifted
 dates; zero produces placeholders and a structured warning. One declarative

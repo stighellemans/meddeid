@@ -7,14 +7,14 @@ services:
       context: .
       dockerfile: deploy/triton-gateway.Dockerfile
       args:
-        MEDDEID_VERSION: ${MEDDEID_VERSION:-0.4.0}
-        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-13a5b5d6049611e0c64e0d375d1cb5d99266bc15}
-        MEDDEID_LANGUAGE_EN_COMMIT: ${MEDDEID_LANGUAGE_EN_COMMIT:-7958b77ee83295de7d809a8f52d6de2c2732c35e}
-        MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-c316c06669789fd16b2405a1ca8076d878f3d730}
+        MEDDEID_VERSION: ${MEDDEID_VERSION:-0.4.3}
+        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-a2f95a4a22c3851fea119296ccd4037b9ee0913e}
+        MEDDEID_LANGUAGE_EN_COMMIT: ${MEDDEID_LANGUAGE_EN_COMMIT:-7482c1693d9788bf3699d762203adebf66f7d765}
+        MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-c436dae1ea7e383a1e742304271e14c793fc4caf}
         TRITON_CLIENT_VERSION: ${MEDDEID_TRITON_SERVER_VERSION:-2.71.0}
 
   runtime-builder:
-    image: meddeid-triton-runtime-builder:${MEDDEID_VERSION:-0.4.0}
+    image: meddeid-triton-runtime-builder:${MEDDEID_VERSION:-0.4.3}
     build:
       context: .
       dockerfile: deploy/triton-runtime-builder.Dockerfile
@@ -25,7 +25,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   plan-builder:
-    image: meddeid-triton-builder:${MEDDEID_VERSION:-0.4.0}
+    image: meddeid-triton-builder:${MEDDEID_VERSION:-0.4.3}
     build:
       context: .
       dockerfile: deploy/triton-builder.Dockerfile
@@ -37,7 +37,7 @@ services:
       MEDDEID_LANGUAGE_PROFILE: ${MEDDEID_LANGUAGE_PROFILE:?set MEDDEID_LANGUAGE_PROFILE}
       MEDDEID_BUNDLE_SHA256: ${MEDDEID_BUNDLE_SHA256:-}
       MEDDEID_SUITE_VERSION: ${MEDDEID_SUITE_VERSION:-0.3.0}
-      MEDDEID_VERSION: ${MEDDEID_VERSION:-0.4.0}
+      MEDDEID_VERSION: ${MEDDEID_VERSION:-0.4.3}
       MEDDEID_GPU_DEVICE_ID: ${MEDDEID_GPU_DEVICE_ID:-0}
       HF_TOKEN: ${HF_TOKEN:-}
     volumes:

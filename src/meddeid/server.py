@@ -533,6 +533,10 @@ def create_app(
                 "placeholders and produces a warning."
             ),
         )
+        name_replacement: bool = Field(
+            default=False, strict=True,
+            description="Replace all Name subtypes with stable bracketed aliases; false keeps labels.",
+        )
         known_values: list[KnownValueMetadata] | None = None
 
         @model_validator(mode="before")
@@ -549,6 +553,8 @@ def create_app(
                 deployment_only = [
                     key
                     for key in (
+                        "name_key",
+                        "name_scope",
                         "age_granularity_config",
                         "age_granularity_policy",
                         "min_recommended_date_shift_days",
@@ -604,7 +610,15 @@ def create_app(
         policy_version: str
         sha256: str
 
+    class NameReplacementProcessing(BaseModel):
+        enabled: bool
+        algorithm: str | None
+        detected_spans: int
+        replaced_spans: int
+        placeholder_spans: int
+
     class ProcessingInfo(BaseModel):
+        name_replacement: NameReplacementProcessing | None = None
         date_replacement: DateReplacementProcessing
         age_granularity_policy: AgeGranularityPolicyProcessing
 

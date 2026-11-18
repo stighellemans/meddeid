@@ -1,6 +1,18 @@
 # Release runbook
 
-This checkout prepares the `meddeid==0.4.2` corrective release in the coordinated
+## Name replacement release (0.4.3)
+
+This checkout prepares runtime 0.4.3 with core, language-nl and language-en
+0.2.2. Release core first, then both language packages, then the runtime.
+Docker and CI already pin the tested source commits, so source validation
+does not depend on unpublished PyPI versions. Follow the
+[name replacement build sequence](docs/name-replacement.md#build-and-release-order).
+No model retraining or TensorRT plan rebuild is required for this rendering change.
+Tags publish artifacts; pushing source alone does not.
+
+## Previous 0.4.2 release baseline
+
+The previous checkout prepared the `meddeid==0.4.2` corrective release in the coordinated
 MedDeID suite 0.3.1 line. That line reuses `meddeid-core==0.2.1`,
 `meddeid-language-en==0.2.1`, `meddeid-language-nl==0.2.1`,
 `meddeid-eval==0.5.0`, the browser applications at 0.3.1 and the legacy-site
@@ -26,7 +38,7 @@ For each Python package repository:
 Keep the GHCR package public and linked to the source repository. Recheck the
 trusted-publisher subjects whenever a repository or workflow is renamed.
 
-## Release order
+## Previous suite 0.3.1 release order
 
 Release exactly in dependency order. Do not create all tags simultaneously.
 
