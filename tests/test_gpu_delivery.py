@@ -14,7 +14,7 @@ def test_image_build_metadata_reads_the_supported_project_version() -> None:
         text=True,
     )
 
-    assert output.strip() == "0.4.2"
+    assert output.strip() == "0.4.3"
 
 
 def test_cpu_workflow_passes_the_project_version_to_both_builds() -> None:
@@ -48,7 +48,7 @@ def test_pytorch_cuda_release_pins_stay_aligned() -> None:
         compose.count("MEDDEID_TORCH_COMPILE_MODE: ${MEDDEID_TORCH_COMPILE_MODE:-off}")
         == 1
     )
-    assert "ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9" in compose
+    assert "ghcr.io/stighellemans/meddeid-api:0.4.3-cuda12.9" in compose
     assert dockerfile.count("MEDDEID-PRIVATE-FINE-TUNING-EXCEPTION-1.0.txt") == 2
     assert "site-packages/triton" in dockerfile
     assert "site-packages/torch/include" in dockerfile
@@ -181,7 +181,7 @@ def test_triton_gateway_is_weight_free_and_does_not_install_torch() -> None:
     assert dockerfile.index("LABEL org.opencontainers.image.title") > dockerfile.index(
         "COPY --from=builder /opt/venv"
     )
-    assert "meddeid-triton-gateway:0.4.0" in compose
+    assert "meddeid-triton-gateway:0.4.3" in compose
     assert "MEDDEID_WORKERS=4" in dockerfile
     assert "MEDDEID_TRITON_TRANSPORT=binary" in dockerfile
     assert "MEDDEID_WINDOW_BATCH_SIZE=64" in dockerfile

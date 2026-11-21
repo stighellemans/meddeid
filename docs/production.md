@@ -30,7 +30,7 @@ language profiles, and post-processing remain the same.
 | Situation | Choose | Current status |
 |---|---|---|
 | Simplest shared service, or no accelerator | Published CPU API image with `compose.yaml` | Published for AMD64 and ARM64 |
-| NVIDIA GPU model may vary between hosts | CUDA-tagged PyTorch API image with `compose.cuda.yaml` | AMD64 release candidate with a completed T4 validation path |
+| NVIDIA GPU model may vary between hosts | CUDA-tagged PyTorch API image with `compose.cuda.yaml` | MedDeID 0.4.3 ships the AMD64 image tagged `0.4.3-cuda12.9` |
 | Fixed NVIDIA T4 or Ampere-and-newer deployment | Weight-free Triton runtime and gateway with a separately compiled plan | Separate T4 and Ampere+ plans are supplied for both public models |
 | Native Apple-silicon service | PyTorch MPS from the Python installation | Validated on one M4 Pro; Linux containers cannot use the host Metal device |
 
@@ -186,7 +186,7 @@ docker compose \
 ```
 
 The versioned tag exposes the CUDA runtime line, for example
-`ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9`. Pin its registry digest in
+`ghcr.io/stighellemans/meddeid-api:0.4.3-cuda12.9`. Pin its registry digest in
 production. The image contains the official CUDA-enabled PyTorch wheel but no
 model weights; the host supplies a compatible NVIDIA driver, Docker Engine, and NVIDIA
 Container Toolkit. The overlay requests one selected GPU and forces the CUDA
@@ -260,12 +260,12 @@ digest and a separately checksummed model repository. A local TensorRT build is
 for a new model revision or GPU target, not an installation shortcut; its
 pinned builder is substantially larger than the serving runtime.
 
-Release `0.4.2` is available for AMD64 and ARM64. Resolve the release tag to
+Release `0.4.3` is available for AMD64 and ARM64. Resolve the release tag to
 its current multi-platform digest, record that digest in the deployment
 manifest, and pin the immutable digest in production:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.2
+docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.3
 ```
 
 ## Environment variable reference
@@ -284,8 +284,9 @@ the CUDA and Triton overlays replace the runtime-specific values noted below.
 | `MEDDEID_LANGUAGE_PROFILE` | Model default | Language and regional profile used when a request omits `metadata.lang`. |
 | `MEDDEID_OFFLINE` | `false` | Require model files to be present locally instead of contacting the Hub. |
 | `MEDDEID_SERVING_PROFILE` | `latency` | Use `latency` for individual requests or `throughput` for sustained accelerated traffic. |
-| `MEDDEID_API_KEY` | Empty | Bearer token or `X-API-Key` value accepted by the service. |
-| `MEDDEID_REQUIRE_API_KEY` | `false` | Reject unauthenticated inference requests. The production templates set this to `true`. |
+| `MEDDEID_PSEUDONYMIZATION_KEY_FILE` | Empty | Optional mounted file containing the pinned mapping secret (at least 32 bytes in hex). Used by requests with a pseudonymization scope and keyed rendering. Restart the service after selecting another key version. |
+| `MEDDEID_API_KEY` | Empty | Optional built-in credential for inference. When set, the service checks it via `X-API-Key` or as a bearer token on every inference request. |
+| `MEDDEID_REQUIRE_API_KEY` | `false` | Fail startup if the built-in key is empty. A configured key is checked even when this flag is false. |
 | `MEDDEID_BIND_ADDRESS` | `127.0.0.1` | Host address published by Compose. Direct Python startup otherwise uses `0.0.0.0`. |
 | `MEDDEID_PORT` | `8000` | Host port for the API. |
 | `MEDDEID_DOCS_ENABLED` | `false` | Expose `/docs`, `/redoc`, and `/openapi.json`. Direct Python startup otherwise enables them. |
@@ -306,7 +307,7 @@ the CUDA and Triton overlays replace the runtime-specific values noted below.
 | `MEDDEID_PROXY_HEADERS` | `false` | Trust supported forwarded headers from a reverse proxy. |
 | `MEDDEID_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Comma-separated proxy IPs allowed to supply forwarded headers. |
 | `MEDDEID_AGE_GRANULARITY_CONFIG` | Packaged policy | Path to a reviewed age-generalization policy. |
-| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | `366` | Warn when the supplied absolute date shift is smaller than this value. |
+| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | `366` | Warning threshold for the engine's default date policy. For HTTP scope-derived shifts, set the minimum and maximum magnitude with `render.date_shift_range`. |
 
 ### Inference runtime
 
@@ -369,8 +370,8 @@ workflow rather than in the end-user templates.
 ## Minimum secure configuration
 
 1. Pull an immutable image digest, not a moving tag.
-2. Store a random `MEDDEID_API_KEY` in the platform secret manager.
-3. Set `MEDDEID_REQUIRE_API_KEY=true`.
+2. Choose where to authorize inference callers. The hospital deployment validates the job identity at its HTTPS proxy and keeps the model container on an internal network. [Hospital proxy configuration](../site/docs/workflows/hospital/deploy-service.md#start-the-https-service)
+3. When MedDeID checks the credential itself, store a random `MEDDEID_API_KEY` in the platform secret manager and set `MEDDEID_REQUIRE_API_KEY=true` to catch a missing key at startup.
 4. Keep `MEDDEID_DOCS_ENABLED=false` for an unattended service unless approved
    operators need interactive documentation. When enabled for integration or
    acceptance testing, restrict `/docs`, `/redoc`, and `/openapi.json` at the
@@ -454,12 +455,18 @@ and enables the browser and API documentation for that purpose.
 
 ## Direct Python alternative
 
-When containers are not suitable, copy `server.env.example` to an ignored,
-permission-restricted file and start with:
+For a direct Python deployment, copy the template to a private file.
 
 ```bash
 cp server.env.example meddeid-server.env
 chmod 600 meddeid-server.env
+```
+
+The template enables built-in authentication. Replace its example API key
+with a deployment secret before starting the service. If a private proxy
+authenticates all callers, remove the key and set `MEDDEID_REQUIRE_API_KEY=false`.
+
+```bash
 meddeid-server --env-file meddeid-server.env
 ```
 
@@ -468,7 +475,7 @@ reproducible. Existing process variables override file values, so inject the
 API key from the platform secret manager where possible. The loader rejects
 unknown and duplicate keys rather than silently accepting configuration typos.
 
-Send it as a bearer token:
+When the service checks the built-in key, send it as a bearer token.
 
 ```bash
 curl --fail-with-body https://meddeid.example.org/deidentify \
@@ -520,7 +527,8 @@ identified artifact and roll back by digest.
 ## Operational acceptance checklist
 
 - Image signature/provenance, SBOM, digest, and vulnerability review accepted.
-- API key stored outside Compose and source control.
+- Calling jobs authenticated by the private proxy or by MedDeID. Store any
+  configured API key in the deployment secret store.
 - TLS, firewall/network policy, request limit, and rate limit verified.
 - Container runs non-root, read-only, capability-free, and without runtime Hub
   access.

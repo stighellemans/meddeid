@@ -7,22 +7,22 @@ recovery, and response contract. Only the neural runtime changes.
 
 ## What is available now
 
-Python release `0.4.2`, the public Dutch and English models, the shared public
-demo, and the production `0.4.2` CPU container are available now.
+Python release `0.4.3`, the public Dutch and English models, the shared public
+demo, and the production `0.4.3` CPU container are available now.
 
 | Path | Status now | Notes |
 |---|---|---|
 | Public model bundles | Available | `stighellemans/meddeid-dutch-synth` and `stighellemans/meddeid-english-synth` can be downloaded without authentication. |
-| Python API | Available from PyPI | Install `meddeid==0.4.2`; dependencies resolve from PyPI. |
+| Python API | Available from PyPI | Install `meddeid==0.4.3`; dependencies resolve from PyPI. |
 | Single-file CLI | Available from PyPI | `meddeid deidentify` uses the same local engine. |
 | Canonical JSONL batch | Available from PyPI | `meddeid batch` writes results and a sidecar manifest. |
 | HTTP API | Available from PyPI and GHCR | `meddeid-server` exposes single, batch, and health endpoints. It is an application server, not a complete production security boundary. |
 | PyTorch devices | AMD64 and ARM64 CPU image; native Apple MPS; AMD64 PyTorch/CUDA image recipe | Device selection supports `cpu`, `mps`, and `cuda`; MPS was validated natively on an M4 Pro, while the CUDA image has its own T4 validation and publishing gate. |
-| PyPI install | Available | `meddeid==0.4.2` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.1`. |
-| PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.2` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
-| PyTorch CUDA container | Release candidate | The AMD64 tag contract is `ghcr.io/stighellemans/meddeid-api:<version>-cuda<runtime>`; `compose.cuda.yaml` requests the selected NVIDIA device and refuses CPU fallback. |
+| PyPI install | Available | `meddeid==0.4.3` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.4`. |
+| PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.3` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
+| PyTorch CUDA container | Published for AMD64 | The tag is `ghcr.io/stighellemans/meddeid-api:0.4.3-cuda12.9`. The CUDA Compose configuration requires the selected NVIDIA device. |
 | Local Compose evaluation | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the local service with a browser UI. Production operators use Compose directly. |
-| TensorRT/Triton deployment | T4 and Ampere+ release candidates | Compose resolves the selected Dutch or English plan for T4 or Ampere-and-newer GPUs; the source also includes a containerized local builder and the target validation gate. |
+| TensorRT/Triton deployment | The 0.4.3 gateway uses the published 0.4.0 runtime and model plans | Compose selects the Dutch or English plan for T4 or Ampere-and-newer GPUs. |
 | Hosted demo | Available for non-sensitive text | The [MedDeID interactive demo](https://huggingface.co/spaces/stighellemans/meddeid-demo) offers Dutch and English selection. Do not submit patient information. |
 | Managed clinical endpoint | Not available | No managed service for sensitive clinical text is provided. |
 
@@ -32,15 +32,16 @@ Install all Python interfaces from PyPI:
 python -m pip install 'meddeid[server]'
 ```
 
-The `server` extra includes every implemented interface. Add `==0.4.2` when an
+The `server` extra includes every implemented interface. Add `==0.4.3` when an
 exact package version is required. Docker users can pull the release directly:
 
 ```bash
-docker pull ghcr.io/stighellemans/meddeid-api:0.4.2
+docker pull ghcr.io/stighellemans/meddeid-api:0.4.3
 ```
 
-GPU-optimized TensorRT targets still require separate hardware-specific builds
-and validation as described below.
+For the patient-scoped rendering API, install MedDeID 0.4.3 and the matched 0.2.4 components from PyPI.
+For a private TensorRT model, build and validate a plan for the target GPU.
+[Package and image versions](../site/docs/reference/compatibility.md)
 
 The hosted demo is a convenience for synthetic examples and is not a clinical
 deployment surface. A managed endpoint is not a prerequisite for local
@@ -150,12 +151,13 @@ results = engine.deidentify_many([
 
 ## What metadata does
 
-Metadata is implemented in the `nl-BE` post-processing profile. It
-is not concatenated to the note and is not an input feature of the transformer.
-After neural spans are decoded, the profile can add or extend matches that the
-caller already knows:
+After neural inference, the selected language profile can use metadata to
+find identifiers the caller already knows. The transformer sees the note
+text alone.
 
-- `lang`: optional profile check; use `nl-BE` for this release.
+- `lang` selects a profile supported by the model, such as `nl-BE` for the
+  Dutch bundle or `en-GB` and `en-US` for the English bundle. Supply it when
+  a model supports several profiles and the service has no configured default.
 - `patient`: an object with `given_name`, `family_name`, and optional
   `birth_date`. A valid full birth date is expanded into locale-equivalent,
   full-year `Age_Birthdate` assertions.
@@ -166,20 +168,18 @@ caller already knows:
   separators.
 - `document_creation_date`: optional reference date used to convert a detected
   birthdate into a generalized age.
-- `date_shift_days`: optional explicit integer shift. If omitted, `Date` and
-  `Age_Birthdate` become placeholders. Zero also produces placeholders and a
-  warning; MedDeID never generates an offset automatically.
 
-### Date and age replacement
+### Date and age replacement in local inference
 
-With a nonzero `date_shift_days`, parseable dates are shifted while preserving
-their source format. Age expressions and birthdates with a usable document
+For local Python and file-based inference, the default renderer still accepts
+an integer `metadata.date_shift_days`. A nonzero value shifts parseable dates
+while preserving their source format. Age expressions and birthdates with a usable document
 date are generalized through one deployment-wide JSON policy shared by every
 language profile. Birthdates without a usable document date fall back to the
 shifted year. A configured absolute shift below the recommended minimum is
 applied but reported as a structured warning.
 
-Every output span has a `replacement` containing the exact bracketed text used
+With the default policy, each output span has a `replacement` containing the exact bracketed text used
 in `deid_text`. Results also include deduplicated `warnings` and `processing`
 counters plus the age-policy ID, version, and SHA-256. Date shifts are measured
 in days; span `begin`/`end` offsets are Unicode code points.
@@ -271,7 +271,7 @@ details, warnings, and per-result provenance. The selected language profile is
 part of provenance because it describes how that specific result was produced:
 
 ```json
-{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}},"warnings":[],"provenance":{"contract_version":"meddeid.inference-provenance.v1","software":{"name":"meddeid","version":"0.4.2"},"model":{"name":"meddeid-dutch-synth","version":"1","resolved_revision":"<immutable-hub-commit>","bundle_sha256":"..."},"language_profile":{"profile_id":"nl-BE"}}}
+{"document_id":"note-001","text":"Patiënt Jan Peeters belde 0470 12 34 56.","metadata":{"lang":"nl-BE","patient":{"given_name":"Jan","family_name":"Peeters"},"known_values":[{"value":"0470 12 34 56","label":"Contactdetails"}]},"deid_text":"Patiënt [Name:Patient] belde [Contactdetails].","spans":[{"begin":8,"end":19,"text":"Jan Peeters","label":"Name:Patient","replacement":"[Name:Patient]"},{"begin":26,"end":39,"text":"0470 12 34 56","label":"Contactdetails","replacement":"[Contactdetails]"}],"processing":{"date_replacement":{"mode":"placeholder","requested_shift_days":null,"minimum_recommended_abs_shift_days":366,"detected_spans":0,"shifted_spans":0,"age_generalized_spans":0,"year_fallback_spans":0,"placeholder_spans":0},"age_granularity_policy":{"policy_id":"meddeid-default","policy_version":"1","sha256":"..."}},"warnings":[],"provenance":{"contract_version":"meddeid.inference-provenance.v1","software":{"name":"meddeid","version":"0.4.3"},"model":{"name":"meddeid-dutch-synth","version":"1","resolved_revision":"<immutable-hub-commit>","bundle_sha256":"..."},"language_profile":{"profile_id":"nl-BE"}}}
 ```
 
 The adjacent `.manifest.json` records hashes, immutable model identity, profile,
@@ -350,7 +350,7 @@ Response:
     "contract_version": "meddeid.inference-provenance.v1",
     "software": {
       "name": "meddeid",
-      "version": "0.4.2"
+      "version": "0.4.3"
     },
     "model": {
       "name": "meddeid-dutch-synth",
@@ -375,7 +375,20 @@ request fields are rejected with status 422; this catches misspellings and
 prevents callers from assuming unused metadata affected inference. Canonical
 research JSONL remains independently extensible outside the serving contract.
 
-Single-result JSON is deliberately flat and serialized in this order:
+Starting with 0.4.3rc4, both HTTP endpoints accept optional `render` settings
+on each input document. The distributed RC4 wheel accepts the older
+`metadata.date_shift_days` field. The 0.4.3 gateway rejects its
+presence with HTTP 422, including null and requests without `render`.
+Remove it from every batch item. For shifted dates, enable `render.date_replacement` and supply
+`render.pseudonymization_scope` or a signed `render.date_offset_override`.
+For example, `"render": {"keep_original":["Date"]}` returns the requested text
+in `deid_text` and the original detected spans for reuse. Custom rendering omits
+the default policy's per-span replacements, warnings and processing counters.
+For client examples and the server-side key configuration, see
+[Render detected identifiers](../site/docs/workflows/rendering.md) and the
+[hospital cookbook](../site/docs/workflows/hospital/databricks-job.md#when-the-caller-needs-one-text-immediately).
+
+The default single-result JSON is flat and serialized in this order:
 `deid_text`, `spans`, `processing`, `warnings`, `provenance`. Only provenance is
 nested as a separate concern. It contains the model identity, selected language
 profile, and MedDeID version needed by an inference consumer. Runtime, package,
@@ -421,7 +434,7 @@ operational controls are:
 |---|---:|---|
 | `MEDDEID_LANGUAGE_PROFILE` | bundle default when unambiguous | Set a locale fallback for a multi-profile service. Trusted request `metadata.lang` still wins. |
 | `MEDDEID_AGE_GRANULARITY_CONFIG` | packaged `meddeid-default` policy | Load one validated age-granularity JSON policy for the complete service. |
-| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | 366 | Warn when a nonzero absolute date shift is smaller than this positive integer. |
+| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | 366 | Warning threshold for the engine's default date policy. For HTTP scope-derived shifts, set the minimum and maximum magnitude with `render.date_shift_range`. |
 | `MEDDEID_MAX_REQUEST_BYTES` | 2,000,000 | Reject oversized requests with HTTP 413 when `Content-Length` is present. Enforce the same limit at the reverse proxy. |
 | `MEDDEID_SERVING_PROFILE` | `latency` | Select process-wide low-wait or bounded-throughput scheduling. Use a separate replica pool when both workloads coexist. |
 | `MEDDEID_MICROBATCH_ENABLED` | `auto` | In throughput mode, automatically batch concurrent accelerated PyTorch windows on CUDA or MPS. TensorRT keeps the measured request-local path; `true` forces gateway microbatching for an explicit fan-out experiment. |
@@ -498,7 +511,7 @@ export MEDDEID_MODEL_DIR=/absolute/path/to/model
 docker compose -f compose.yaml -f compose.offline.yaml up --detach
 ```
 
-Release `0.4.2` is published for both `linux/amd64` and `linux/arm64`. Its tag
+Release `0.4.3` is published for both `linux/amd64` and `linux/arm64`. Its tag
 workflow produced an SBOM and provenance and published only after authenticated
 offline smoke inference and the fixable-high/critical vulnerability gate
 passed. Production operators should pin the immutable digest documented in the
@@ -518,8 +531,8 @@ Triton package, headers, and static archives. Its version contract is:
 ghcr.io/stighellemans/meddeid-api:<meddeid-version>-cuda<cuda-version>
 ```
 
-The initial AMD64 candidate is
-`ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9`. A host must provide a
+The 0.4.3 AMD64 CUDA image is
+`ghcr.io/stighellemans/meddeid-api:0.4.3-cuda12.9`. A host must provide a
 compatible NVIDIA driver, Docker Engine, and NVIDIA Container Toolkit. Copy
 `.env.cuda.example`, inject a real API key, and use the CUDA overlay:
 

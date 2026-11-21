@@ -118,6 +118,16 @@ def main() -> None:
     assert status == 200, body
     assert [item["document_id"] for item in body["documents"]] == ["one", "two"]
     provenance = body["documents"][0]["provenance"]
+    legacy = {"text": sample["text"], "metadata": {"date_shift_days": -731}}
+    mixed_batch = {"documents": [
+        {"document_id": "valid", **sample},
+        {"document_id": "retired", **legacy},
+    ]}
+    for path, payload in (("/deidentify", legacy), ("/deidentify-batch", mixed_batch)):
+        status, error = request_json(
+            args.base_url, path, api_key=args.api_key, payload=payload, timeout=args.request_timeout
+        )
+        assert status == 422 and error["detail"]["code"] == "retired_date_shift_days", error
     print(
         json.dumps(
             {

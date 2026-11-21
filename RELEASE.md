@@ -1,18 +1,31 @@
 # Release runbook
 
-This checkout prepares the `meddeid==0.4.2` corrective release in the coordinated
-MedDeID suite 0.3.1 line. That line reuses `meddeid-core==0.2.1`,
-`meddeid-language-en==0.2.1`, `meddeid-language-nl==0.2.1`,
-`meddeid-eval==0.5.0`, the browser applications at 0.3.1 and the legacy-site
-redirect snapshot at `v0.2.0`; publishes `meddeid-data==0.4.2` and
-`meddeid-training==0.3.1`; and publishes the coordinator at `v0.3.1`.
+## MedDeID 0.4.3
 
-Source defaults that mention `0.4.2` are candidate identities, not evidence
-that an artifact is already public. Do not update the suite's released lock or
-announce the release until the post-publication checks below have captured
-immutable PyPI hashes and GHCR digests.
+Release core 0.2.4, the Dutch and English Python profiles 0.2.4, then
+MedDeID 0.4.3. Install the public packages in an empty environment and run
+`python -m pip check`. The signed runtime tag triggers PyPI, the AMD64/ARM64
+CPU image, the CUDA 12.9 image and the Triton gateway builds. The CUDA job
+uses a temporary T4 runner.
 
-## Publisher setup
+Keep the Triton runtime and all four plans on their original 0.4.0 artifact
+identities. Their manifests record the model revision, TensorRT stack and GPU
+target of the compiled engines. Test both public models with the 0.4.3 gateway
+on T4 and Ampere+ hardware before marking the GitHub release as latest.
+Record the image and plan digests used for the tests.
+
+Send a valid single request and batch and verify the output. Repeat with
+`metadata.date_shift_days` on one document. Each endpoint must return HTTP
+422 and `detail.code` equal to `retired_date_shift_days`. Check a scoped
+shift against the offset derived on CPU.
+[Production request and offset recovery](site/docs/workflows/production-deployment.md#shift-event-dates-with-a-patient-scope)
+
+## Previous coordinated suite release (0.4.2)
+
+The steps below record the earlier coordinated publication. Its pinned dependency
+and image versions belong to that release.
+
+### Publisher setup
 
 For each Python package repository:
 
@@ -26,7 +39,7 @@ For each Python package repository:
 Keep the GHCR package public and linked to the source repository. Recheck the
 trusted-publisher subjects whenever a repository or workflow is renamed.
 
-## Release order
+### Release order
 
 Release exactly in dependency order. Do not create all tags simultaneously.
 
@@ -65,7 +78,7 @@ fixable high or critical vulnerabilities, then publishes `linux/amd64` and
 `linux/arm64` manifests with SBOM and provenance attestations. The GPU workflow
 details and publication guard are described below.
 
-## Required post-publication checks
+### Required post-publication checks
 
 ```bash
 python -m venv /tmp/meddeid-release-check
@@ -118,7 +131,7 @@ test, rendered documentation, and rollback-by-digest exercise all pass. The
 retained-plan and image publication workflows are manual and must be dispatched
 from the signed release tag with the reviewed candidate run IDs.
 
-## Failure diagnosis before another paid candidate run
+### Failure diagnosis before another paid candidate run
 
 FP16 remains the preferred CUDA release target for throughput. Per the user's
 release decision, semantic differences, including reduced masking relative to

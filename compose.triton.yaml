@@ -2,7 +2,7 @@ name: meddeid-triton
 
 services:
   plan:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.4.3}
     user: "0:0"
     entrypoint:
       - python
@@ -28,7 +28,7 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       NVIDIA_DRIVER_CAPABILITIES: utility
     volumes:
-      - ./deploy/triton/release.json:/release/triton.json:ro
+      - ${MEDDEID_TRITON_RELEASE_CATALOG:-./deploy/triton/release.json}:/release/triton.json:ro
       - ${MEDDEID_TRITON_MODEL_REPOSITORY:-./deploy/triton/model_repository}:/models
     networks:
       - gateway
@@ -90,7 +90,7 @@ services:
     restart: unless-stopped
 
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-triton-gateway:0.4.3}
     command: ["python", "-m", "meddeid.triton_gateway"]
     depends_on:
       triton:

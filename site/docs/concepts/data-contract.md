@@ -68,6 +68,40 @@ For every span:
 Use the canonical field names shown above. The normalizer described below can
 translate a limited set of common alternatives in existing JSONL files.
 
+## Store and reuse detections
+
+With **core 0.2.4**, a pipeline can save the detections from an HTTP
+response as a `meddeid.annotations.v1` record. Use this format when the exact
+source text already has a home and another job needs to render it later.
+The record stores the source identity you supply, the UTF-8 text hash,
+code-point length and offset unit, model provenance, and normalized spans.
+Each stored span contains offsets, a label and any available score or origin.
+The record omits the note, matched strings and replacements.
+
+```python
+from meddeid_core.pipeline import create_annotation_record, read_spans
+
+def save_detections(text, response, document_id, revision):
+    source = {"document_id": document_id, "revision": revision}
+    return create_annotation_record(text, response, source=source, document_id=document_id)
+
+def load_detections(text, record, document_id, revision):
+    source = {"document_id": document_id, "revision": revision}
+    return read_spans(text, record, expected_source=source)
+```
+
+The save example takes one batch response item and the ID submitted with it.
+For a single-document response, omit the `document_id` argument to
+`create_annotation_record` and keep the document identity in `source`.
+Pass `expected_model={"name": ..., "bundle_sha256": ...}` when the job pins a
+particular model bundle.
+
+At read time, obtain the revision and text from the selected source document.
+`read_spans` raises `ValueError` if the source identity or text has changed.
+Rerun detection for the new revision before rendering. Changes to the render
+policy alone can reuse verified spans. Keep records and source identifiers
+inside the same access boundary as the notes. [Render the verified spans on CPU](../workflows/rendering.md#make-a-second-view-on-cpu)
+
 ## What metadata is for
 
 `metadata` is an optional object. Import tools use it to preserve source

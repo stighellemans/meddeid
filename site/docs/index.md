@@ -16,6 +16,7 @@ own infrastructure. Public model bundles support Dutch and English.
 <div class="meddeid-actions" markdown>
 [Install and run](start/quickstart.md){ .md-button .md-button--primary }
 [Try the public demo](https://huggingface.co/spaces/stighellemans/meddeid-demo){ .md-button }
+[Hospital integration cookbook](workflows/hospital/index.md){ .hero-text-link }
 [View source](https://github.com/stighellemans/meddeid){ .hero-text-link }
 </div>
 
@@ -74,6 +75,12 @@ Dr. Lisa Wong saw patient Alex Example at Riverside Clinic on 14 March 2026.
 </div>
 
 </div>
+
+The **0.4.3 release** can reuse these detections to produce a
+second text, for example one with consistent patient aliases or shifted event
+dates. Once the spans are available, the second view runs entirely on CPU.
+[Try the rendering workflow](workflows/rendering.md) ·
+[Check release compatibility](reference/compatibility.md)
 
 ## One workflow, adaptable to more languages
 

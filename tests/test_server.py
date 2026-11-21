@@ -612,6 +612,7 @@ def test_openapi_describes_the_current_typed_result_contract() -> None:
             is False
         )
 
+    assert "date_shift_days" not in schema["components"]["schemas"]["RecordMetadata"]["properties"]
     response_ref = schema["paths"]["/deidentify"]["post"]["responses"]["200"][
         "content"
     ]["application/json"]["schema"]["$ref"]
@@ -713,13 +714,34 @@ def test_server_rejects_unknown_batch_properties() -> None:
     assert unknown_document_field.status_code == 422
 
 
-def test_server_rejects_boolean_date_shift() -> None:
+@pytest.mark.parametrize(("shift", "options"), [
+    (-731, {}),
+    (None, {}),
+    (0, {"render": {}}),
+    (-731, {"render": {"date_replacement": True, "pseudonymization_scope": {"patient_id": "007"}}}),
+    (-731, {"render": {"date_replacement": True, "date_offset_override": 7}}),
+])
+def test_server_rejects_retired_date_shift_before_processing(shift, options, monkeypatch) -> None:
+    def unexpected_inference(*args, **kwargs):
+        pytest.fail("inference ran for a rejected request")
+
+    monkeypatch.setattr(FakeEngine, "__call__", unexpected_inference)
+    document = {"text": "15/01/2025", "metadata": {"date_shift_days": shift}, **options}
     with TestClient(create_app(engine=FakeEngine())) as client:
-        response = client.post(
-            "/deidentify",
-            json={"text": "15/01/2025", "metadata": {"date_shift_days": True}},
+        single = client.post("/deidentify", json=document)
+        batch = client.post(
+            "/deidentify-batch",
+            json={"documents": [
+                {"document_id": "one", "text": "Valid note"},
+                {"document_id": "two", **document},
+            ]},
         )
-    assert response.status_code == 422
+    for response in (single, batch):
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert detail["code"] == "retired_date_shift_days"
+        assert "render.pseudonymization_scope" in detail["message"]
+        assert "render.date_offset_override" in detail["message"]
 
 
 def test_server_rejects_request_level_age_policy_selection() -> None:
@@ -823,3 +845,52 @@ def test_server_can_require_an_api_key_at_startup(monkeypatch) -> None:
         assert "MEDDEID_API_KEY is empty" in str(exc)
     else:
         raise AssertionError("create_app should reject an empty required API key")
+
+
+def test_single_and_batch_render_with_same_cpu_options(tmp_path, monkeypatch):
+    from meddeid_core.rendering import apply_spans
+
+    key_file = tmp_path / "mapping-key"
+    key_file.write_text("ab" * 32)
+    monkeypatch.setenv("MEDDEID_PSEUDONYMIZATION_KEY_FILE", str(key_file))
+    text = "Jan kwam op 03/03/2026."
+    spans = [
+        {"begin": 0, "end": 3, "text": "Jan", "label": "Name:Patient",
+         "category": "Name", "subtype": "Patient", "replacement": "[Name:Patient]"},
+        {"begin": 12, "end": 22, "text": "03/03/2026", "label": "Date",
+         "category": "Date", "replacement": "[Date]"},
+    ]
+
+    class FixedEngine(FakeEngine):
+        def __call__(self, text, *, metadata):
+            result = super().__call__(text, metadata=metadata)
+            result.spans = spans
+            return result
+
+    scope = {"patient_id": "007"}
+    policies = [
+        {"name_replacement": True, "date_replacement": True, "age_replacement": True,
+         "date_shift_range": [366, 700], "pseudonymization_scope": scope},
+        {"categories": ["Date"], "date_replacement": True, "date_offset_override": -365},
+        {"keep_original": ["Date"], "profile_id": "nl-NL", "document_creation_date": "2025-01-01"},
+    ]
+    documents = []
+    expected = []
+    with TestClient(create_app(engine=FixedEngine())) as http:
+        for index, options in enumerate(policies):
+            local = {"profile_id": "nl-BE", "document_creation_date": "2026-03-01", **options}
+            if "pseudonymization_scope" in local:
+                local["pseudonymization_scope"] = {**scope, "secret": key_file.read_text()}
+            expected.append(apply_spans(text, spans, **local))
+            req = {"text": text, "metadata": {"document_creation_date": "2026-03-01"}, "render": options}
+            response = http.post("/deidentify", json=req)
+            assert response.status_code == 200, response.text
+            assert response.json()["deid_text"] == expected[-1]
+            assert all("replacement" not in span for span in response.json()["spans"])
+            documents.append({"document_id": str(index), **req})
+        batch = http.post("/deidentify-batch", json={"documents": documents})
+        assert batch.status_code == 200, batch.text
+        assert [doc["deid_text"] for doc in batch.json()["documents"]] == expected
+        bad = {"pseudonymization_scope": {"secret": "request-key"}}
+        response = http.post("/deidentify", json={"text": text, "render": bad})
+        assert response.status_code == 422 and "request-key" not in response.text

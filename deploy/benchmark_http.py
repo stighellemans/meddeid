@@ -19,7 +19,7 @@ API_METADATA_KEYS = frozenset(
         "patient",
         "caregivers",
         "document_creation_date",
-        "date_shift_days",
+        "date_shift_days",  # Forward retired fields so the gateway reports stale fixtures.
         "known_values",
     }
 )
@@ -79,12 +79,14 @@ def load_batches(
             for key, value in (metadata or {}).items()
             if key in API_METADATA_KEYS
         }
+        document = {"text": text, "metadata": api_metadata}
+        if "render" in row:
+            document["render"] = row["render"]
         for repetition in range(repeat_fixture):
             documents.append(
                 {
                     "document_id": f"{row['document_id']}-r{repetition}",
-                    "text": text,
-                    "metadata": api_metadata,
+                    **document,
                 }
             )
     if not documents:
@@ -114,7 +116,7 @@ def run_request(
         response = request_json(
             url,
             api_key=api_key,
-            payload={"text": document["text"], "metadata": document["metadata"]},
+            payload={key: value for key, value in document.items() if key != "document_id"},
         )
         returned = [response]
         actual_ids = [document["document_id"]]

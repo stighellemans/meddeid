@@ -6,8 +6,9 @@ Choose the path that matches how you intend to use MedDeID:
 |---|---|
 | De-identify a note or a batch of files | [Run MedDeID locally](#run-meddeid-locally) |
 | Add de-identification to a Python application | [Use the Python API](#use-the-python-api) |
+| Call a gateway or reuse detections on CPU with 0.4.3 | [Install the release packages](../reference/compatibility.md#meddeid-043) and [render a note](../workflows/rendering.md) |
 | Explore the browser interface or HTTP API | [Try MedDeID in your browser](#try-meddeid-in-your-browser) |
-| Operate a shared institutional service | [Production deployment](../workflows/production-deployment.md) |
+| Operate a shared institutional service | [Choose a runtime](../workflows/production-deployment.md) or [install the hospital service and connect Databricks](../workflows/hospital/index.md) |
 
 Training, evaluation, and annotation tools are separate workflows linked at
 the end of this page.
@@ -19,10 +20,12 @@ requires Python 3.10 or newer but does not require writing Python code.
 
 ### Install
 
+Install MedDeID 0.4.3 from PyPI. See the [component versions](../reference/compatibility.md#meddeid-043) for a pinned deployment.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install meddeid
+python -m pip install 'meddeid==0.4.3'
 meddeid models
 ```
 
@@ -34,20 +37,21 @@ one explicitly with `--model`; it is downloaded once and used locally.
 === "Dutch (`nl-BE`)"
 
     ```bash
-    meddeid deidentify note.txt \
+    meddeid deidentify --text "Patiënt Alex Peters kwam op controle." \
       --model stighellemans/meddeid-dutch-synth
     ```
 
 === "English (`en-GB`)"
 
     ```bash
-    meddeid deidentify note.txt \
+    meddeid deidentify --text "Alex Peters returned for a check-up." \
       --model stighellemans/meddeid-english-synth \
       --language-profile en-GB  # Use en-US for US formats
     ```
 
-The current public Dutch model declares `nl-BE`; the English model supports
-`en-GB` and `en-US`.
+For a real note, pass its file path in place of `--text` and the example
+string so the note stays out of shell history. The public Dutch model declares
+`nl-BE` and the English model supports `en-GB` and `en-US`.
 
 ### Use the Python API
 
@@ -77,10 +81,11 @@ produced.
 
 ## Try MedDeID in your browser
 
-Install and start Docker Desktop. Clone MedDeID once:
+Install and start Docker Desktop. For the published image, use its matching
+Compose files.
 
 ```bash
-git clone https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.3 https://github.com/stighellemans/meddeid.git
 cd meddeid
 ```
 
@@ -110,8 +115,9 @@ API documentation is available at `http://127.0.0.1:8000/docs`.
 
 Stop the service with `./scripts/stop-local.sh`.
 
-Developers testing source changes can add `--build`. For a shared service, see
-[production deployment](../workflows/production-deployment.md).
+For a shared service, see [production deployment](../workflows/production-deployment.md).
+For a hospital deployment, see
+[prepare a hospital release](../workflows/hospital/deploy-service.md#choose-the-release).
 
 ## Reproducible or offline runs
 

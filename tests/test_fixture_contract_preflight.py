@@ -29,7 +29,8 @@ def test_real_api_accepts_normalized_provenance_and_metadata_json(tmp_path):
 
 @pytest.mark.parametrize("updates,options,status", [
     ({"metadata": {"patient": {"unsupported": "secret"}}}, {}, 422),
-    ({"metadata": {"date_shift_days": "366"}}, {}, 422),
+    ({"metadata": {"date_shift_days": 366}}, {}, 422),
+    ({"render": {"date_offset_override": 366}}, {}, 422),
     ({"metadata": {"known_values": [{"value": "Ada", "label": "invalid"}]}}, {}, 422),
     ({"metadata": {"lang": "nl-BE"}}, {}, 422),
     ({"text": "   "}, {}, 422),

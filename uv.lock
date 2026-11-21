@@ -1707,7 +1707,7 @@ wheels = [
 
 [[package]]
 name = "meddeid"
-version = "0.4.2"
+version = "0.4.3"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
@@ -1768,13 +1768,13 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=0.25" },
-    { name = "meddeid-core", specifier = ">=0.2,<0.3" },
+    { name = "meddeid-core", git = "https://github.com/stighellemans/meddeid-core.git?rev=1f69717b3a83d1afdfb5426ba7a20094d39d741d" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'research'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.5,<0.6" },
     { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.5,<0.6" },
-    { name = "meddeid-language-en", specifier = ">=0.2,<0.3" },
-    { name = "meddeid-language-nl", specifier = ">=0.2,<0.3" },
+    { name = "meddeid-language-en", git = "https://github.com/stighellemans/meddeid-language-en.git?rev=720ebe0ca550179817e16d4b64072574f05918a8" },
+    { name = "meddeid-language-nl", git = "https://github.com/stighellemans/meddeid-language-nl.git?rev=19746c623e6a0143671e2dd78026dec994413004" },
     { name = "meddeid-training", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.4" },
     { name = "meddeid-training", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.3,<0.4" },
     { name = "numpy", specifier = ">=1.24" },
@@ -1797,11 +1797,10 @@ provides-extras = ["server", "triton", "research", "contributor", "dev"]
 
 [[package]]
 name = "meddeid-core"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/92/7a/73652a0692c5f5138cd059f3c51ea17e759472237491d452bf0bf7313370/meddeid_core-0.2.0.tar.gz", hash = "sha256:1e0eeb530bdba138bbe8f1b16775680a42318aa9fa3b145e5335ff570aaab4fb", size = 42111, upload-time = "2026-08-27T12:24:21.669Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/20/d27d60ae92f92633f5f4a8b27a72a6ee3589111ae71a3ca083bd8fe344ab/meddeid_core-0.2.0-py3-none-any.whl", hash = "sha256:60e2f8c4771921729f1671d5437e3f1d8093fd223567534b0b27c4322c8f5bdd", size = 39113, upload-time = "2026-08-27T12:24:20.249Z" },
+version = "0.2.4"
+source = { git = "https://github.com/stighellemans/meddeid-core.git?rev=1f69717b3a83d1afdfb5426ba7a20094d39d741d#1f69717b3a83d1afdfb5426ba7a20094d39d741d" }
+dependencies = [
+    { name = "rfc8785" },
 ]
 
 [[package]]
@@ -1851,26 +1850,18 @@ plots = [
 
 [[package]]
 name = "meddeid-language-en"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.2.4"
+source = { git = "https://github.com/stighellemans/meddeid-language-en.git?rev=720ebe0ca550179817e16d4b64072574f05918a8#720ebe0ca550179817e16d4b64072574f05918a8" }
 dependencies = [
     { name = "meddeid-core" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/be/3e/8f0c1f9b3c8db72916471d1c74944cd48d92b18d06c260d2fc1b15d39ea0/meddeid_language_en-0.2.0.tar.gz", hash = "sha256:88a0aada38e21e4e5e3ac59b59850b8fe40c96e1c70536383032aa9c2bf9f91f", size = 12308662, upload-time = "2026-08-27T12:47:17.682Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3a/84/afd2a270ba0069394d32462a1691497624ff221b84894871f6a22b044a74/meddeid_language_en-0.2.0-py3-none-any.whl", hash = "sha256:a6a19ea8088aac55941972e7e83074898ac54cf3db9a090bac067ffdc0bb0f72", size = 12924020, upload-time = "2026-08-27T12:47:15.491Z" },
 ]
 
 [[package]]
 name = "meddeid-language-nl"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.2.4"
+source = { git = "https://github.com/stighellemans/meddeid-language-nl.git?rev=19746c623e6a0143671e2dd78026dec994413004#19746c623e6a0143671e2dd78026dec994413004" }
 dependencies = [
     { name = "meddeid-core" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/72/b1/b366d4b9ba812343061557b76d2699c4e5054d6b679a1ffa7510bb4bc634/meddeid_language_nl-0.2.0.tar.gz", hash = "sha256:2aa66a172cf1328a6535527b8b4f8be31d96377c36067cb1cedacf7a60134761", size = 2273092, upload-time = "2026-08-27T12:27:11.697Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/dc/0a582cbdc33f838f3c8a467f759fe42225fbfb6ff7d42b1944ba3b5f713f/meddeid_language_nl-0.2.0-py3-none-any.whl", hash = "sha256:1c981099947d502a88ff64a7d0f0188071bccf542ae16e0f2bc24293a75b6421", size = 2273522, upload-time = "2026-08-27T12:27:09.843Z" },
 ]
 
 [[package]]
@@ -3262,6 +3253,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c5/d3/aab232b8320a996716a72ba8676c501378c06bdf8dfd85ec2e55f6281b77/regex-2026.8.31-cp314-cp314t-win32.whl", hash = "sha256:241c614ab811e29f2e67e2828404dd10a2dc675ec2c75a6017ec310fd09117b9", size = 274528, upload-time = "2026-08-30T21:53:40.764Z" },
     { url = "https://files.pythonhosted.org/packages/16/a4/15e5c63c0dda6536604dd5f7fcff5c2db76a64dcc35fe06425ac77c519b2/regex-2026.8.31-cp314-cp314t-win_amd64.whl", hash = "sha256:222c906a555bdbd5322f15778bb2b4f238c26e1d52c9445f1e50f5e4452909b3", size = 283810, upload-time = "2026-08-30T21:53:42.78Z" },
     { url = "https://files.pythonhosted.org/packages/12/3c/8f976c417d1cd5afa21ee1f8c458651f71ee5588646e98094719db1c0d7d/regex-2026.8.31-cp314-cp314t-win_arm64.whl", hash = "sha256:43581e1f0c1f624cb7e2e8195c443f6e3004fc376bd12d644cdc8e613c973323", size = 283452, upload-time = "2026-08-30T21:53:45.149Z" },
+]
+
+[[package]]
+name = "rfc8785"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/2f/fa1d2e740c490191b572d33dbca5daa180cb423c24396b856f5886371d8b/rfc8785-0.1.4.tar.gz", hash = "sha256:e545841329fe0eee4f6a3b44e7034343100c12b4ec566dc06ca9735681deb4da", size = 14321, upload-time = "2024-09-27T16:33:31.206Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/78/119878110660b2ad709888c8a1614fce7e2fab39080ab960656dc8605bf6/rfc8785-0.1.4-py3-none-any.whl", hash = "sha256:520d690b448ecf0703691c76e1a34a24ddcd4fc5bc41d589cb7c58ec651bcd48", size = 9240, upload-time = "2024-09-27T16:33:29.683Z" },
 ]
 
 [[package]]

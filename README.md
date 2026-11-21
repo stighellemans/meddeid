@@ -11,6 +11,8 @@ For cross-suite navigation and task-oriented guidance, see the
 [MedDeID website and documentation](https://stighellemans.github.io/meddeid/). This repository remains
 authoritative for inference APIs, CLI options, service settings, and deployment.
 
+For a private deployment with Terraform, Nginx, Docker Compose and Databricks, follow the [hospital integration cookbook](https://stighellemans.github.io/meddeid/workflows/hospital/).
+
 ## Language support
 
 | Language | Language profiles | Public model |
@@ -77,7 +79,7 @@ The browser opens with the API key already filled in. Paste a note and select
 **De-identify**. Stop MedDeID with `./scripts/stop-local.sh`.
 
 Developers testing source changes can add `--build`. For a shared service, see
-[Production deployment](docs/production.md).
+[Production deployment](https://github.com/stighellemans/meddeid/blob/main/docs/production.md).
 
 ## Python HTTP service
 
@@ -89,9 +91,9 @@ python -m pip install 'meddeid[server]'
 ```
 
 This installs the service runtime, not the surrounding production controls.
-See [Production deployment](docs/production.md) for authentication, TLS,
+See [Production deployment](https://github.com/stighellemans/meddeid/blob/main/docs/production.md) for authentication, TLS,
 network, resource, monitoring, and validation requirements, and
-[Inference and deployment](docs/inference.md) for the availability matrix.
+[Inference and deployment](https://github.com/stighellemans/meddeid/blob/main/docs/inference.md) for the availability matrix.
 
 For dataset review, benchmarking, evaluation, training, synthetic-data, and
 contributor workflows, install the suite front door with the matching extras:
@@ -169,11 +171,13 @@ meddeid deidentify note.txt \
   --language-profile en-GB
 ```
 
-Dates use placeholders unless the caller explicitly supplies
-`metadata.date_shift_days`. A nonzero shift produces deterministic shifted
-dates; zero produces placeholders and a structured warning. One declarative
-age-granularity JSON policy is loaded for the complete engine, independent of
-the selected language profile.
+The 0.4.3 HTTP API uses labels for detected event dates by default.
+To shift them, set `render.date_replacement` to true and supply a patient
+scope or a fixed `render.date_offset_override`. Remove
+`metadata.date_shift_days` from clients during migration. The RC4 wheel
+accepts the field. The RC5 gateway returns HTTP 422 if it is
+present.
+[Patient scope and fixed offset examples](site/docs/workflows/production-deployment.md#shift-event-dates-with-a-patient-scope)
 
 The self-contained model bundle is downloaded and cached on first use. Document
 text is processed locally and is not sent to Hugging Face. Quickly inspect the
@@ -336,10 +340,10 @@ operate separate service instances so batch work cannot delay interactive
 requests.
 
 See the reader-focused [production deployment
-guide](site/docs/workflows/production-deployment.md) for setup. Benchmark
+guide](https://stighellemans.github.io/meddeid/workflows/production-deployment/) for setup. Benchmark
 evidence and advanced tuning remain in the [technical production
-reference](docs/production.md), [CUDA guide](deploy/pytorch-cuda/README.md), and
-[TensorRT guide](deploy/triton/README.md).
+reference](https://github.com/stighellemans/meddeid/blob/main/docs/production.md), [CUDA guide](https://github.com/stighellemans/meddeid/blob/main/deploy/pytorch-cuda/README.md), and
+[TensorRT guide](https://github.com/stighellemans/meddeid/blob/main/deploy/triton/README.md).
 
 ## Language profiles and metadata
 
@@ -356,7 +360,7 @@ multi-profile bundle, document metadata is used first, followed by an explicit
 load-time default and then a single-profile bundle default; MedDeID never
 guesses between multiple profiles. Additional languages require a compatible
 model bundle and language profile. See
-[Language profile selection](docs/language-profile-selection.md).
+[Language profile selection](https://github.com/stighellemans/meddeid/blob/main/docs/language-profile-selection.md).
 
 Optional trusted metadata can recover known patient or caregiver names and
 birth-date representations or other known values after neural inference.

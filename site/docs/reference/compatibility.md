@@ -13,7 +13,36 @@ normally selects the compatible supporting packages for you.
 | Running a container in production | Pin the image digest after validating that exact image |
 | Passing data between tools | Keep the generated manifest with the file so the next tool can verify its contract and checksum |
 
-## Current compatible versions
+<span id="rendering-release-candidate"></span>
+
+## MedDeID 0.4.3
+
+Install the stable release from PyPI. A job that calls the gateway can reuse
+stored detections and render views on CPU with core and the language package
+for its notes. For Dutch, run
+
+```bash
+python -m pip install 'meddeid-core==0.2.4' 'meddeid-language-nl==0.2.4'
+```
+
+On a machine that runs the model and serves HTTP, install the inference
+package with its server extra. To reproduce this release exactly, pin both
+profiles and core.
+
+```bash
+python -m pip install 'meddeid[server]==0.4.3' 'meddeid-core==0.2.4' \
+  'meddeid-language-en==0.2.4' 'meddeid-language-nl==0.2.4'
+```
+
+Both HTTP endpoints reject `metadata.date_shift_days` with status 422 whenever
+the field is present, including null. Migrate older callers by removing it
+and choosing a patient scope or an explicit override in `render`.
+[How to shift event dates](../workflows/production-deployment.md#shift-event-dates-with-a-patient-scope)
+
+## Published suite 0.3.1 { #current-compatible-versions }
+
+This historical suite pins MedDeID 0.4.2 with the components below. The image table in the next section lists the current inference release.
+See the [tagged suite manifest](https://github.com/stighellemans/meddeid-suite/blob/v0.3.1/suite-lock.yaml).
 
 | Component | Version | Distribution | Compatible MedDeID dependencies |
 |---|---:|---|---|
@@ -51,28 +80,24 @@ If you are choosing a runtime rather than looking up a version, start with the
 
 | Image | Version tag | Pinning |
 |---|---|---|
-| `ghcr.io/stighellemans/meddeid-api` | `0.4.2` | Resolve and pin with `docker buildx imagetools inspect` |
-| `ghcr.io/stighellemans/meddeid-api` (PyTorch CUDA) | `0.4.2-cuda12.9` | Resolve and pin the GPU tag independently from the CPU image |
-| `ghcr.io/stighellemans/meddeid-triton-gateway` | `0.4.0` | Weight-free API gateway; Compose connects it to Triton |
+| `ghcr.io/stighellemans/meddeid-api` | `0.4.3` | Resolve and pin with `docker buildx imagetools inspect` |
+| `ghcr.io/stighellemans/meddeid-api` (PyTorch CUDA) | `0.4.3-cuda12.9` | Resolve and pin the GPU tag independently from the CPU image |
+| `ghcr.io/stighellemans/meddeid-triton-gateway` | `0.4.3` | Weight-free API gateway; Compose connects it to Triton |
 | `ghcr.io/stighellemans/meddeid-triton-runtime` | `0.4.0-trt26.07` | Weight-free Triton runtime for the matching release stack |
 | `ghcr.io/stighellemans/meddeid-triton-plan-t4-sm75` | release-, model-, and stack-specific | Compiled model plan; Compose selects and verifies the matching Dutch or English artifact |
+| `ghcr.io/stighellemans/meddeid-triton-plan-ampere-plus` | release-, model-, and stack-specific | Hardware-compatible plan for Ampere and newer GPUs, available for both public models |
 | `ghcr.io/stighellemans/meddeid-annotate` | `0.3.1` | Resolve and pin with `docker buildx imagetools inspect` |
 | `ghcr.io/stighellemans/meddeid-curate` | `0.3.1` | Resolve and pin with `docker buildx imagetools inspect` |
 | `ghcr.io/stighellemans/meddeid-subannotate` | `0.3.1` | Resolve and pin with `docker buildx imagetools inspect` |
 
-The T4 target is the first ready optimized TensorRT target. The deployment
-guide lets you select either public model without handling its plan directly.
-If you need an
-optimized build for A10G, L4, or another NVIDIA GPU, email
-[stig.hellemans@uantwerpen.be](mailto:stig.hellemans@uantwerpen.be). Each target
-requires separate validation before it can be offered. Use the portable
-PyTorch CUDA image when the GPU model is not fixed, and do not send sensitive
-data by email.
+Compose selects a plan using the GPU, model revision and language profile.
+The published catalog contains exact T4 plans and hardware-compatible
+Ampere+ plans. The published performance measurements are from a T4.
+[Choose or build a TensorRT plan](../workflows/production-deployment.md#deploy-the-optimized-nvidia-service)
 
-Keep the image and plan digests you validated in the deployment configuration
-and release record. A source-code update does not change existing artifacts;
-new runtime images and model plans must be built, validated, and released as a
-coordinated MedDeID suite version.
+Record the image and plan digests you tested. The 0.4.3 gateway uses the
+0.4.0 runtime and four compiled plans. The plans retain their original tags
+and manifest versions so Compose can verify their model and runtime identity.
 
 ## Check contracts when exchanging files
 

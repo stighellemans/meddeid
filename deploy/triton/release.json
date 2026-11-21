@@ -44,7 +44,7 @@
     }
   },
   "images": {
-    "gateway": "ghcr.io/stighellemans/meddeid-triton-gateway:0.4.0",
+    "gateway": "ghcr.io/stighellemans/meddeid-triton-gateway:0.4.3",
     "runtimes": {
       "t4": "ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07",
       "ampere-plus": "ghcr.io/stighellemans/meddeid-triton-runtime:0.4.0-trt26.07"

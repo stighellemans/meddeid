@@ -44,6 +44,7 @@ SERVER_ENVIRONMENT_KEYS = frozenset(
         "MEDDEID_MODEL",
         "MEDDEID_OFFLINE",
         "MEDDEID_PORT",
+        "MEDDEID_PSEUDONYMIZATION_KEY_FILE",
         "MEDDEID_PROXY_HEADERS",
         "MEDDEID_QUEUE_TIMEOUT_SECONDS",
         "MEDDEID_REVISION",
@@ -525,20 +526,24 @@ def create_app(
             default=None,
             description="Reference date used to convert birthdates to generalized ages.",
         )
-        date_shift_days: int | None = Field(
-            default=None,
-            strict=True,
-            description=(
-                "Explicit date shift in days. Omit for placeholders; zero also uses "
-                "placeholders and produces a warning."
-            ),
-        )
         known_values: list[KnownValueMetadata] | None = None
 
         @model_validator(mode="before")
         @classmethod
-        def reject_retired_identity_keys(cls, value):
+        def reject_unsupported_metadata(cls, value):
             if isinstance(value, dict):
+                if "date_shift_days" in value:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "retired_date_shift_days",
+                            "message": (
+                                "Remove metadata.date_shift_days. To shift dates, set "
+                                "render.date_replacement to true and supply "
+                                "render.pseudonymization_scope or render.date_offset_override."
+                            ),
+                        },
+                    )
                 retired = [
                     key for key in ("patient_name", "caregiver_names") if key in value
                 ]
@@ -561,9 +566,34 @@ def create_app(
                     )
             return value
 
+    # The deployment mounts a pinned key version; requests carry only scope identifiers.
+    mapping_key = None
+    if key_file := os.environ.get("MEDDEID_PSEUDONYMIZATION_KEY_FILE"):
+        from meddeid_core.rendering.scope import validate_scope
+
+        mapping_key = Path(key_file).read_text(encoding="ascii").strip()
+        validate_scope({"secret": mapping_key}, required=True)
+
+    class RenderOptions(StrictRequestModel):
+        model_config = ConfigDict(extra="forbid", strict=True)
+
+        categories: str | list[str] | None = None
+        keep_original: str | list[str] | None = None
+        name_replacement: bool = False
+        date_replacement: bool = False
+        age_replacement: bool = False
+        pseudonymization_scope: dict[str, Any] | None = Field(
+            default=None, description="Scope identifiers. The service supplies the mapping key."
+        )
+        document_creation_date: str | None = None
+        profile_id: str | None = None
+        date_shift_range: list[int] | None = None
+        date_offset_override: int | None = None
+
     class DeidentifyRequest(StrictRequestModel):
         text: str = Field(min_length=1, max_length=limit)
         metadata: RecordMetadata = Field(default_factory=RecordMetadata)
+        render: RenderOptions | None = None
 
     class InferenceSpan(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -581,8 +611,8 @@ def create_app(
             default=None,
             description="Model confidence when the span originated from model inference.",
         )
-        replacement: str = Field(
-            description="Exact bracketed value inserted into deid_text."
+        replacement: str | None = Field(
+            default=None, description="Default-policy replacement, included when render is omitted."
         )
 
     class ProcessingWarning(BaseModel):
@@ -653,12 +683,40 @@ def create_app(
     class BatchResponse(BaseModel):
         documents: list[BatchDocumentResponse]
 
-    def result_response(result) -> dict[str, Any]:
+    def result_response(result, document) -> dict[str, Any]:
         provenance = getattr(result, "provenance", None)
         if not provenance:
             raise RuntimeError(
                 "inference result is missing required provenance metadata"
             )
+        if document.render is not None:
+            from meddeid_core.rendering import apply_spans
+
+            options = document.render.model_dump(exclude_none=True)
+            options.setdefault("profile_id", provenance["language_profile"]["profile_id"])
+            if "document_creation_date" not in document.render.model_fields_set:
+                options["document_creation_date"] = document.metadata.document_creation_date
+            scope = options.get("pseudonymization_scope")
+            if scope is not None:
+                if "secret" in scope:
+                    raise HTTPException(422, "Supply scope identifiers only")
+                if mapping_key is not None:
+                    options["pseudonymization_scope"] = {**scope, "secret": mapping_key}
+                elif options.get("name_replacement") or (
+                    options.get("date_replacement") and options.get("date_offset_override") is None
+                ):
+                    raise HTTPException(503, "Server pseudonymization key is not configured")
+            try:
+                rendered = apply_spans(document.text, result.spans, **options)
+            except ValueError as exc:
+                raise HTTPException(422, detail={"code": "invalid_render", "message": str(exc)}) from exc
+            # Retain the original detections for further CPU views. Replacements and
+            # date statistics produced by the default policy describe a different text.
+            return {
+                "deid_text": rendered,
+                "spans": [{k: v for k, v in span.items() if k != "replacement"} for span in result.spans],
+                "provenance": provenance,
+            }
         return {
             "deid_text": result.deid_text,
             "spans": result.spans,
@@ -1153,6 +1211,8 @@ def create_app(
                 },
             )
         enforce_language_profile(payload.metadata.lang)
+        if payload.render is not None:
+            enforce_language_profile(payload.render.profile_id)
         try:
             result = engine(
                 payload.text,
@@ -1168,7 +1228,7 @@ def create_app(
                 status_code=503,
                 detail={"code": "inference_unavailable", "message": str(exc)},
             ) from exc
-        return result_response(result)
+        return result_response(result, payload)
 
     @app.post(
         "/deidentify-batch",
@@ -1198,6 +1258,8 @@ def create_app(
                         "message": f"document {document.document_id!r} contains only whitespace",
                     },
                 )
+            if document.render is not None:
+                enforce_language_profile(document.render.profile_id, document_id=document.document_id)
             enforce_language_profile(
                 document.metadata.lang,
                 document_id=document.document_id,
@@ -1228,7 +1290,7 @@ def create_app(
             "documents": [
                 {
                     "document_id": document.document_id,
-                    **result_response(result),
+                    **result_response(result, document),
                 }
                 for document, result in zip(payload.documents, results, strict=True)
             ]
