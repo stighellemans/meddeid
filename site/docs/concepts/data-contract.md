@@ -70,7 +70,7 @@ translate a limited set of common alternatives in existing JSONL files.
 
 ## Store and reuse detections
 
-With **core 0.2.4rc4**, a pipeline can save the detections from an HTTP
+With **core 0.2.4**, a pipeline can save the detections from an HTTP
 response as a `meddeid.annotations.v1` record. Use this format when the exact
 source text already has a home and another job needs to render it later.
 The record stores the source identity you supply, the UTF-8 text hash,

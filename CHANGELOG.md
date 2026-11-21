@@ -3,7 +3,10 @@
 All notable user-visible changes are recorded here. This project follows
 semantic versioning while pre-1.0 versions may still refine public contracts.
 
-## [0.4.3rc5] - 2026-11-21
+## [0.4.3] - 2026-11-21
+
+- Ship the stable rendering API with core and language profiles 0.2.4. The Triton gateway supports the existing Dutch and English plans on T4 and Ampere+ GPUs.
+- Update the pinned container dependencies for certifi and filelock.
 
 - **Breaking HTTP change:** Both inference endpoints return HTTP 422 when a document contains `metadata.date_shift_days`, even if it is null. Remove the field and enable `render.date_replacement` with a patient scope or an explicit `render.date_offset_override`.
 - Select how identifiers are replaced in single-document and batch HTTP requests with the optional `render` field. Use the returned source offsets to produce additional text variants on CPU without repeating detection.

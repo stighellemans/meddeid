@@ -11,9 +11,9 @@ A successful health check tells you the model is ready. Sending a note answers
 two further questions. Is this the model the hospital approved? Can the job
 use its detections to produce text?
 
-Install the candidate `meddeid-core` wheel, the Dutch language wheel and
+Install the `meddeid-core==0.2.4` package, the Dutch language wheel and
 `azure-keyvault-secrets` in the job environment. Put the example Python file
-on the job's import path. [Candidate installation commands](../../reference/compatibility.md#rendering-release-candidate) · [Databricks example](databricks_example.py)
+on the job's import path. [Release installation commands](../../reference/compatibility.md#meddeid-043) · [Databricks example](databricks_example.py)
 
 The example makes a repeatable alias for a patient name. For that it needs a
 secret **mapping key**. Store at least 32 random bytes as hexadecimal in a

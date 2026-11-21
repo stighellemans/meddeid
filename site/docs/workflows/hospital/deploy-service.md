@@ -18,7 +18,7 @@ hospital's registry and record its digest. The digest lets IT pull the exact
 image you tested. Supply the approved Nginx image digest, the private model
 bundle, matching Python wheels and a synthetic test case. The compatibility
 guide lists the packages for the server and the smaller set the Databricks job
-needs. [MedDeID 0.4.3rc5 versions and install commands](../../reference/compatibility.md#rendering-release-candidate)
+needs. [MedDeID 0.4.3 versions and install commands](../../reference/compatibility.md#meddeid-043)
 
 The Compose file in this recipe runs PyTorch. Hospitals using TensorRT have
 an additional build step for the private model. [Prepare a private TensorRT plan](#if-you-use-tensorrt)

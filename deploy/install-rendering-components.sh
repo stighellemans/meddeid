@@ -9,7 +9,7 @@ case "${MEDDEID_COMPONENT_SOURCE:-git}" in
     sha256sum -- *.whl > /tmp/meddeid-component-hashes
     diff -u SHA256SUMS /tmp/meddeid-component-hashes
     python -m pip install --no-index --find-links . --constraint /tmp/container-constraints.txt \
-      meddeid-core==0.2.4rc4 meddeid-language-en==0.2.4rc1 meddeid-language-nl==0.2.4rc1
+      meddeid-core==0.2.4 meddeid-language-en==0.2.4 meddeid-language-nl==0.2.4
     ;;
   git)
     python -m pip install --constraint /tmp/container-constraints.txt --retries 5 --timeout 60 \

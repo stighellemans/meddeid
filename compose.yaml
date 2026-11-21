@@ -2,13 +2,13 @@ name: meddeid
 
 services:
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.3rc5}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.3}
     build:
       context: .
       args:
-        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb}
-        MEDDEID_LANGUAGE_EN_COMMIT: ${MEDDEID_LANGUAGE_EN_COMMIT:-c2c1df0bca705263bf0d208f5760a1fc56e5f094}
-        MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-8debae6a6c385b3571c0aa11b3046ae856dde8ea}
+        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-1f69717b3a83d1afdfb5426ba7a20094d39d741d}
+        MEDDEID_LANGUAGE_EN_COMMIT: ${MEDDEID_LANGUAGE_EN_COMMIT:-720ebe0ca550179817e16d4b64072574f05918a8}
+        MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-19746c623e6a0143671e2dd78026dec994413004}
     pull_policy: missing
     ports:
       - "${MEDDEID_BIND_ADDRESS:-127.0.0.1}:${MEDDEID_PORT:-8000}:8000"

@@ -171,7 +171,7 @@ meddeid deidentify note.txt \
   --language-profile en-GB
 ```
 
-The 0.4.3rc5 HTTP API uses labels for detected event dates by default.
+The 0.4.3 HTTP API uses labels for detected event dates by default.
 To shift them, set `render.date_replacement` to true and supply a patient
 scope or a fixed `render.date_offset_override`. Remove
 `metadata.date_shift_days` from clients during migration. The RC4 wheel

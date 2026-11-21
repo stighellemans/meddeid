@@ -24,9 +24,9 @@ jobs:
       - name: Install pinned dependencies and test requirements
         run: |
           python -m pip install \
-            'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb' \
-            'meddeid-language-en @ git+https://github.com/stighellemans/meddeid-language-en.git@c2c1df0bca705263bf0d208f5760a1fc56e5f094' \
-            'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@8debae6a6c385b3571c0aa11b3046ae856dde8ea'
+            'meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@1f69717b3a83d1afdfb5426ba7a20094d39d741d' \
+            'meddeid-language-en @ git+https://github.com/stighellemans/meddeid-language-en.git@720ebe0ca550179817e16d4b64072574f05918a8' \
+            'meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@19746c623e6a0143671e2dd78026dec994413004'
           python -m pip install '.[dev]' build twine
           python -m pip check
       - run: pytest -q

@@ -6,7 +6,7 @@ Choose the path that matches how you intend to use MedDeID:
 |---|---|
 | De-identify a note or a batch of files | [Run MedDeID locally](#run-meddeid-locally) |
 | Add de-identification to a Python application | [Use the Python API](#use-the-python-api) |
-| Call a gateway or reuse detections on CPU with 0.4.3rc5 | [Install the candidate packages](../reference/compatibility.md#rendering-release-candidate) and [render a note](../workflows/rendering.md) |
+| Call a gateway or reuse detections on CPU with 0.4.3 | [Install the release packages](../reference/compatibility.md#meddeid-043) and [render a note](../workflows/rendering.md) |
 | Explore the browser interface or HTTP API | [Try MedDeID in your browser](#try-meddeid-in-your-browser) |
 | Operate a shared institutional service | [Choose a runtime](../workflows/production-deployment.md) or [install the hospital service and connect Databricks](../workflows/hospital/index.md) |
 
@@ -20,13 +20,12 @@ requires Python 3.10 or newer but does not require writing Python code.
 
 ### Install
 
-For the published suite documented here, start with MedDeID 0.4.2. If you have
-the candidate wheels, use the [0.4.3rc5 installation instructions](../reference/compatibility.md#rendering-release-candidate).
+Install MedDeID 0.4.3 from PyPI. See the [component versions](../reference/compatibility.md#meddeid-043) for a pinned deployment.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install 'meddeid==0.4.2'
+python -m pip install 'meddeid==0.4.3'
 meddeid models
 ```
 
@@ -86,7 +85,7 @@ Install and start Docker Desktop. For the published image, use its matching
 Compose files.
 
 ```bash
-git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.3 https://github.com/stighellemans/meddeid.git
 cd meddeid
 ```
 
@@ -117,7 +116,7 @@ API documentation is available at `http://127.0.0.1:8000/docs`.
 Stop the service with `./scripts/stop-local.sh`.
 
 For a shared service, see [production deployment](../workflows/production-deployment.md).
-For an image built with the candidate components, see
+For a hospital deployment, see
 [prepare a hospital release](../workflows/hospital/deploy-service.md#choose-the-release).
 
 ## Reproducible or offline runs

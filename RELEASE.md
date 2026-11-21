@@ -1,46 +1,24 @@
 # Release runbook
 
-## Shared rendering candidate
+## MedDeID 0.4.3
 
-MedDeID 0.4.3rc5 uses core 0.2.4rc4 and locale packages 0.2.4rc1. Build the three
-component wheels at the revisions pinned in `pyproject.toml`. Use the same
-wheels for job validation and private image builds.
+Release core 0.2.4, the Dutch and English Python profiles 0.2.4, then
+MedDeID 0.4.3. Install the public packages in an empty environment and run
+`python -m pip check`. The signed runtime tag triggers PyPI, the AMD64/ARM64
+CPU image, the CUDA 12.9 image and the Triton gateway builds. The CUDA job
+uses a temporary T4 runner.
 
-The distributed inference wheel for 0.4.3rc4 accepts `metadata.date_shift_days`.
-The 0.4.3rc5 gateway returns HTTP 422 whenever that field is present.
-Build the RC5 wheel and CUDA image from the same recorded commit. Keep the RC4 artifacts available for rollback.
-On the new image, send a synthetic note with the retired field to
-`/deidentify` and include it as one item in `/deidentify-batch`. Both
-requests must return 422 with `detail.code` set to `retired_date_shift_days`.
-Repeat with the patient-scoped request in the production guide and verify
-the shifted date against the offset derived with the acceptance key.
+Keep the Triton runtime and all four plans on their original 0.4.0 artifact
+identities. Their manifests record the model revision, TensorRT stack and GPU
+target of the compiled engines. Test both public models with the 0.4.3 gateway
+on T4 and Ampere+ hardware before marking the GitHub release as latest.
+Record the image and plan digests used for the tests.
+
+Send a valid single request and batch and verify the output. Repeat with
+`metadata.date_shift_days` on one document. Each endpoint must return HTTP
+422 and `detail.code` equal to `retired_date_shift_days`. Check a scoped
+shift against the offset derived on CPU.
 [Production request and offset recovery](site/docs/workflows/production-deployment.md#shift-event-dates-with-a-patient-scope)
-
-For site acceptance before public publication, stage the three component
-wheels and the approved rfc8785 0.1.4 wheel in a dedicated directory. Supply
-`SHA256SUMS` with a SHA-256 and filename for each wheel, in filename order.
-Compare it against the release record. Pass that directory as a named BuildKit
-context. For example, from the repository root:
-
-```bash
-docker buildx build --platform linux/amd64 \
-  --build-context component_wheels="$COMPONENT_WHEELS" \
-  --build-arg MEDDEID_COMPONENT_SOURCE=wheels \
-  -f deploy/triton-gateway.Dockerfile -t "$CANDIDATE_GATEWAY_IMAGE" --load .
-```
-
-The PyTorch Dockerfile accepts the same context and argument with its usual
-CPU or CUDA build flags. Keep model weights outside the build contexts.
-After hospital acceptance and approval to publish, release core, the language
-packages and MedDeID in that order. The default Git build uses the component
-commits recorded in the Dockerfiles. Record the image digests for each runtime.
-The previously released 0.4.2 artifacts retain their own identities.
-
-Install the MedDeID and component wheels together in a clean inference environment
-and run `python -m pip check`. Confirm that `from meddeid.rendering import apply_spans`
-works in that installation. Use the [hospital cookbook](site/docs/workflows/hospital/index.md)
-to test a private HTTPS batch, verify model provenance and render the stored detections
-before approving the images.
 
 ## Previous coordinated suite release (0.4.2)
 

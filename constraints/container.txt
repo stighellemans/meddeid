@@ -8,10 +8,10 @@ aiosignal==1.4.0
 anyio==4.14.2
 attrs==26.1.0
 brotli==1.2.0
-certifi==2026.7.22
+certifi==2026.11.20
 click==8.4.2
 fastapi==0.141.1
-filelock==3.32.3
+filelock==4.2.4
 fsspec==2026.7.0
 frozenlist==1.8.0
 gevent==26.8.0

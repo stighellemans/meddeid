@@ -42,7 +42,7 @@ flowchart LR
 
 | Layer | Components | Owns |
 |---|---|---|
-| Contract | `meddeid-core` | Record shape, taxonomy, offsets, normalization and validation. The rendering candidate also provides the gateway client, stored detection records and CPU renderer. |
+| Contract | `meddeid-core` | Record shape, taxonomy, offsets, normalization and validation. The rendering API also provides the gateway client, stored detection records and CPU renderer. |
 | Language | `meddeid-language-*` packages | Language rules, locale profiles, and versioned resources |
 | Runtime | `meddeid` | Model loading, tokenization, decoding, post-processing, local serving |
 | Data | `meddeid-data` | Source import, stable identities, splits, synthetic generation |
@@ -60,9 +60,9 @@ your task without installing or operating the entire suite.
 For ordinary de-identification, install `meddeid`. Dataset preparation,
 annotation, evaluation, and training are separate tools and are needed only for
 those workflows. Add the optional server dependencies on the host that serves
-the model. A Python job calling a candidate gateway needs only the core client.
+the model. A Python job calling the 0.4.3 gateway needs only the core client.
 Add the matching language package for locale-specific rendering on the job.
-[Candidate package versions](../reference/compatibility.md#rendering-release-candidate)
+[Release package versions](../reference/compatibility.md#meddeid-043)
 
 This keeps a basic inference environment smaller and gives production and
 research workflows independent dependency and release boundaries.

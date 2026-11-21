@@ -1,0 +1,74 @@
+name: Triton gateway image
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - deploy/triton-gateway.Dockerfile
+      - deploy/install-rendering-components.sh
+      - constraints/container.txt
+      - pyproject.toml
+      - src/**
+      - .github/workflows/triton-gateway.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the weight-free gateway
+        run: ./deploy/build_triton_gateway_image.sh meddeid-gateway:verify
+      - name: Check the gateway and the release vulnerability policy
+        run: |
+          docker run --rm --entrypoint python meddeid-gateway:verify -c 'from meddeid.server import create_app; from meddeid_core.rendering import apply_spans'
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 meddeid-gateway:verify
+
+  publish:
+    needs: verify
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/meddeid-triton-gateway
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the release tag
+        run: |
+          version=$(python deploy/read_project_version.py)
+          test "$GITHUB_REF_NAME" = "v$version"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        id: gateway
+        with:
+          context: .
+          file: deploy/triton-gateway.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.VERSION }}
+          build-args: |
+            MEDDEID_VERSION=${{ env.VERSION }}
+            VCS_REF=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.gateway.outputs.digest }}
+          push-to-registry: true

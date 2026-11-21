@@ -1,9 +1,9 @@
 # Render detected identifiers
 
-In **MedDeID 0.4.3rc5**, one detection run can produce several text variants.
+In **MedDeID 0.4.3**, one detection run can produce several text variants.
 For example, one view can mask every detected identifier while another keeps
 event dates for an authorized timeline review. Both use offsets in the same
-original note. [Install the candidate packages](../reference/compatibility.md#rendering-release-candidate)
+original note. [Install the stable packages](../reference/compatibility.md#meddeid-043)
 
 ## Request one text from the gateway
 
@@ -43,7 +43,7 @@ and `document_id`. The client checks the returned IDs and source slices.
 | Send render options | `deid_text` contains the requested view. As with an empty render object, `spans` contains the original detections and `provenance` identifies the detection run. The gateway omits the default policy's per-span `replacement`, `processing` and `warnings` fields. |
 
 Remove `metadata.date_shift_days` from every request when migrating a client.
-The distributed 0.4.3rc4 wheel accepts it. The 0.4.3rc5 gateway
+The distributed 0.4.3rc4 wheel accepts it. The 0.4.3 gateway
 rejects it with HTTP 422. Both support the scope and override examples.
 [Patient scope and fixed offset examples](production-deployment.md#shift-event-dates-with-a-patient-scope)
 

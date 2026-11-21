@@ -1707,7 +1707,7 @@ wheels = [
 
 [[package]]
 name = "meddeid"
-version = "0.4.3rc5"
+version = "0.4.3"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
@@ -1768,13 +1768,13 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=0.25" },
-    { name = "meddeid-core", git = "https://github.com/stighellemans/meddeid-core.git?rev=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb" },
+    { name = "meddeid-core", git = "https://github.com/stighellemans/meddeid-core.git?rev=1f69717b3a83d1afdfb5426ba7a20094d39d741d" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'research'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.5,<0.6" },
     { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.5,<0.6" },
-    { name = "meddeid-language-en", git = "https://github.com/stighellemans/meddeid-language-en.git?rev=c2c1df0bca705263bf0d208f5760a1fc56e5f094" },
-    { name = "meddeid-language-nl", git = "https://github.com/stighellemans/meddeid-language-nl.git?rev=8debae6a6c385b3571c0aa11b3046ae856dde8ea" },
+    { name = "meddeid-language-en", git = "https://github.com/stighellemans/meddeid-language-en.git?rev=720ebe0ca550179817e16d4b64072574f05918a8" },
+    { name = "meddeid-language-nl", git = "https://github.com/stighellemans/meddeid-language-nl.git?rev=19746c623e6a0143671e2dd78026dec994413004" },
     { name = "meddeid-training", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.4" },
     { name = "meddeid-training", extras = ["plots"], marker = "extra == 'research'", specifier = ">=0.3,<0.4" },
     { name = "numpy", specifier = ">=1.24" },
@@ -1797,8 +1797,8 @@ provides-extras = ["server", "triton", "research", "contributor", "dev"]
 
 [[package]]
 name = "meddeid-core"
-version = "0.2.4rc4"
-source = { git = "https://github.com/stighellemans/meddeid-core.git?rev=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb#fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb" }
+version = "0.2.4"
+source = { git = "https://github.com/stighellemans/meddeid-core.git?rev=1f69717b3a83d1afdfb5426ba7a20094d39d741d#1f69717b3a83d1afdfb5426ba7a20094d39d741d" }
 dependencies = [
     { name = "rfc8785" },
 ]
@@ -1850,16 +1850,16 @@ plots = [
 
 [[package]]
 name = "meddeid-language-en"
-version = "0.2.4rc1"
-source = { git = "https://github.com/stighellemans/meddeid-language-en.git?rev=c2c1df0bca705263bf0d208f5760a1fc56e5f094#c2c1df0bca705263bf0d208f5760a1fc56e5f094" }
+version = "0.2.4"
+source = { git = "https://github.com/stighellemans/meddeid-language-en.git?rev=720ebe0ca550179817e16d4b64072574f05918a8#720ebe0ca550179817e16d4b64072574f05918a8" }
 dependencies = [
     { name = "meddeid-core" },
 ]
 
 [[package]]
 name = "meddeid-language-nl"
-version = "0.2.4rc1"
-source = { git = "https://github.com/stighellemans/meddeid-language-nl.git?rev=8debae6a6c385b3571c0aa11b3046ae856dde8ea#8debae6a6c385b3571c0aa11b3046ae856dde8ea" }
+version = "0.2.4"
+source = { git = "https://github.com/stighellemans/meddeid-language-nl.git?rev=19746c623e6a0143671e2dd78026dec994413004#19746c623e6a0143671e2dd78026dec994413004" }
 dependencies = [
     { name = "meddeid-core" },
 ]

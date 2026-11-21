@@ -7,9 +7,9 @@ FROM scratch AS component_wheels
 FROM ${PYTHON_IMAGE} AS builder
 ARG MEDDEID_COMPONENT_SOURCE=git
 
-ARG MEDDEID_CORE_COMMIT=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb
-ARG MEDDEID_LANGUAGE_EN_COMMIT=c2c1df0bca705263bf0d208f5760a1fc56e5f094
-ARG MEDDEID_LANGUAGE_NL_COMMIT=8debae6a6c385b3571c0aa11b3046ae856dde8ea
+ARG MEDDEID_CORE_COMMIT=1f69717b3a83d1afdfb5426ba7a20094d39d741d
+ARG MEDDEID_LANGUAGE_EN_COMMIT=720ebe0ca550179817e16d4b64072574f05918a8
+ARG MEDDEID_LANGUAGE_NL_COMMIT=19746c623e6a0143671e2dd78026dec994413004
 ARG TRITON_CLIENT_VERSION=2.71.0
 
 ENV VIRTUAL_ENV=/opt/venv \
@@ -36,7 +36,7 @@ COPY deploy/install-rendering-components.sh /tmp/install-rendering-components.sh
 RUN --mount=type=bind,from=component_wheels,target=/component-wheels sh /tmp/install-rendering-components.sh
 
 WORKDIR /build/meddeid
-COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY pyproject.toml README.md LICENSE NOTICE MEDDEID-PRIVATE-FINE-TUNING-EXCEPTION-1.0.txt ./
 COPY src ./src
 
 RUN python -m pip install --no-deps '.[server]' \
@@ -47,9 +47,9 @@ RUN python -m pip install --no-deps '.[server]' \
 
 FROM ${PYTHON_IMAGE} AS runtime
 
-ARG MEDDEID_CORE_COMMIT=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb
-ARG MEDDEID_LANGUAGE_EN_COMMIT=c2c1df0bca705263bf0d208f5760a1fc56e5f094
-ARG MEDDEID_LANGUAGE_NL_COMMIT=8debae6a6c385b3571c0aa11b3046ae856dde8ea
+ARG MEDDEID_CORE_COMMIT=1f69717b3a83d1afdfb5426ba7a20094d39d741d
+ARG MEDDEID_LANGUAGE_EN_COMMIT=720ebe0ca550179817e16d4b64072574f05918a8
+ARG MEDDEID_LANGUAGE_NL_COMMIT=19746c623e6a0143671e2dd78026dec994413004
 ARG TRITON_CLIENT_VERSION=2.71.0
 
 ENV VIRTUAL_ENV=/opt/venv \
@@ -83,7 +83,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
-COPY LICENSE NOTICE /licenses/meddeid/
+COPY LICENSE NOTICE MEDDEID-PRIVATE-FINE-TUNING-EXCEPTION-1.0.txt /licenses/meddeid/
 
 RUN python -c "import importlib.util; assert all(importlib.util.find_spec(name) is None for name in ('torch', 'tensorrt', 'onnxruntime')); from meddeid.server import create_app" \
     && groupadd --gid 10001 meddeid \
@@ -95,7 +95,7 @@ RUN python -c "import importlib.util; assert all(importlib.util.find_spec(name) 
 
 # OCI release metadata stays after filesystem construction so changing it does
 # not invalidate the gateway runtime layers.
-ARG MEDDEID_VERSION=0.4.3rc5
+ARG MEDDEID_VERSION=0.4.3
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="MedDeID TensorRT gateway" \

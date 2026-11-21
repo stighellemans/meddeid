@@ -13,9 +13,9 @@ approved client -> your application -> MedDeID API -> local model
                          +-> governed data store
 ```
 
-The examples use the **0.4.3rc5** rendering API. This gateway rejects the
-retired metadata field on single and batch requests. The hardware instructions also cover the published 0.4.2 images.
-[Check gateway versions](../reference/compatibility.md#rendering-release-candidate) · [Prepare a candidate deployment](hospital/deploy-service.md#choose-the-release)
+The examples use the **0.4.3** rendering API. This gateway rejects the
+retired metadata field on single and batch requests. Use the images tagged for this release.
+[Check gateway versions](../reference/compatibility.md#meddeid-043) · [Prepare a hospital deployment](hospital/deploy-service.md#choose-the-release)
 
 ## Choose how the calling job authenticates
 
@@ -149,7 +149,7 @@ same request also needs scoped name aliases, keep its scope and enable
 
 !!! note "Remove the legacy metadata field before upgrading"
     The distributed 0.4.3rc4 wheel accepts `metadata.date_shift_days`.
-    The 0.4.3rc5 gateway returns HTTP 422 (`retired_date_shift_days`)
+    The 0.4.3 gateway returns HTTP 422 (`retired_date_shift_days`)
     whenever the field is present, even if its value is null or the request
     omits `render`. One such document rejects an entire batch before inference.
     Remove the field from serialized requests. Both versions support the
@@ -224,8 +224,8 @@ For each deployment:
 
 Choose the backend for the hardware your organization will operate. The
 gateway version determines whether the service accepts `render`. The
-published image commands below use the 0.4.2 checkout. For scoped requests,
-use the [candidate deployment instructions](hospital/deploy-service.md#choose-the-release).
+image commands below use the 0.4.3 checkout. For a private hospital service,
+use the [hospital deployment instructions](hospital/deploy-service.md#choose-the-release).
 
 | Deployment                                       | Requirements                                     | Online response\* | Batch speed\* | Choose when                                            |
 | ------------------------------------------------ | ------------------------------------------------ | ----------------: | ------------: | ------------------------------------------------------ |
@@ -267,7 +267,7 @@ The CPU image is the easiest starting point and supports both AMD64 and ARM64.
 Install Docker, clone the repository, and create a private environment file:
 
 ```bash
-git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.3 https://github.com/stighellemans/meddeid.git
 cd meddeid
 cp .env.example .env.cpu
 chmod 600 .env.cpu
@@ -301,7 +301,7 @@ deployment tied to one specific GPU model. The host needs an NVIDIA driver,
 Docker Engine, and NVIDIA Container Toolkit.
 
 ```bash
-git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.3 https://github.com/stighellemans/meddeid.git
 cd meddeid
 cp .env.cuda.example .env.cuda
 chmod 600 .env.cuda
@@ -332,7 +332,7 @@ Choose this option when you want the fastest tested deployment. Install Docker,
 the NVIDIA driver, and NVIDIA Container Toolkit, then create the configuration:
 
 ```bash
-git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.3 https://github.com/stighellemans/meddeid.git
 cd meddeid
 cp .env.triton.example .env.triton
 chmod 600 .env.triton
@@ -421,10 +421,10 @@ docker compose \
 
 #### Use an institution-specific model
 
-For a **0.4.3rc5** build, start from the candidate source on the target host,
+For a **0.4.3** build, start from the tagged source on the target host,
 select its private plan catalog and build the matching gateway. Use the local
 image, local model and local plan overrides together when starting that stack.
-[Prepare the candidate catalog](hospital/deploy-service.md#if-you-use-tensorrt)
+[Prepare the private model catalog](hospital/deploy-service.md#if-you-use-tensorrt)
 
 Keep your hospital's model in a local directory containing its MedDeID bundle.
 No Hugging Face account, upload, or token is needed. Set these values in `.env.triton`:
@@ -506,7 +506,7 @@ Desktop cannot pass it into the Linux MedDeID container, so install and run the
 server directly:
 
 ```bash
-git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.3 https://github.com/stighellemans/meddeid.git
 cd meddeid
 python -m pip install '.[server]'
 cp server.env.example meddeid-server.env
@@ -582,7 +582,7 @@ Review a setting only when the corresponding decision applies:
 | Decision                                                         | Setting                                                             |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Have MedDeID authenticate inference requests                     | Set `MEDDEID_API_KEY` and use `MEDDEID_REQUIRE_API_KEY=true` to catch a missing key at startup |
-| Derive patient-scoped dates or names on the candidate gateway    | `MEDDEID_PSEUDONYMIZATION_KEY_FILE` (path to the mounted mapping key) |
+| Derive patient-scoped dates or names on the gateway    | `MEDDEID_PSEUDONYMIZATION_KEY_FILE` (path to the mounted mapping key) |
 | Production container: pin the approved image digest              | `MEDDEID_API_IMAGE` or `MEDDEID_PYTORCH_CUDA_IMAGE`                 |
 | Use another model                                                | `MEDDEID_MODEL`, `MEDDEID_REVISION`, and `MEDDEID_LANGUAGE_PROFILE` |
 | Sustained CUDA or MPS batch processing                           | `MEDDEID_SERVING_PROFILE=throughput`                                |

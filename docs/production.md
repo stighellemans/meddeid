@@ -30,7 +30,7 @@ language profiles, and post-processing remain the same.
 | Situation | Choose | Current status |
 |---|---|---|
 | Simplest shared service, or no accelerator | Published CPU API image with `compose.yaml` | Published for AMD64 and ARM64 |
-| NVIDIA GPU model may vary between hosts | CUDA-tagged PyTorch API image with `compose.cuda.yaml` | Suite 0.3.1 ships the AMD64 image tagged `0.4.2-cuda12.9` |
+| NVIDIA GPU model may vary between hosts | CUDA-tagged PyTorch API image with `compose.cuda.yaml` | MedDeID 0.4.3 ships the AMD64 image tagged `0.4.3-cuda12.9` |
 | Fixed NVIDIA T4 or Ampere-and-newer deployment | Weight-free Triton runtime and gateway with a separately compiled plan | Separate T4 and Ampere+ plans are supplied for both public models |
 | Native Apple-silicon service | PyTorch MPS from the Python installation | Validated on one M4 Pro; Linux containers cannot use the host Metal device |
 
@@ -186,7 +186,7 @@ docker compose \
 ```
 
 The versioned tag exposes the CUDA runtime line, for example
-`ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9`. Pin its registry digest in
+`ghcr.io/stighellemans/meddeid-api:0.4.3-cuda12.9`. Pin its registry digest in
 production. The image contains the official CUDA-enabled PyTorch wheel but no
 model weights; the host supplies a compatible NVIDIA driver, Docker Engine, and NVIDIA
 Container Toolkit. The overlay requests one selected GPU and forces the CUDA
@@ -260,12 +260,12 @@ digest and a separately checksummed model repository. A local TensorRT build is
 for a new model revision or GPU target, not an installation shortcut; its
 pinned builder is substantially larger than the serving runtime.
 
-Release `0.4.2` is available for AMD64 and ARM64. Resolve the release tag to
+Release `0.4.3` is available for AMD64 and ARM64. Resolve the release tag to
 its current multi-platform digest, record that digest in the deployment
 manifest, and pin the immutable digest in production:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.2
+docker buildx imagetools inspect ghcr.io/stighellemans/meddeid-api:0.4.3
 ```
 
 ## Environment variable reference

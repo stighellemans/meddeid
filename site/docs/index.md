@@ -76,11 +76,11 @@ Dr. Lisa Wong saw patient Alex Example at Riverside Clinic on 14 March 2026.
 
 </div>
 
-The **0.4.3rc5 release candidate** can reuse these detections to produce a
+The **0.4.3 release** can reuse these detections to produce a
 second text, for example one with consistent patient aliases or shifted event
 dates. Once the spans are available, the second view runs entirely on CPU.
 [Try the rendering workflow](workflows/rendering.md) ·
-[Compare candidate and published versions](reference/compatibility.md)
+[Check release compatibility](reference/compatibility.md)
 
 ## One workflow, adaptable to more languages
 
