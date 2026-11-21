@@ -10,7 +10,7 @@ This recipe deploys a private inference service and connects a Databricks job to
 
 ## 1. Prepare a release
 
-Record the source commits for MedDeID, core and each language package with the build. Build the serving image from these revisions, push it to the hospital's approved registry and record the resulting digest. The rendering candidate in this checkout uses MedDeID 0.4.3rc1 and core and language wheels 0.2.4rc1. Install candidate wheels from the approved release feed. The private model bundle is a separate artifact. Verify its file checksums at installation and use its *contract hash* when checking predictions.
+Record the source commits for MedDeID, core and each language package with the build. Build the serving image from these revisions, push it to the hospital's approved registry and record the resulting digest. The rendering candidate in this checkout uses MedDeID 0.4.3rc4 with core 0.2.4rc4 and language wheels 0.2.4rc1. Install candidate wheels from the approved release feed. The private model bundle is a separate artifact. Verify its file checksums at installation and use its *contract hash* when checking predictions.
 
 For a TensorRT deployment, rebuild the gateway from the chosen source and pair the T4 plan with its compatible Triton runtime. Validate the model on the target GPU. Packaging a model on top of a base image retains the code in that base. The Compose example below serves PyTorch CUDA. The repository also provides a Triton serving stack and plan verification. [Production deployment](../production-deployment.md)
 
@@ -63,7 +63,7 @@ From the job network, check that an unauthenticated request to `GET /health` rec
 
 ## 4. Run one synthetic note from Databricks
 
-Install the approved `meddeid-core` and language wheels, `requests` and `azure-keyvault-secrets` in the job environment. Configure a Databricks service credential authorized to call the gateway and read the agreed Key Vault secret version. Store a random mapping key of at least 32 bytes as hexadecimal in that version. Keep the key on the trusted driver.
+Install the approved `meddeid-core` and language wheels and `azure-keyvault-secrets` in the job environment. Configure a Databricks service credential authorized to call the gateway and read the agreed Key Vault secret version. Store a random mapping key of at least 32 bytes as hexadecimal in that version. Keep the key on the trusted driver.
 
 Place [databricks_example.py](databricks_example.py) on the job's Python import path. It sends one synthetic batch, verifies the echoed document ID, model, bundle and language, checks for an expected name detection and renders the note with the same CPU functions used for structured data.
 
@@ -85,9 +85,62 @@ synthetic_text = check_integration(
 
 `GET /live` checks the process. `GET /health` checks inference readiness. Use `POST /deidentify` for one note or `POST /deidentify-batch` with a unique ID per submitted document. Returned spans refer to the **exact original string** and can contain identifying text. Keep requests, responses, credentials and mapping offsets out of job logs.
 
+### Request one rendered text or reuse detections locally
+
+Both HTTP endpoints accept an optional `render` object per document. A single call returns the selected variant in `deid_text` and the original detections in `spans`. Omitting `render` preserves the default server output. With a custom render, spans describe the input. The service omits default-policy replacement strings and date-processing statistics. The effective render date defaults to `metadata.document_creation_date`. Set an explicit offset with `render.date_offset_override` when requesting a custom date shift.
+
+```python
+from meddeid_core.client import GatewayClient
+from meddeid_core.rendering import apply_spans
+
+client = GatewayClient(gateway_url, bearer_token=get_access_token)
+result = client.deidentify(text, metadata={"lang": "nl-BE"}, render={"keep_original": ["Date"]})
+text_for_review = result["deid_text"]
+
+# Reuse the original detections for another column, including dates this time.
+labels = apply_spans(text, result["spans"], profile_id="nl-BE")
+
+# Each batch document may select its own render settings.
+[record] = client.deidentify_batch([{
+    "document_id": "example-1", "text": text, "metadata": {"lang": "nl-BE"},
+    "render": {"name_replacement": True, "pseudonymization_scope": {"patient_id": "example"}},
+}])
+```
+
+For keyed rendering inside the service, mount the hospital’s pinned Key Vault secret version as a read-only file on the inference container and set `MEDDEID_PSEUDONYMIZATION_KEY_FILE` to its container path. The file contains the hexadecimal key. Requests carry scope identifiers. For equivalent local results, select the same secret version, language, options and document date on the driver. A job that handles all pseudonymization locally can deploy the service without the key.
+
+For Docker Compose, the optional override below mounts the selected version from a file provisioned by IT. Set `MAPPING_KEY_FILE` to its absolute host path and grant the container user read access. Recreate the service when selecting a new version.
+
+```yaml
+services:
+  meddeid:
+    environment:
+      MEDDEID_PSEUDONYMIZATION_KEY_FILE: /run/secrets/meddeid-mapping
+    secrets: [meddeid-mapping]
+secrets:
+  meddeid-mapping:
+    file: ${MAPPING_KEY_FILE:?select the pinned mapping key file}
+```
+
 ## 5. Connect the job to versioned documents
 
 Schedule enrichment after the authoritative document publication succeeds. For each revision, supply a document ID, the exact converted text, a stable patient identifier for local mapping, and available clinical context. Preserve leading zeros in identifiers. Use the original document date to calculate age. Keep the model identity and a revision for the code that assembles detection metadata with each set of spans.
+
+Use `meddeid_core.pipeline.create_annotation_record()` to save batch detections for a later job. Supply a nonempty JSON object identifying the selected source revision. A batch result requires its submitted document ID. For a single-document response omit that argument. Pass the optional expected model name and bundle hash to enforce a release pin. Keep the record in restricted storage. Before rendering, reconstruct the expected source from the row you just selected and use its exact text.
+
+```python
+from meddeid_core.pipeline import create_annotation_record, read_spans
+
+source = {"document_id": doc_id, "revision": revision}
+annotations = create_annotation_record(
+    text, record, document_id=doc_id, source=source,
+    expected_model={"name": model_name, "bundle_sha256": bundle_sha256},
+)
+# On a later run, obtain these values from the newly selected warehouse row.
+spans = read_spans(row.text, annotations, expected_source={
+    "document_id": row.document_id, "revision": row.revision,
+})
+```
 
 1. Read a fixed snapshot and select the current eligible revision of each document. Reuse stored spans only when source text, relevant context, model and detection revision still match.
 2. Detect missing annotations in bounded batches. Validate the batch IDs, source slices, language and model before accepting results. Treat a source or model mismatch as an error. A timeout or transient 503 can be retried against the same input.

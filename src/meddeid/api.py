@@ -44,8 +44,8 @@ class DeidentificationResult:
         """Render this prediction again on CPU, using its observed language profile."""
         from .rendering import apply_spans
 
-        profile = self.provenance["language_profile"]["profile_id"]
-        return apply_spans(self.text, self.spans, profile_id=profile, **options)
+        options.setdefault("profile_id", self.provenance["language_profile"]["profile_id"])
+        return apply_spans(self.text, self.spans, **options)
 
     def to_contract(self) -> dict[str, Any]:
         return {

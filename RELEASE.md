@@ -2,7 +2,7 @@
 
 ## Shared rendering candidate
 
-MedDeID 0.4.3rc1 uses the 0.2.4rc1 core and locale packages. Build the three
+MedDeID 0.4.3rc4 uses core 0.2.4rc4 and locale packages 0.2.4rc1. Build the three
 component wheels at the revisions pinned in `pyproject.toml`. Use the same
 wheels for job validation and private image builds. The standalone inference
 package is built from this checkout. The HTTP request and response contracts

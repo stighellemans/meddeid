@@ -2,11 +2,11 @@ name: meddeid
 
 services:
   meddeid:
-    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.3rc1}
+    image: ${MEDDEID_API_IMAGE:-ghcr.io/stighellemans/meddeid-api:0.4.3rc4}
     build:
       context: .
       args:
-        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-deb496bc682b93f715ca74fd6eaa1498105b640a}
+        MEDDEID_CORE_COMMIT: ${MEDDEID_CORE_COMMIT:-fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb}
         MEDDEID_LANGUAGE_EN_COMMIT: ${MEDDEID_LANGUAGE_EN_COMMIT:-c2c1df0bca705263bf0d208f5760a1fc56e5f094}
         MEDDEID_LANGUAGE_NL_COMMIT: ${MEDDEID_LANGUAGE_NL_COMMIT:-8debae6a6c385b3571c0aa11b3046ae856dde8ea}
     pull_policy: missing

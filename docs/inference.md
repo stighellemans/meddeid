@@ -179,7 +179,7 @@ language profile. Birthdates without a usable document date fall back to the
 shifted year. A configured absolute shift below the recommended minimum is
 applied but reported as a structured warning.
 
-Every output span has a `replacement` containing the exact bracketed text used
+With the default policy, each output span has a `replacement` containing the exact bracketed text used
 in `deid_text`. Results also include deduplicated `warnings` and `processing`
 counters plus the age-policy ID, version, and SHA-256. Date shifts are measured
 in days; span `begin`/`end` offsets are Unicode code points.
@@ -375,7 +375,14 @@ request fields are rejected with status 422; this catches misspellings and
 prevents callers from assuming unused metadata affected inference. Canonical
 research JSONL remains independently extensible outside the serving contract.
 
-Single-result JSON is deliberately flat and serialized in this order:
+Both HTTP endpoints accept optional `render` settings on each input document.
+For example, `"render": {"keep_original":["Date"]}` returns the requested text
+in `deid_text` and the original detected spans for reuse. Custom rendering omits
+the default policy's per-span replacements, warnings and processing counters.
+The [hospital cookbook](../site/docs/workflows/hospital/index.md#request-one-rendered-text-or-reuse-detections-locally)
+shows the CPU client, the two request methods and server-side key configuration.
+
+The default single-result JSON is flat and serialized in this order:
 `deid_text`, `spans`, `processing`, `warnings`, `provenance`. Only provenance is
 nested as a separate concern. It contains the model identity, selected language
 profile, and MedDeID version needed by an inference consumer. Runtime, package,

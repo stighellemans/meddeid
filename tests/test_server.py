@@ -823,3 +823,52 @@ def test_server_can_require_an_api_key_at_startup(monkeypatch) -> None:
         assert "MEDDEID_API_KEY is empty" in str(exc)
     else:
         raise AssertionError("create_app should reject an empty required API key")
+
+
+def test_single_and_batch_render_with_same_cpu_options(tmp_path, monkeypatch):
+    from meddeid_core.rendering import apply_spans
+
+    key_file = tmp_path / "mapping-key"
+    key_file.write_text("ab" * 32)
+    monkeypatch.setenv("MEDDEID_PSEUDONYMIZATION_KEY_FILE", str(key_file))
+    text = "Jan kwam op 03/03/2026."
+    spans = [
+        {"begin": 0, "end": 3, "text": "Jan", "label": "Name:Patient",
+         "category": "Name", "subtype": "Patient", "replacement": "[Name:Patient]"},
+        {"begin": 12, "end": 22, "text": "03/03/2026", "label": "Date",
+         "category": "Date", "replacement": "[Date]"},
+    ]
+
+    class FixedEngine(FakeEngine):
+        def __call__(self, text, *, metadata):
+            result = super().__call__(text, metadata=metadata)
+            result.spans = spans
+            return result
+
+    scope = {"patient_id": "007"}
+    policies = [
+        {"name_replacement": True, "date_replacement": True, "age_replacement": True,
+         "date_shift_range": [366, 700], "pseudonymization_scope": scope},
+        {"categories": ["Date"], "date_replacement": True, "date_offset_override": -365},
+        {"keep_original": ["Date"], "profile_id": "nl-NL", "document_creation_date": "2025-01-01"},
+    ]
+    documents = []
+    expected = []
+    with TestClient(create_app(engine=FixedEngine())) as http:
+        for index, options in enumerate(policies):
+            local = {"profile_id": "nl-BE", "document_creation_date": "2026-03-01", **options}
+            if "pseudonymization_scope" in local:
+                local["pseudonymization_scope"] = {**scope, "secret": key_file.read_text()}
+            expected.append(apply_spans(text, spans, **local))
+            req = {"text": text, "metadata": {"document_creation_date": "2026-03-01"}, "render": options}
+            response = http.post("/deidentify", json=req)
+            assert response.status_code == 200, response.text
+            assert response.json()["deid_text"] == expected[-1]
+            assert all("replacement" not in span for span in response.json()["spans"])
+            documents.append({"document_id": str(index), **req})
+        batch = http.post("/deidentify-batch", json={"documents": documents})
+        assert batch.status_code == 200, batch.text
+        assert [doc["deid_text"] for doc in batch.json()["documents"]] == expected
+        bad = {"pseudonymization_scope": {"secret": "request-key"}}
+        response = http.post("/deidentify", json={"text": text, "render": bad})
+        assert response.status_code == 422 and "request-key" not in response.text

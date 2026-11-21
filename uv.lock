@@ -1707,7 +1707,7 @@ wheels = [
 
 [[package]]
 name = "meddeid"
-version = "0.4.3rc1"
+version = "0.4.3rc4"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
@@ -1768,7 +1768,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=0.25" },
-    { name = "meddeid-core", git = "https://github.com/stighellemans/meddeid-core.git?rev=deb496bc682b93f715ca74fd6eaa1498105b640a" },
+    { name = "meddeid-core", git = "https://github.com/stighellemans/meddeid-core.git?rev=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'contributor'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-data", extras = ["llm", "parquet"], marker = "extra == 'research'", specifier = ">=0.3,<0.5" },
     { name = "meddeid-eval", extras = ["plots"], marker = "extra == 'contributor'", specifier = ">=0.5,<0.6" },
@@ -1797,8 +1797,8 @@ provides-extras = ["server", "triton", "research", "contributor", "dev"]
 
 [[package]]
 name = "meddeid-core"
-version = "0.2.4rc1"
-source = { git = "https://github.com/stighellemans/meddeid-core.git?rev=deb496bc682b93f715ca74fd6eaa1498105b640a#deb496bc682b93f715ca74fd6eaa1498105b640a" }
+version = "0.2.4rc4"
+source = { git = "https://github.com/stighellemans/meddeid-core.git?rev=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb#fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb" }
 dependencies = [
     { name = "rfc8785" },
 ]

@@ -1,7 +1,7 @@
 """Run on the driver with an approved Databricks service credential and synthetic input."""
 from urllib.parse import urlsplit
 
-import requests
+from meddeid_core.client import GatewayClient
 from azure.keyvault.secrets import SecretClient
 from meddeid_core.rendering import PseudonymizationScope, apply_spans
 
@@ -18,17 +18,12 @@ def check_integration(*, credential, gateway_url, audience, model_name, bundle_s
     note = {"document_id": "example-version-1", "text": "Patiënt Alex Peters kwam op 03/03/2026.",
             "metadata": {"lang": language, "document_creation_date": "2026-03-03",
                          "patient": {"given_name": "Alex", "family_name": "Peters"}}}
-    response = requests.post(
-        gateway_url.rstrip("/") + "/deidentify-batch", json={"documents": [note]},
-        headers={"Authorization": "Bearer " + credential.get_token(scope).token},
-        timeout=(10, 120), allow_redirects=False, verify=verify,
+    client = GatewayClient(
+        gateway_url,
+        bearer_token=lambda: credential.get_token(scope).token,
+        ca_file=None if verify is True else verify,
     )
-    if response.status_code != 200:
-        raise RuntimeError(f"Inference returned HTTP {response.status_code}")
-    records = response.json()["documents"]
-    if len(records) != 1 or records[0].get("document_id") != note["document_id"]:
-        raise ValueError("Unexpected document in batch response")
-    record = records[0]
+    [record] = client.deidentify_batch([note])
     provenance = record["provenance"]
     model = provenance["model"]
     if (model["name"], model["bundle_sha256"], provenance["language_profile"]["profile_id"]) != (

@@ -159,6 +159,10 @@ for process liveness, and `GET /health` for model/runtime readiness. To inspect
 the browser interface and HTTP API in a local container, use the [local Docker
 setup](../start/quickstart.md#try-meddeid-in-your-browser).
 
+A Python job can call either endpoint through `meddeid_core.client.GatewayClient`.
+Pass `render` for a one-step text transformation or use the returned spans to
+render additional variants on CPU. [Client and rendering examples](hospital/index.md#request-one-rendered-text-or-reuse-detections-locally)
+
 Before exposing a service to a network or using it with clinical text, follow
 [Production deployment](production-deployment.md) for authentication, TLS,
 network isolation, request limits, monitoring, and operational validation.

@@ -6,18 +6,18 @@ on:
       source_ref:
         description: Signed release tag represented by the candidate
         required: true
-        default: v0.4.3rc1
+        default: v0.4.3rc4
       candidate_tag:
         description: Validated candidate tag
         required: true
-        default: 0.4.3rc1-cuda12.9-validation
+        default: 0.4.3rc4-cuda12.9-validation
       candidate_digest:
         description: Validated immutable candidate digest (sha256:...)
         required: true
       release_tag:
         description: Final CUDA release tag
         required: true
-        default: 0.4.3rc1-cuda12.9
+        default: 0.4.3rc4-cuda12.9
 
 permissions:
   contents: read

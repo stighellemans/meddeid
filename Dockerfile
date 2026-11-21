@@ -7,7 +7,7 @@ FROM scratch AS component_wheels
 FROM ${PYTHON_IMAGE} AS builder
 ARG MEDDEID_COMPONENT_SOURCE=git
 
-ARG MEDDEID_CORE_COMMIT=deb496bc682b93f715ca74fd6eaa1498105b640a
+ARG MEDDEID_CORE_COMMIT=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb
 ARG MEDDEID_LANGUAGE_EN_COMMIT=c2c1df0bca705263bf0d208f5760a1fc56e5f094
 ARG MEDDEID_LANGUAGE_NL_COMMIT=8debae6a6c385b3571c0aa11b3046ae856dde8ea
 ARG TORCH_VERSION=2.13.0
@@ -68,7 +68,7 @@ RUN python -m pip install --constraint /tmp/container-constraints.txt '.[server]
 
 FROM ${PYTHON_IMAGE} AS runtime
 
-ARG MEDDEID_CORE_COMMIT=deb496bc682b93f715ca74fd6eaa1498105b640a
+ARG MEDDEID_CORE_COMMIT=fa8f437c836cc75f02fb0e7f0d1039e0fa5a03fb
 ARG MEDDEID_LANGUAGE_EN_COMMIT=c2c1df0bca705263bf0d208f5760a1fc56e5f094
 ARG MEDDEID_LANGUAGE_NL_COMMIT=8debae6a6c385b3571c0aa11b3046ae856dde8ea
 ARG TORCH_VERSION=2.13.0
@@ -130,7 +130,7 @@ RUN groupadd --gid 10001 meddeid \
 
 # Keep release-only metadata after filesystem construction so changing a tag,
 # source revision, or build date does not invalidate multi-gigabyte layers.
-ARG MEDDEID_VERSION=0.4.3rc1
+ARG MEDDEID_VERSION=0.4.3rc4
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="MedDeID API" \

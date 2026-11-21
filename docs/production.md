@@ -284,6 +284,7 @@ the CUDA and Triton overlays replace the runtime-specific values noted below.
 | `MEDDEID_LANGUAGE_PROFILE` | Model default | Language and regional profile used when a request omits `metadata.lang`. |
 | `MEDDEID_OFFLINE` | `false` | Require model files to be present locally instead of contacting the Hub. |
 | `MEDDEID_SERVING_PROFILE` | `latency` | Use `latency` for individual requests or `throughput` for sustained accelerated traffic. |
+| `MEDDEID_PSEUDONYMIZATION_KEY_FILE` | Empty | Optional mounted file containing the pinned mapping secret (at least 32 bytes in hex). Used by requests with a pseudonymization scope and keyed rendering. Restart the service after selecting another key version. |
 | `MEDDEID_API_KEY` | Empty | Bearer token or `X-API-Key` value accepted by the service. |
 | `MEDDEID_REQUIRE_API_KEY` | `false` | Reject unauthenticated inference requests. The production templates set this to `true`. |
 | `MEDDEID_BIND_ADDRESS` | `127.0.0.1` | Host address published by Compose. Direct Python startup otherwise uses `0.0.0.0`. |
