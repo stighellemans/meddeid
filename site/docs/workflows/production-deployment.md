@@ -13,12 +13,14 @@ approved client -> your application -> MedDeID API -> local model
                          +-> governed data store
 ```
 
+For a worked Azure and Databricks installation, follow the [hospital integration cookbook](hospital/index.md).
+
 ## Before you start
 
 MedDeID is the inference part of a larger application. It accepts a note and
 returns de-identified text, the detected spans, processing information,
 warnings, and model provenance. It does not provide a clinical database,
-choose pseudonymization values, manage researcher access, or retain corrections
+manage researcher access or retain corrections
 for future training. Plan those responsibilities before choosing a deployment.
 
 ### Decide what the surrounding application must keep

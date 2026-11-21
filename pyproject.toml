@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meddeid"
-version = "0.4.2"
+version = "0.4.3rc1"
 description = "Local-first multilingual clinical text de-identification framework with Python, CLI, batch, and HTTP interfaces"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,9 +33,9 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24",
-    "meddeid-core>=0.2,<0.3",
-    "meddeid-language-en>=0.2,<0.3",
-    "meddeid-language-nl>=0.2,<0.3",
+    "meddeid-core>=0.2.4rc1,<0.3",
+    "meddeid-language-en>=0.2.4rc1,<0.3",
+    "meddeid-language-nl>=0.2.4rc1,<0.3",
     "torch>=2.2",
     "transformers>=5.5,<6",
     "huggingface-hub>=0.25",
@@ -84,3 +84,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Release candidates use the exact source revisions from the image build.
+[tool.uv.sources]
+meddeid-core = { git = "https://github.com/stighellemans/meddeid-core.git", rev = "deb496bc682b93f715ca74fd6eaa1498105b640a" }
+meddeid-language-nl = { git = "https://github.com/stighellemans/meddeid-language-nl.git", rev = "8debae6a6c385b3571c0aa11b3046ae856dde8ea" }
+meddeid-language-en = { git = "https://github.com/stighellemans/meddeid-language-en.git", rev = "c2c1df0bca705263bf0d208f5760a1fc56e5f094" }

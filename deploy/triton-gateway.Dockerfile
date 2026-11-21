@@ -2,11 +2,14 @@
 
 ARG PYTHON_IMAGE=python:3.12-slim@sha256:2c941e860699f878900b0edc2403613c234d4b32eda3cc9fa7036991a2a63c4a
 
-FROM ${PYTHON_IMAGE} AS builder
+FROM scratch AS component_wheels
 
-ARG MEDDEID_CORE_COMMIT=13a5b5d6049611e0c64e0d375d1cb5d99266bc15
-ARG MEDDEID_LANGUAGE_EN_COMMIT=7958b77ee83295de7d809a8f52d6de2c2732c35e
-ARG MEDDEID_LANGUAGE_NL_COMMIT=c316c06669789fd16b2405a1ca8076d878f3d730
+FROM ${PYTHON_IMAGE} AS builder
+ARG MEDDEID_COMPONENT_SOURCE=git
+
+ARG MEDDEID_CORE_COMMIT=deb496bc682b93f715ca74fd6eaa1498105b640a
+ARG MEDDEID_LANGUAGE_EN_COMMIT=c2c1df0bca705263bf0d208f5760a1fc56e5f094
+ARG MEDDEID_LANGUAGE_NL_COMMIT=8debae6a6c385b3571c0aa11b3046ae856dde8ea
 ARG TRITON_CLIENT_VERSION=2.71.0
 
 ENV VIRTUAL_ENV=/opt/venv \
@@ -27,10 +30,10 @@ RUN python -m venv "${VIRTUAL_ENV}" \
     && python -m pip install \
       --constraint /tmp/container-constraints.txt \
       numpy transformers huggingface-hub safetensors fastapi uvicorn \
-      "tritonclient[http]==${TRITON_CLIENT_VERSION}" \
-      "meddeid-core @ git+https://github.com/stighellemans/meddeid-core.git@${MEDDEID_CORE_COMMIT}" \
-      "meddeid-language-en @ git+https://github.com/stighellemans/meddeid-language-en.git@${MEDDEID_LANGUAGE_EN_COMMIT}" \
-      "meddeid-language-nl @ git+https://github.com/stighellemans/meddeid-language-nl.git@${MEDDEID_LANGUAGE_NL_COMMIT}"
+      "tritonclient[http]==${TRITON_CLIENT_VERSION}"
+
+COPY deploy/install-rendering-components.sh /tmp/install-rendering-components.sh
+RUN --mount=type=bind,from=component_wheels,target=/component-wheels sh /tmp/install-rendering-components.sh
 
 WORKDIR /build/meddeid
 COPY pyproject.toml README.md LICENSE NOTICE ./
@@ -44,9 +47,9 @@ RUN python -m pip install --no-deps '.[server]' \
 
 FROM ${PYTHON_IMAGE} AS runtime
 
-ARG MEDDEID_CORE_COMMIT=13a5b5d6049611e0c64e0d375d1cb5d99266bc15
-ARG MEDDEID_LANGUAGE_EN_COMMIT=7958b77ee83295de7d809a8f52d6de2c2732c35e
-ARG MEDDEID_LANGUAGE_NL_COMMIT=c316c06669789fd16b2405a1ca8076d878f3d730
+ARG MEDDEID_CORE_COMMIT=deb496bc682b93f715ca74fd6eaa1498105b640a
+ARG MEDDEID_LANGUAGE_EN_COMMIT=c2c1df0bca705263bf0d208f5760a1fc56e5f094
+ARG MEDDEID_LANGUAGE_NL_COMMIT=8debae6a6c385b3571c0aa11b3046ae856dde8ea
 ARG TRITON_CLIENT_VERSION=2.71.0
 
 ENV VIRTUAL_ENV=/opt/venv \

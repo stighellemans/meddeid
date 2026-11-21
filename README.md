@@ -11,6 +11,8 @@ For cross-suite navigation and task-oriented guidance, see the
 [MedDeID website and documentation](https://stighellemans.github.io/meddeid/). This repository remains
 authoritative for inference APIs, CLI options, service settings, and deployment.
 
+For a private deployment with Terraform, Nginx, Docker Compose and Databricks, follow the [hospital integration cookbook](site/docs/workflows/hospital/index.md).
+
 ## Language support
 
 | Language | Language profiles | Public model |

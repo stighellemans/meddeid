@@ -6,11 +6,11 @@ on:
       source_ref:
         description: Signed release tag to build
         required: true
-        default: v0.4.2
+        default: v0.4.3rc1
       candidate_tag:
         description: Explicit unvalidated GHCR tag
         required: true
-        default: 0.4.2-cuda12.9-validation
+        default: 0.4.3rc1-cuda12.9-validation
 
 permissions:
   contents: read

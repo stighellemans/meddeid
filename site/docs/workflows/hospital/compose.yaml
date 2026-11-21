@@ -1,0 +1,62 @@
+name: meddeid-hospital
+services:
+  meddeid:
+    image: ${MODEL_IMAGE:?set the approved CUDA API image digest}
+    platform: linux/amd64
+    environment:
+      MEDDEID_MODEL: /models/clinical
+      MEDDEID_DEVICE: cuda
+      MEDDEID_BACKEND: torch
+      MEDDEID_TORCH_PRECISION: fp16
+      MEDDEID_LANGUAGE_PROFILE: ${LANGUAGE_PROFILE:?select the bundle locale}
+      MEDDEID_OFFLINE: "true"
+      MEDDEID_ACCESS_LOG: "false"
+      MEDDEID_DOCS_ENABLED: "false"
+    volumes:
+      - type: bind
+        source: ${MODEL_DIR:?set the verified bundle directory}
+        target: /models/clinical
+        read_only: true
+        bind: {create_host_path: false}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, count: 1, capabilities: [gpu]}
+    networks: [inference]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4))['ready'] is True"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 12
+  nginx:
+    image: ${NGINX_IMAGE:?set the approved Nginx image digest}
+    user: "101:101"
+    entrypoint: [nginx]
+    command: ["-g", "daemon off;"]
+    depends_on:
+      meddeid: {condition: service_healthy}
+    ports:
+      - "${PRIVATE_IP:?set the private host address}:443:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - type: bind
+        source: ${TLS_DIR:?set the protected certificate and authorization directory}
+        target: /run/meddeid
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [edge, inference]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+networks:
+  edge: {}
+  inference: {internal: true}

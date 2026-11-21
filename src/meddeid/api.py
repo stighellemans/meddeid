@@ -40,6 +40,13 @@ class DeidentificationResult:
     warnings: list[dict[str, str]] = field(default_factory=list)
     processing: dict[str, Any] = field(default_factory=dict)
 
+    def render(self, **options: Any) -> str:
+        """Render this prediction again on CPU, using its observed language profile."""
+        from .rendering import apply_spans
+
+        profile = self.provenance["language_profile"]["profile_id"]
+        return apply_spans(self.text, self.spans, profile_id=profile, **options)
+
     def to_contract(self) -> dict[str, Any]:
         return {
             "deid_text": self.deid_text,

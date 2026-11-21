@@ -1,18 +1,45 @@
 # Release runbook
 
-This checkout prepares the `meddeid==0.4.2` corrective release in the coordinated
-MedDeID suite 0.3.1 line. That line reuses `meddeid-core==0.2.1`,
-`meddeid-language-en==0.2.1`, `meddeid-language-nl==0.2.1`,
-`meddeid-eval==0.5.0`, the browser applications at 0.3.1 and the legacy-site
-redirect snapshot at `v0.2.0`; publishes `meddeid-data==0.4.2` and
-`meddeid-training==0.3.1`; and publishes the coordinator at `v0.3.1`.
+## Shared rendering candidate
 
-Source defaults that mention `0.4.2` are candidate identities, not evidence
-that an artifact is already public. Do not update the suite's released lock or
-announce the release until the post-publication checks below have captured
-immutable PyPI hashes and GHCR digests.
+MedDeID 0.4.3rc1 uses the 0.2.4rc1 core and locale packages. Build the three
+component wheels at the revisions pinned in `pyproject.toml`. Use the same
+wheels for job validation and private image builds. The standalone inference
+package is built from this checkout. The HTTP request and response contracts
+remain compatible with the previous release.
 
-## Publisher setup
+For site acceptance before public publication, stage the three component
+wheels and the approved rfc8785 0.1.4 wheel in a dedicated directory. Supply
+`SHA256SUMS` with a SHA-256 and filename for each wheel, in filename order.
+Compare it against the release record. Pass that directory as a named BuildKit
+context. For example, from the repository root:
+
+```bash
+docker buildx build --platform linux/amd64 \
+  --build-context component_wheels="$COMPONENT_WHEELS" \
+  --build-arg MEDDEID_COMPONENT_SOURCE=wheels \
+  -f deploy/triton-gateway.Dockerfile -t "$CANDIDATE_GATEWAY_IMAGE" --load .
+```
+
+The PyTorch Dockerfile accepts the same context and argument with its usual
+CPU or CUDA build flags. Keep model weights outside the build contexts.
+After hospital acceptance and approval to publish, release core, the language
+packages and MedDeID in that order. The default Git build uses the component
+commits recorded in the Dockerfiles. Record the image digests for each runtime.
+The previously released 0.4.2 artifacts retain their own identities.
+
+Install the MedDeID and component wheels together in a clean inference environment
+and run `python -m pip check`. Confirm that `from meddeid.rendering import apply_spans`
+works in that installation. Use the [hospital cookbook](site/docs/workflows/hospital/index.md)
+to test a private HTTPS batch, verify model provenance and render the stored detections
+before approving the images.
+
+## Previous coordinated suite release (0.4.2)
+
+The steps below record the earlier coordinated publication. Its pinned dependency
+and image versions belong to that release.
+
+### Publisher setup
 
 For each Python package repository:
 
@@ -26,7 +53,7 @@ For each Python package repository:
 Keep the GHCR package public and linked to the source repository. Recheck the
 trusted-publisher subjects whenever a repository or workflow is renamed.
 
-## Release order
+### Release order
 
 Release exactly in dependency order. Do not create all tags simultaneously.
 
@@ -65,7 +92,7 @@ fixable high or critical vulnerabilities, then publishes `linux/amd64` and
 `linux/arm64` manifests with SBOM and provenance attestations. The GPU workflow
 details and publication guard are described below.
 
-## Required post-publication checks
+### Required post-publication checks
 
 ```bash
 python -m venv /tmp/meddeid-release-check
@@ -118,7 +145,7 @@ test, rendered documentation, and rollback-by-digest exercise all pass. The
 retained-plan and image publication workflows are manual and must be dispatched
 from the signed release tag with the reviewed candidate run IDs.
 
-## Failure diagnosis before another paid candidate run
+### Failure diagnosis before another paid candidate run
 
 FP16 remains the preferred CUDA release target for throughput. Per the user's
 release decision, semantic differences, including reduced masking relative to
