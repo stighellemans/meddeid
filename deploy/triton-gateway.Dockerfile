@@ -95,7 +95,7 @@ RUN python -c "import importlib.util; assert all(importlib.util.find_spec(name) 
 
 # OCI release metadata stays after filesystem construction so changing it does
 # not invalidate the gateway runtime layers.
-ARG MEDDEID_VERSION=0.4.0
+ARG MEDDEID_VERSION=0.4.3rc4
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="MedDeID TensorRT gateway" \

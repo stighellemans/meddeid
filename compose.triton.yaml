@@ -28,7 +28,7 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       NVIDIA_DRIVER_CAPABILITIES: utility
     volumes:
-      - ./deploy/triton/release.json:/release/triton.json:ro
+      - ${MEDDEID_TRITON_RELEASE_CATALOG:-./deploy/triton/release.json}:/release/triton.json:ro
       - ${MEDDEID_TRITON_MODEL_REPOSITORY:-./deploy/triton/model_repository}:/models
     networks:
       - gateway

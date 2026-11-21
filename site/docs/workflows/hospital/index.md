@@ -14,6 +14,17 @@ Record the source commits for MedDeID, core and each language package with the b
 
 For a TensorRT deployment, rebuild the gateway from the chosen source and pair the T4 plan with its compatible Triton runtime. Validate the model on the target GPU. Packaging a model on top of a base image retains the code in that base. The Compose example below serves PyTorch CUDA. The repository also provides a Triton serving stack and plan verification. [Production deployment](../production-deployment.md)
 
+For a locally compiled private TensorRT plan, select the build version and catalog together. From the MedDeID source directory, prepare the catalog before building on the target GPU:
+
+```bash
+export MEDDEID_VERSION=$(python deploy/read_project_version.py)
+export MEDDEID_TRITON_RELEASE_CATALOG="$PWD/hospital-triton-release.json"
+jq --arg version "$MEDDEID_VERSION" '.meddeid_version = $version | .plans = [] | del(.images)' \
+  deploy/triton/release.json > "$MEDDEID_TRITON_RELEASE_CATALOG"
+```
+
+Use the local model and local images Compose overrides with the resulting plan. Keep this catalog with the hospital's build manifest, bundle and image digests. The default catalog describes the published synthetic plans. [Build the TensorRT model repository](../../../../deploy/triton/README.md)
+
 ## 2. Provision the host with Terraform
 
 Use the [Terraform module](infra/main.tf) in `site/docs/workflows/hospital/infra`. It creates a VM with a private NIC, persistent disk and managed identity, and grants that identity registry pull access. Supply an approved Ubuntu image version with Docker Compose, GPU driver, NVIDIA Container Toolkit and Azure CLI installed. The example assumes an existing resource group, registry, private subnet and Azure Storage backend. Keep Terraform state in restricted storage.
