@@ -612,6 +612,7 @@ def test_openapi_describes_the_current_typed_result_contract() -> None:
             is False
         )
 
+    assert "date_shift_days" not in schema["components"]["schemas"]["RecordMetadata"]["properties"]
     response_ref = schema["paths"]["/deidentify"]["post"]["responses"]["200"][
         "content"
     ]["application/json"]["schema"]["$ref"]
@@ -713,13 +714,34 @@ def test_server_rejects_unknown_batch_properties() -> None:
     assert unknown_document_field.status_code == 422
 
 
-def test_server_rejects_boolean_date_shift() -> None:
+@pytest.mark.parametrize(("shift", "options"), [
+    (-731, {}),
+    (None, {}),
+    (0, {"render": {}}),
+    (-731, {"render": {"date_replacement": True, "pseudonymization_scope": {"patient_id": "007"}}}),
+    (-731, {"render": {"date_replacement": True, "date_offset_override": 7}}),
+])
+def test_server_rejects_retired_date_shift_before_processing(shift, options, monkeypatch) -> None:
+    def unexpected_inference(*args, **kwargs):
+        pytest.fail("inference ran for a rejected request")
+
+    monkeypatch.setattr(FakeEngine, "__call__", unexpected_inference)
+    document = {"text": "15/01/2025", "metadata": {"date_shift_days": shift}, **options}
     with TestClient(create_app(engine=FakeEngine())) as client:
-        response = client.post(
-            "/deidentify",
-            json={"text": "15/01/2025", "metadata": {"date_shift_days": True}},
+        single = client.post("/deidentify", json=document)
+        batch = client.post(
+            "/deidentify-batch",
+            json={"documents": [
+                {"document_id": "one", "text": "Valid note"},
+                {"document_id": "two", **document},
+            ]},
         )
-    assert response.status_code == 422
+    for response in (single, batch):
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert detail["code"] == "retired_date_shift_days"
+        assert "render.pseudonymization_scope" in detail["message"]
+        assert "render.date_offset_override" in detail["message"]
 
 
 def test_server_rejects_request_level_age_policy_selection() -> None:

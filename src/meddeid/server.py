@@ -526,20 +526,24 @@ def create_app(
             default=None,
             description="Reference date used to convert birthdates to generalized ages.",
         )
-        date_shift_days: int | None = Field(
-            default=None,
-            strict=True,
-            description=(
-                "Explicit date shift in days. Omit for placeholders; zero also uses "
-                "placeholders and produces a warning."
-            ),
-        )
         known_values: list[KnownValueMetadata] | None = None
 
         @model_validator(mode="before")
         @classmethod
-        def reject_retired_identity_keys(cls, value):
+        def reject_unsupported_metadata(cls, value):
             if isinstance(value, dict):
+                if "date_shift_days" in value:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "retired_date_shift_days",
+                            "message": (
+                                "Remove metadata.date_shift_days. To shift dates, set "
+                                "render.date_replacement to true and supply "
+                                "render.pseudonymization_scope or render.date_offset_override."
+                            ),
+                        },
+                    )
                 retired = [
                     key for key in ("patient_name", "caregiver_names") if key in value
                 ]

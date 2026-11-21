@@ -3,8 +3,9 @@
 All notable user-visible changes are recorded here. This project follows
 semantic versioning while pre-1.0 versions may still refine public contracts.
 
-## [Unreleased]
+## [0.4.3rc5] - 2026-11-21
 
+- **Breaking HTTP change:** Both inference endpoints return HTTP 422 when a document contains `metadata.date_shift_days`, even if it is null. Remove the field and enable `render.date_replacement` with a patient scope or an explicit `render.date_offset_override`.
 - Select how identifiers are replaced in single-document and batch HTTP requests with the optional `render` field. Use the returned source offsets to produce additional text variants on CPU without repeating detection.
 - Integrate through the lightweight `meddeid_core.client.GatewayClient`. Pipelines can reuse stored detections with `meddeid_core.pipeline` and reject annotations that no longer match the source.
 - Apply consistent, scoped pseudonyms with the Dutch and English profiles and render clinical ages independently of the chosen date policy.

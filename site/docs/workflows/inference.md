@@ -11,6 +11,7 @@ start with [Install and run](../start/quickstart.md).
 | Process one or a few files | Command-line interface |
 | Process a JSONL dataset | Batch command |
 | Add MedDeID to a Python application | Python API |
+| Produce several text views from a single detection run | [Render detected identifiers (0.4.3rc5)](rendering.md) |
 | Provide a shared service | [Production deployment](production-deployment.md) |
 
 ## Select a model and language
@@ -159,9 +160,11 @@ for process liveness, and `GET /health` for model/runtime readiness. To inspect
 the browser interface and HTTP API in a local container, use the [local Docker
 setup](../start/quickstart.md#try-meddeid-in-your-browser).
 
-A Python job can call either endpoint through `meddeid_core.client.GatewayClient`.
-Pass `render` for a one-step text transformation or use the returned spans to
-render additional variants on CPU. [Client and rendering examples](hospital/index.md#request-one-rendered-text-or-reuse-detections-locally)
+With the **0.4.3rc5 release candidate**, a Python job can call either endpoint
+through `meddeid_core.client.GatewayClient` and select a render policy per
+document. When using the local Python API above, `result.render()` produces
+a label-masked text from the same prediction. Both paths can reuse detections
+without loading the model again. [Client and rendering examples](rendering.md)
 
 Before exposing a service to a network or using it with clinical text, follow
 [Production deployment](production-deployment.md) for authentication, TLS,

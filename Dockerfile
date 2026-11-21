@@ -130,7 +130,7 @@ RUN groupadd --gid 10001 meddeid \
 
 # Keep release-only metadata after filesystem construction so changing a tag,
 # source revision, or build date does not invalidate multi-gigabyte layers.
-ARG MEDDEID_VERSION=0.4.3rc4
+ARG MEDDEID_VERSION=0.4.3rc5
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="MedDeID API" \

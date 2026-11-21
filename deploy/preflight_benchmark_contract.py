@@ -114,7 +114,7 @@ def validate_fixture(path, *, profiles, batch_size=16, **app_options):
             # The benchmark also exercises /deidentify with document_id omitted.
             for index, doc in enumerate(documents, start=1):
                 response = client.post(
-                    "/deidentify", content=json.dumps({"text": doc["text"], "metadata": doc["metadata"]}),
+                    "/deidentify", content=json.dumps({k: v for k, v in doc.items() if k != "document_id"}),
                     headers={"Content-Type": "application/json"},
                 )
                 report["checked_requests"] += 1

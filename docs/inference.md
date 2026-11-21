@@ -20,9 +20,9 @@ demo, and the production `0.4.2` CPU container are available now.
 | PyTorch devices | AMD64 and ARM64 CPU image; native Apple MPS; AMD64 PyTorch/CUDA image recipe | Device selection supports `cpu`, `mps`, and `cuda`; MPS was validated natively on an M4 Pro, while the CUDA image has its own T4 validation and publishing gate. |
 | PyPI install | Available | `meddeid==0.4.2` is compatible with `meddeid-core`, `meddeid-language-en`, and `meddeid-language-nl` at `0.2.1`. |
 | PyTorch CPU container | Available | `ghcr.io/stighellemans/meddeid-api:0.4.2` supports AMD64 and ARM64 and contains no model weights; the selected revision is cached on first use. |
-| PyTorch CUDA container | Release candidate | The AMD64 tag contract is `ghcr.io/stighellemans/meddeid-api:<version>-cuda<runtime>`; `compose.cuda.yaml` requests the selected NVIDIA device and refuses CPU fallback. |
+| PyTorch CUDA container | Published for AMD64 in suite 0.3.1 | The tag is `ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9`. The CUDA Compose configuration requires the selected NVIDIA device. |
 | Local Compose evaluation | Available | `./scripts/start-local.sh` generates authentication, pulls, starts, and health-checks the local service with a browser UI. Production operators use Compose directly. |
-| TensorRT/Triton deployment | T4 and Ampere+ release candidates | Compose resolves the selected Dutch or English plan for T4 or Ampere-and-newer GPUs; the source also includes a containerized local builder and the target validation gate. |
+| TensorRT/Triton deployment | Suite 0.3.1 uses the published 0.4.0 gateway, runtime and model plans | Compose selects the Dutch or English plan for T4 or Ampere-and-newer GPUs. |
 | Hosted demo | Available for non-sensitive text | The [MedDeID interactive demo](https://huggingface.co/spaces/stighellemans/meddeid-demo) offers Dutch and English selection. Do not submit patient information. |
 | Managed clinical endpoint | Not available | No managed service for sensitive clinical text is provided. |
 
@@ -39,8 +39,9 @@ exact package version is required. Docker users can pull the release directly:
 docker pull ghcr.io/stighellemans/meddeid-api:0.4.2
 ```
 
-GPU-optimized TensorRT targets still require separate hardware-specific builds
-and validation as described below.
+For the patient-scoped rendering API, install the matched candidate wheels.
+For a private TensorRT model, build and validate a plan for the target GPU.
+[Package and image versions](../site/docs/reference/compatibility.md)
 
 The hosted demo is a convenience for synthetic examples and is not a clinical
 deployment surface. A managed endpoint is not a prerequisite for local
@@ -150,12 +151,13 @@ results = engine.deidentify_many([
 
 ## What metadata does
 
-Metadata is implemented in the `nl-BE` post-processing profile. It
-is not concatenated to the note and is not an input feature of the transformer.
-After neural spans are decoded, the profile can add or extend matches that the
-caller already knows:
+After neural inference, the selected language profile can use metadata to
+find identifiers the caller already knows. The transformer sees the note
+text alone.
 
-- `lang`: optional profile check; use `nl-BE` for this release.
+- `lang` selects a profile supported by the model, such as `nl-BE` for the
+  Dutch bundle or `en-GB` and `en-US` for the English bundle. Supply it when
+  a model supports several profiles and the service has no configured default.
 - `patient`: an object with `given_name`, `family_name`, and optional
   `birth_date`. A valid full birth date is expanded into locale-equivalent,
   full-year `Age_Birthdate` assertions.
@@ -166,14 +168,12 @@ caller already knows:
   separators.
 - `document_creation_date`: optional reference date used to convert a detected
   birthdate into a generalized age.
-- `date_shift_days`: optional explicit integer shift. If omitted, `Date` and
-  `Age_Birthdate` become placeholders. Zero also produces placeholders and a
-  warning; MedDeID never generates an offset automatically.
 
-### Date and age replacement
+### Date and age replacement in local inference
 
-With a nonzero `date_shift_days`, parseable dates are shifted while preserving
-their source format. Age expressions and birthdates with a usable document
+For local Python and file-based inference, the default renderer still accepts
+an integer `metadata.date_shift_days`. A nonzero value shifts parseable dates
+while preserving their source format. Age expressions and birthdates with a usable document
 date are generalized through one deployment-wide JSON policy shared by every
 language profile. Birthdates without a usable document date fall back to the
 shifted year. A configured absolute shift below the recommended minimum is
@@ -375,12 +375,18 @@ request fields are rejected with status 422; this catches misspellings and
 prevents callers from assuming unused metadata affected inference. Canonical
 research JSONL remains independently extensible outside the serving contract.
 
-Both HTTP endpoints accept optional `render` settings on each input document.
+Starting with 0.4.3rc4, both HTTP endpoints accept optional `render` settings
+on each input document. The distributed RC4 wheel accepts the older
+`metadata.date_shift_days` field. The 0.4.3rc5 gateway rejects its
+presence with HTTP 422, including null and requests without `render`.
+Remove it from every batch item. For shifted dates, enable `render.date_replacement` and supply
+`render.pseudonymization_scope` or a signed `render.date_offset_override`.
 For example, `"render": {"keep_original":["Date"]}` returns the requested text
 in `deid_text` and the original detected spans for reuse. Custom rendering omits
 the default policy's per-span replacements, warnings and processing counters.
-The [hospital cookbook](../site/docs/workflows/hospital/index.md#request-one-rendered-text-or-reuse-detections-locally)
-shows the CPU client, the two request methods and server-side key configuration.
+For client examples and the server-side key configuration, see
+[Render detected identifiers](../site/docs/workflows/rendering.md) and the
+[hospital cookbook](../site/docs/workflows/hospital/databricks-job.md#when-the-caller-needs-one-text-immediately).
 
 The default single-result JSON is flat and serialized in this order:
 `deid_text`, `spans`, `processing`, `warnings`, `provenance`. Only provenance is
@@ -428,7 +434,7 @@ operational controls are:
 |---|---:|---|
 | `MEDDEID_LANGUAGE_PROFILE` | bundle default when unambiguous | Set a locale fallback for a multi-profile service. Trusted request `metadata.lang` still wins. |
 | `MEDDEID_AGE_GRANULARITY_CONFIG` | packaged `meddeid-default` policy | Load one validated age-granularity JSON policy for the complete service. |
-| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | 366 | Warn when a nonzero absolute date shift is smaller than this positive integer. |
+| `MEDDEID_MIN_RECOMMENDED_DATE_SHIFT_DAYS` | 366 | Warning threshold for the engine's default date policy. For HTTP scope-derived shifts, set the minimum and maximum magnitude with `render.date_shift_range`. |
 | `MEDDEID_MAX_REQUEST_BYTES` | 2,000,000 | Reject oversized requests with HTTP 413 when `Content-Length` is present. Enforce the same limit at the reverse proxy. |
 | `MEDDEID_SERVING_PROFILE` | `latency` | Select process-wide low-wait or bounded-throughput scheduling. Use a separate replica pool when both workloads coexist. |
 | `MEDDEID_MICROBATCH_ENABLED` | `auto` | In throughput mode, automatically batch concurrent accelerated PyTorch windows on CUDA or MPS. TensorRT keeps the measured request-local path; `true` forces gateway microbatching for an explicit fan-out experiment. |
@@ -525,7 +531,7 @@ Triton package, headers, and static archives. Its version contract is:
 ghcr.io/stighellemans/meddeid-api:<meddeid-version>-cuda<cuda-version>
 ```
 
-The initial AMD64 candidate is
+The AMD64 image in suite 0.3.1 is
 `ghcr.io/stighellemans/meddeid-api:0.4.2-cuda12.9`. A host must provide a
 compatible NVIDIA driver, Docker Engine, and NVIDIA Container Toolkit. Copy
 `.env.cuda.example`, inject a real API key, and use the CUDA overlay:

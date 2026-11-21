@@ -1707,7 +1707,7 @@ wheels = [
 
 [[package]]
 name = "meddeid"
-version = "0.4.3rc4"
+version = "0.4.3rc5"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },

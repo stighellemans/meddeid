@@ -107,6 +107,9 @@ contributing to the suite.
 
 Defines the shared record schema, label taxonomy, normalization, stable
 identifiers, and offset validation used by all components.
+In the [rendering candidate](compatibility.md#rendering-release-candidate),
+core also supplies `GatewayClient`, the CPU renderer and helpers for storing
+and checking detections against a source revision.
 
 **PyPI:** `pip install meddeid-core`
 

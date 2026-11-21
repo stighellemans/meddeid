@@ -19,7 +19,7 @@ API_METADATA_KEYS = frozenset(
         "patient",
         "caregivers",
         "document_creation_date",
-        "date_shift_days",
+        "date_shift_days",  # Forward retired fields so the gateway reports stale fixtures.
         "known_values",
     }
 )
@@ -63,13 +63,14 @@ def read_documents(path: Path) -> list[dict[str, Any]]:
             for key, value in (metadata or {}).items()
             if key in API_METADATA_KEYS
         }
-        documents.append(
-            {
-                "document_id": str(row["document_id"]),
-                "text": str(row["text"]),
-                "metadata": api_metadata,
-            }
-        )
+        document = {
+            "document_id": str(row["document_id"]),
+            "text": str(row["text"]),
+            "metadata": api_metadata,
+        }
+        if "render" in row:
+            document["render"] = row["render"]
+        documents.append(document)
     if not documents:
         raise ValueError(f"{path} contains no documents")
     return documents

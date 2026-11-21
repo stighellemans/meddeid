@@ -2,11 +2,19 @@
 
 ## Shared rendering candidate
 
-MedDeID 0.4.3rc4 uses core 0.2.4rc4 and locale packages 0.2.4rc1. Build the three
+MedDeID 0.4.3rc5 uses core 0.2.4rc4 and locale packages 0.2.4rc1. Build the three
 component wheels at the revisions pinned in `pyproject.toml`. Use the same
-wheels for job validation and private image builds. The standalone inference
-package is built from this checkout. The HTTP request and response contracts
-remain compatible with the previous release.
+wheels for job validation and private image builds.
+
+The distributed inference wheel for 0.4.3rc4 accepts `metadata.date_shift_days`.
+The 0.4.3rc5 gateway returns HTTP 422 whenever that field is present.
+Build the RC5 wheel and CUDA image from the same recorded commit. Keep the RC4 artifacts available for rollback.
+On the new image, send a synthetic note with the retired field to
+`/deidentify` and include it as one item in `/deidentify-batch`. Both
+requests must return 422 with `detail.code` set to `retired_date_shift_days`.
+Repeat with the patient-scoped request in the production guide and verify
+the shifted date against the offset derived with the acceptance key.
+[Production request and offset recovery](site/docs/workflows/production-deployment.md#shift-event-dates-with-a-patient-scope)
 
 For site acceptance before public publication, stage the three component
 wheels and the approved rfc8785 0.1.4 wheel in a dedicated directory. Supply

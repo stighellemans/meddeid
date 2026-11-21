@@ -13,69 +13,184 @@ approved client -> your application -> MedDeID API -> local model
                          +-> governed data store
 ```
 
-For a worked Azure and Databricks installation, follow the [hospital integration cookbook](hospital/index.md).
+The examples use the **0.4.3rc5** rendering API. This gateway rejects the
+retired metadata field on single and batch requests. The hardware instructions also cover the published 0.4.2 images.
+[Check gateway versions](../reference/compatibility.md#rendering-release-candidate) · [Prepare a candidate deployment](hospital/deploy-service.md#choose-the-release)
+
+## Choose how the calling job authenticates
+
+**The built-in MedDeID API key is optional.** If an HTTPS proxy is the only
+route to the model service, it can authenticate each calling job and check
+its permissions. IT can then revoke one job’s access without rotating a
+shared credential. In that setup, leave `MEDDEID_API_KEY` unset and
+`MEDDEID_REQUIRE_API_KEY=false` on the private backend.
+[Proxy configuration in the hospital cookbook](hospital/deploy-service.md#start-the-https-service)
+
+When MedDeID itself authenticates inference requests, set `MEDDEID_API_KEY`
+to a secret shared with approved clients. They send it in `X-API-Key` over
+HTTPS. A configured key is always checked. Set `MEDDEID_REQUIRE_API_KEY=true`
+as well so a missing key stops the service at startup. The published CUDA
+and TensorRT Compose files require a key. The hospital cookbook supplies a
+separate Compose file for proxy authentication.
+
+The API key controls **who can call the service**. IT manages a separate
+**mapping key** for deriving patient-specific date shifts and name aliases.
+Rotating an access credential therefore leaves the mappings reproducible as
+long as the mapping key and render settings stay the same.
+
+<span id="choose-and-retain-date-shifts-outside-meddeid"></span>
+
+## Shift event dates with a patient scope
+
+Suppose two visits for the same patient are seven days apart. The study needs
+that interval, but the actual visit dates are identifying. Using the same
+patient ID in both notes gives the renderer a consistent scope. Adding IT’s
+secret mapping key lets it derive a repeatable shift that someone with the
+patient ID alone cannot calculate. IT can reproduce the offset later.
+[Recover the offset after a run](#recover-the-offset-after-a-run)
+
+**For study datasets, render inside a job controlled by hospital IT.** Let
+the gateway detect spans. IT grants the rendering job access to a specific
+version of the secret in the hospital’s secret store. This lets a research
+team use the resulting text without needing the key. In the job, build the
+scope with the stable patient ID and the secret. Here `mapping_key` is the
+value read from that version.
+
+```python
+from meddeid_core.rendering import PseudonymizationScope
+
+scope = PseudonymizationScope(patient_id="example-007", secret=mapping_key)
+```
+
+Pass this scope to `apply_spans` with `date_replacement=True`. Only the
+trusted job needs the mapping key. Researchers receive their approved text
+view. Keep paired original and shifted dates inside the same restricted
+boundary, since comparing the pair reveals that patient’s offset.
+[Render from stored detections](hospital/databricks-job.md#render-the-study-text)
+
+**For an application that needs the shifted text in one HTTP call, let the
+gateway add the secret.** IT mounts a pinned key file on the gateway and sets
+`MEDDEID_PSEUDONYMIZATION_KEY_FILE` to its path. The file contains at least
+32 random bytes encoded as hexadecimal. Authorize only callers entitled to
+render with that key. Send the patient ID in the JSON below to
+`POST /deidentify`. The gateway combines it with the mounted key and rejects
+a client-supplied `secret` in the HTTP scope with status 422.
+[Configure keyed rendering on the service](hospital/databricks-job.md#when-the-caller-needs-one-text-immediately)
+
+```json
+{
+  "text": "Controle op 15/01/2025.",
+  "metadata": {"lang": "nl-BE"},
+  "render": {
+    "pseudonymization_scope": {"patient_id": "example-007"},
+    "date_replacement": true
+  }
+}
+```
+
+For the second visit, send the new note with the same scope. With the same
+key version, algorithm and shift range, the two shifted dates in `deid_text`
+will still be seven days apart. Other detected identifiers receive bracketed
+labels in this example. Enable `name_replacement` for scoped name aliases or
+`age_replacement` to render clinical ages separately.
+
+### Recover the offset after a run
+
+An authorized job can call `derive_date_offset` on CPU at any time. It needs
+the complete original scope, access to the original key version, and the same
+derivation algorithm and shift range. The calculation works without the note,
+its detected spans or a running gateway.
+
+For the request above, mount the **key version used for that run** in the job
+and point `MEDDEID_PSEUDONYMIZATION_KEY_FILE` to it. The request used the
+default shift range.
+
+```python
+import os
+from pathlib import Path
+from meddeid_core.rendering import PseudonymizationScope, derive_date_offset
+
+key_file = Path(os.environ["MEDDEID_PSEUDONYMIZATION_KEY_FILE"])
+scope = PseudonymizationScope(
+    patient_id="example-007",
+    secret=key_file.read_text(encoding="ascii").strip(),
+)
+offset_days = derive_date_offset(scope)
+```
+
+`offset_days` is a signed integer. For example, a value of `-400` means the
+renderer moved recognized event dates 400 days earlier. If the original scope
+also included a study ID, include it again. If the request set
+`render.date_shift_range`, pass the same range as `date_shift_range` to
+`derive_date_offset`. After key rotation, use the recorded key version.
+
+If the request specified `render.date_offset_override`, that signed value was
+the configured offset. Keep it with the render policy so you can look it up
+later.
+
+### Specify a fixed shift for one request
+
+If a study already has an assigned offset, set `render.date_offset_override`
+to that signed number of days and enable `date_replacement`. For example,
+replace the `render` object above with the following object to move
+15 January 2025 back 731 days to 15 January 2023.
+
+```json
+{
+  "date_replacement": true,
+  "date_offset_override": -731
+}
+```
+
+The override takes precedence over scope-based date derivation for that
+document. This date-only request works without a scope or mapping key. If the
+same request also needs scoped name aliases, keep its scope and enable
+`name_replacement`.
+
+!!! note "Remove the legacy metadata field before upgrading"
+    The distributed 0.4.3rc4 wheel accepts `metadata.date_shift_days`.
+    The 0.4.3rc5 gateway returns HTTP 422 (`retired_date_shift_days`)
+    whenever the field is present, even if its value is null or the request
+    omits `render`. One such document rejects an entire batch before inference.
+    Remove the field from serialized requests. Both versions support the
+    patient scope and fixed override shown above.
 
 ## Before you start
 
-MedDeID is the inference part of a larger application. It accepts a note and
-returns de-identified text, the detected spans, processing information,
-warnings, and model provenance. It does not provide a clinical database,
-manage researcher access or retain corrections
-for future training. Plan those responsibilities before choosing a deployment.
+<span id="decide-what-the-surrounding-application-must-keep"></span>
 
-### Decide what the surrounding application must keep
+### What should you keep after processing a note? { #what-the-hospital-stores-for-each-document-revision }
 
-A SQL database is a practical default when MedDeID is part of a production
-service. It can keep the source, result, and review history linked without
-putting that state inside the inference container. MedDeID does not connect to
-that database or prescribe its schema. If the original note already has an
-authoritative home, store a stable reference instead of an unnecessary second
-copy.
+For a one-off request, returning the approved text may be enough. Save
+detections when you expect to revisit a note, for example when a second study
+needs different masking rules. The cookbook follows one note from source to
+study release using Databricks and Delta tables as a worked example.
+[Hospital integration cookbook](hospital/index.md)
 
-For each processed note, consider retaining:
+**Which version of the note did we process?** Keep a reference to the exact
+source revision in the hospital’s document system. If you save detections,
+store their positions and labels with that reference and a hash of the input
+text. A clinician can correct a note without changing its document ID.
+Inserting even one word can make an old position point to the wrong name.
+[How to verify stored detections](../concepts/data-contract.md#store-and-reuse-detections)
 
-| Information                        | Why retain it                                                                                                         |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Original note + ID                 | Span offsets are only interpretable using the original note                                                           |
-| De-identified note                 | The final output for downstream users                                                                                 |
-| Each returned span                 | Preserves its `begin` and `end` character positions, label, matched text, replacement, and confidence                 |
-| Date-shift value and its scope     | Keeps dates consistent and allows an authorized system to reverse the shift when policy permits                       |
-| Processing warnings and provenance | Records fallbacks and identifies the exact model, profile, and software that produced the result                      |
-| Review status and corrections      | Lets users flag missed or unnecessary redactions and creates material that can later be curated for model improvement |
+**What needs to run again?** Record which model bundle, language profile and
+clinical inputs produced the detections. A corrected patient name can change
+which names MedDeID finds even if the note is untouched. Run detection again
+if the text, model or detection inputs change. If a study changes only how
+names or dates should appear, reuse the verified positions and render the text
+on CPU. In the restricted run record, keep the render settings, scope
+reference and versions of the renderer and mapping key. IT can then reproduce
+the view using the key in its secret store.
 
-The span positions refer to the original input text. Keep that text unchanged:
-editing it, normalizing line endings, or changing Unicode characters can make
-stored positions point to the wrong characters. Retaining individual spans
-also lets an authorized project to only redact certain categories or redo post-processing without having to rerun the entire batch on a GPU.
+**Which text can we release?** A timeline study may need the interval
+between visits, while another study can work with dates masked. Generate the
+view each study is approved to receive. Before release, check that every
+eligible note has a result for the intended revision and policy, and exclude
+withdrawn notes.
+Keep source notes and detections within the hospital’s restricted environment.
 
-Spans contain identifying source text, and a stored date shift is part of the
-re-identification link. Treat both as sensitive as the original note! A
-researcher who only needs de-identified text should not automatically receive
-all spans, original values, or shift. But it can be useful to set an automated system in place to selectively revert pseudonymization by the researcher when he/she has certain reasons for it. This can be logged and automatically approved then.
-
-### Choose and retain date shifts outside MedDeID
-
-The calling application—not MedDeID—chooses the date shift according to local
-policy or pseudonymization requirements. It sends that integer with the note as
-`metadata.date_shift_days`. Use an approved secure random process and choose
-the scope deliberately. A consistent per-subject shift usually preserves the
-intervals between that subject's notes; a new shift for every note does not.
-
-MedDeID uses placeholders when the value is omitted or zero. A non-zero value
-shifts recognized dates and is reported back under `processing`. The default
-configuration warns when the absolute shift is below 366 days, because of higher re-identification risks, but the
-institution remains responsible for selecting an acceptable range and storing
-the chosen value securely.
-
-Reversal is not an API feature. An authorized application can subtract the
-stored shift from a successfully shifted date, or use the stored source span to
-restore an approved original value. Some outputs are deliberately not
-reversible from the replacement alone: an unparsed date may become a
-placeholder, and a birth date may become a generalized age or shifted year.
-Keep the original note or source spans when controlled restoration is a real
-requirement.
-
-### Plan how users report mistakes
+### Optional study feedback { #plan-how-users-report-mistakes }
 
 A production interface can let users mark a missed identifier, reject an
 unnecessary redaction, correct a span boundary, or change a label. Store the
@@ -100,15 +215,17 @@ backups, retention, and incident response.
 For each deployment:
 
 1. use an immutable container digest rather than a moving tag;
-2. store the API key in the organization's secret manager;
+2. authorize callers at the private proxy or configure MedDeID’s own API key;
 3. keep the service on a private interface or network;
 4. avoid logging notes, results, span contents, metadata, or API keys; and
 5. validate de-identification quality on representative local notes.
 
 ## Choose a deployment
 
-All options expose the same API.
-Choose primarily by the hardware your organization will operate.
+Choose the backend for the hardware your organization will operate. The
+gateway version determines whether the service accepts `render`. The
+published image commands below use the 0.4.2 checkout. For scoped requests,
+use the [candidate deployment instructions](hospital/deploy-service.md#choose-the-release).
 
 | Deployment                                       | Requirements                                     | Online response\* | Batch speed\* | Choose when                                            |
 | ------------------------------------------------ | ------------------------------------------------ | ----------------: | ------------: | ------------------------------------------------------ |
@@ -150,16 +267,15 @@ The CPU image is the easiest starting point and supports both AMD64 and ARM64.
 Install Docker, clone the repository, and create a private environment file:
 
 ```bash
-git clone https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
 cd meddeid
 cp .env.example .env.cpu
 chmod 600 .env.cpu
 ```
 
-The template already selects the Dutch public model, binds to localhost,
-requires authentication, and keeps the UI and API documentation disabled. For
-a first deployment, replace the image tag with its approved digest and set the
-API key:
+The supplied CPU environment template selects the Dutch public model,
+binds to localhost and enables MedDeID’s own API key. For this setup, pin
+the approved image digest and replace the example key.
 
 ```dotenv
 MEDDEID_API_IMAGE=ghcr.io/stighellemans/meddeid-api@sha256:<approved-digest>
@@ -185,11 +301,11 @@ deployment tied to one specific GPU model. The host needs an NVIDIA driver,
 Docker Engine, and NVIDIA Container Toolkit.
 
 ```bash
-git clone https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
 cd meddeid
 cp .env.cuda.example .env.cuda
 chmod 600 .env.cuda
-# Replace the API key and pin the image digest in .env.cuda.
+# This CUDA Compose file requires an API key. Set it and pin the image digest in .env.cuda.
 
 docker compose \
   --env-file .env.cuda \
@@ -216,7 +332,7 @@ Choose this option when you want the fastest tested deployment. Install Docker,
 the NVIDIA driver, and NVIDIA Container Toolkit, then create the configuration:
 
 ```bash
-git clone https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
 cd meddeid
 cp .env.triton.example .env.triton
 chmod 600 .env.triton
@@ -227,7 +343,9 @@ matching plan. This release provides one exact plan for NVIDIA T4 and one
 hardware-compatible plan for Ampere and newer GPUs. The displayed performance
 figures were measured on T4 and should not be treated as measurements of other
 GPUs.
-The template selects the Dutch public model by default. For a first deployment, replace only the API key. Change the following three settings
+The published TensorRT Compose file requires an API key. Replace the example
+value before starting it. The template selects the Dutch public model by
+default. Change the following three settings
 together when using another validated model:
 
 ```dotenv
@@ -302,6 +420,11 @@ docker compose \
 ```
 
 #### Use an institution-specific model
+
+For a **0.4.3rc5** build, start from the candidate source on the target host,
+select its private plan catalog and build the matching gateway. Use the local
+image, local model and local plan overrides together when starting that stack.
+[Prepare the candidate catalog](hospital/deploy-service.md#if-you-use-tensorrt)
 
 Keep your hospital's model in a local directory containing its MedDeID bundle.
 No Hugging Face account, upload, or token is needed. Set these values in `.env.triton`:
@@ -383,18 +506,18 @@ Desktop cannot pass it into the Linux MedDeID container, so install and run the
 server directly:
 
 ```bash
-git clone https://github.com/stighellemans/meddeid.git
+git clone --branch v0.4.2 https://github.com/stighellemans/meddeid.git
 cd meddeid
 python -m pip install '.[server]'
 cp server.env.example meddeid-server.env
 chmod 600 meddeid-server.env
 ```
 
-The generic server template already selects the Dutch public model and the
-latency profile. Replace its API key. Change the prefilled model, revision, and
-language profile only when you have validated another model for this service.
-Provide the API key through the institution's secret-management process where
-possible.
+The generic server template selects the Dutch public model, the latency
+profile and built-in API-key authentication. For this setup, inject the key
+from the institution’s secret manager. If the hospital proxy authenticates
+callers, configure the private backend as described under
+[caller authentication](#choose-how-the-calling-job-authenticates).
 
 Start the server with that configuration:
 
@@ -420,27 +543,16 @@ deployment.
 
 ## Process individual requests or batches
 
-Use `POST /deidentify` when clients submit one note at a time. Use
-`POST /deidentify-batch` for a planned collection of notes. The supplied
-deployment templates contain sensible starting settings for both cases.
+For one note, use `POST /deidentify` with the
+[patient scope example](#shift-event-dates-with-a-patient-scope). For
+`POST /deidentify-batch`, place each note in the `documents` array with its
+own `document_id`, `text`, `metadata` and `render`. Notes for the same patient
+can share a scope while retaining distinct document IDs.
 
-Before sending a note, the calling application should retrieve or create the
-date shift for the appropriate subject or study and include it in the request:
-
-```json
-{
-  "text": "Controle op 15/01/2025.",
-  "metadata": {
-    "lang": "nl-BE",
-    "date_shift_days": -731
-  }
-}
-```
-
-The value above is illustrative. Generate the real value from institutional
-policy rather than hard-coding it. After the response, store the returned
-`deid_text`, `spans`, `processing`, `warnings`, and `provenance` with the
-application's document record before adding any later human corrections.
+With an explicit `render` object, read `deid_text` for the selected view,
+`spans` for detections in the original text and `provenance` for model
+identity. Batch results also echo each `document_id`.
+[Single and batch HTTP examples](rendering.md#request-one-text-from-the-gateway)
 
 If interactive requests and large batch jobs must run at the same time, operate
 separate service instances so a large job cannot delay an interactive request.
@@ -469,7 +581,8 @@ Review a setting only when the corresponding decision applies:
 
 | Decision                                                         | Setting                                                             |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Always: replace the example secret                               | `MEDDEID_API_KEY`                                                   |
+| Have MedDeID authenticate inference requests                     | Set `MEDDEID_API_KEY` and use `MEDDEID_REQUIRE_API_KEY=true` to catch a missing key at startup |
+| Derive patient-scoped dates or names on the candidate gateway    | `MEDDEID_PSEUDONYMIZATION_KEY_FILE` (path to the mounted mapping key) |
 | Production container: pin the approved image digest              | `MEDDEID_API_IMAGE` or `MEDDEID_PYTORCH_CUDA_IMAGE`                 |
 | Use another model                                                | `MEDDEID_MODEL`, `MEDDEID_REVISION`, and `MEDDEID_LANGUAGE_PROFILE` |
 | Sustained CUDA or MPS batch processing                           | `MEDDEID_SERVING_PROFILE=throughput`                                |

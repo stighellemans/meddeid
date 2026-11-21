@@ -171,11 +171,13 @@ meddeid deidentify note.txt \
   --language-profile en-GB
 ```
 
-Dates use placeholders unless the caller explicitly supplies
-`metadata.date_shift_days`. A nonzero shift produces deterministic shifted
-dates; zero produces placeholders and a structured warning. One declarative
-age-granularity JSON policy is loaded for the complete engine, independent of
-the selected language profile.
+The 0.4.3rc5 HTTP API uses labels for detected event dates by default.
+To shift them, set `render.date_replacement` to true and supply a patient
+scope or a fixed `render.date_offset_override`. Remove
+`metadata.date_shift_days` from clients during migration. The RC4 wheel
+accepts the field. The RC5 gateway returns HTTP 422 if it is
+present.
+[Patient scope and fixed offset examples](site/docs/workflows/production-deployment.md#shift-event-dates-with-a-patient-scope)
 
 The self-contained model bundle is downloaded and cached on first use. Document
 text is processed locally and is not sent to Hugging Face. Quickly inspect the
