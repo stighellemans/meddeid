@@ -23,7 +23,7 @@ jq --arg version "$MEDDEID_VERSION" '.meddeid_version = $version | .plans = [] |
   deploy/triton/release.json > "$MEDDEID_TRITON_RELEASE_CATALOG"
 ```
 
-Use the local model and local images Compose overrides with the resulting plan. Keep this catalog with the hospital's build manifest, bundle and image digests. The default catalog describes the published synthetic plans. [Build the TensorRT model repository](../../../../deploy/triton/README.md)
+Use the local model and local images Compose overrides with the resulting plan. Keep this catalog with the hospital's build manifest, bundle and image digests. The default catalog describes the published synthetic plans. [Build the TensorRT model repository](../production-deployment.md#use-an-institution-specific-model)
 
 ## 2. Provision the host with Terraform
 
