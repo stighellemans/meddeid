@@ -5,6 +5,11 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [Unreleased]
 
+- Select how identifiers are replaced in single-document and batch HTTP requests with the optional `render` field. Use the returned source offsets to produce additional text variants on CPU without repeating detection.
+- Integrate through the lightweight `meddeid_core.client.GatewayClient`. Pipelines can reuse stored detections with `meddeid_core.pipeline` and reject annotations that no longer match the source.
+- Apply consistent, scoped pseudonyms with the Dutch and English profiles and render clinical ages independently of the chosen date policy.
+- Follow the [hospital integration cookbook](https://stighellemans.github.io/meddeid/workflows/hospital/) for a private deployment, HTTPS, Key Vault and a first Databricks request. Hospital builds can supply matching component wheels and a private TensorRT catalog.
+
 ## [0.4.2] - 2026-09-10
 
 - Ensure container builds package the MedDeID Private Fine-Tuning Exception

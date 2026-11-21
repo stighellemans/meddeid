@@ -36,7 +36,7 @@ Python application.
 Choose CPU, NVIDIA GPU, or native Apple silicon for the HTTP API, then place the
 service inside your institution's security and operational controls.
 
-[Prepare a deployment →](production-deployment.md)
+[Choose a runtime](production-deployment.md) · [Deploy HTTPS and connect Databricks](hospital/index.md)
 
 </div>
 

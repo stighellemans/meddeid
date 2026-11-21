@@ -7,7 +7,7 @@ Choose the path that matches how you intend to use MedDeID:
 | De-identify a note or a batch of files | [Run MedDeID locally](#run-meddeid-locally) |
 | Add de-identification to a Python application | [Use the Python API](#use-the-python-api) |
 | Explore the browser interface or HTTP API | [Try MedDeID in your browser](#try-meddeid-in-your-browser) |
-| Operate a shared institutional service | [Production deployment](../workflows/production-deployment.md) |
+| Operate a shared institutional service | [Choose a runtime](../workflows/production-deployment.md) or [install the hospital service and connect Databricks](../workflows/hospital/index.md) |
 
 Training, evaluation, and annotation tools are separate workflows linked at
 the end of this page.

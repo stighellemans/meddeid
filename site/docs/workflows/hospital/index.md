@@ -10,7 +10,7 @@ This recipe deploys a private inference service and connects a Databricks job to
 
 ## 1. Prepare a release
 
-Record the source commits for MedDeID, core and each language package with the build. Build the serving image from these revisions, push it to the hospital's approved registry and record the resulting digest. The rendering candidate in this checkout uses MedDeID 0.4.3rc4 with core 0.2.4rc4 and language wheels 0.2.4rc1. Install candidate wheels from the approved release feed. The private model bundle is a separate artifact. Verify its file checksums at installation and use its *contract hash* when checking predictions.
+Record the source commits for MedDeID, core and each language package with the build. Build the serving image from these revisions, push it to the hospital's approved registry and record the resulting digest. The rendering candidate in this checkout uses MedDeID 0.4.3rc4 with core 0.2.4rc4 and language wheels 0.2.4rc1. Install the supplied wheels directly, or use the hospital’s package index if it already hosts these versions. The private model bundle is a separate artifact. Verify its file checksums at installation and use its *contract hash* when checking predictions.
 
 For a TensorRT deployment, rebuild the gateway from the chosen source and pair the T4 plan with its compatible Triton runtime. Validate the model on the target GPU. Packaging a model on top of a base image retains the code in that base. The Compose example below serves PyTorch CUDA. The repository also provides a Triton serving stack and plan verification. [Production deployment](../production-deployment.md)
 

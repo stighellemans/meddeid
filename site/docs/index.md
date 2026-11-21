@@ -16,6 +16,7 @@ own infrastructure. Public model bundles support Dutch and English.
 <div class="meddeid-actions" markdown>
 [Install and run](start/quickstart.md){ .md-button .md-button--primary }
 [Try the public demo](https://huggingface.co/spaces/stighellemans/meddeid-demo){ .md-button }
+[Hospital integration cookbook](workflows/hospital/index.md){ .hero-text-link }
 [View source](https://github.com/stighellemans/meddeid){ .hero-text-link }
 </div>
 
