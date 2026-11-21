@@ -85,7 +85,9 @@ nav:
       - Choose a workflow: workflows/index.md
       - Local inference: workflows/inference.md
       - Production deployment: workflows/production-deployment.md
-      - Hospital integration cookbook: workflows/hospital/index.md
+      - Hospital integration cookbook:
+          - Deployment and Databricks: workflows/hospital/index.md
+          - Add a GPU host with Terraform: workflows/hospital/add-gpu-host.md
       - Prepare and annotate data: workflows/prepare-and-annotate.md
       - Train and evaluate: workflows/train-and-evaluate.md
       - Domain adaptation: workflows/domain-adaptation.md

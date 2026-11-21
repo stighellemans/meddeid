@@ -27,9 +27,9 @@ Use the local model and local images Compose overrides with the resulting plan. 
 
 ## 2. Provision the host with Terraform
 
-Use the [Terraform module](infra/main.tf) in `site/docs/workflows/hospital/infra`. It creates a VM with a private NIC, persistent disk and managed identity, and grants that identity registry pull access. Supply an approved Ubuntu image version with Docker Compose, GPU driver, NVIDIA Container Toolkit and Azure CLI installed. The example assumes an existing resource group, registry, private subnet and Azure Storage backend. Keep Terraform state in restricted storage.
+**Adding MedDeID to the hospital's existing Terraform?** Follow [Add the first MedDeID GPU host](add-gpu-host.md). The recipe gives the HCL to add, names the VM, NIC and disk by workload and environment, and connects the host to the existing private network and registry.
 
-Set the module inputs in your deployment pipeline: `subscription_id`, `resource_group`, `subnet_id`, `registry_id`, `host_image_id` and `ssh_public_key`. Select your registry's repository reader role through `registry_pull_role` if it uses ABAC. Use the output IP for the private DNS record. Allow TCP 443 from the approved job networks and use the hospital's management route for host access.
+For a separate deployment, use the [standalone configuration](infra/main.tf). Supply the Azure Storage backend configuration, `subscription_id`, `resource_group`, `subnet_id`, `registry_id`, `host_image_id` and `ssh_public_key`. The host image must include Docker Compose, the GPU driver, NVIDIA Container Toolkit and Azure CLI. Set `registry_pull_role` to the repository-reader role for an ABAC registry. Use the output IP for private DNS and allow HTTPS from the job network.
 
 ```bash
 cd site/docs/workflows/hospital/infra
