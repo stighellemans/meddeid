@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - "site/**"
+      - "pyproject.toml"
+      - "deploy/read_project_version.py"
       - ".github/workflows/pages.yml"
   push:
     branches: [main]
     paths:
       - "site/**"
+      - "pyproject.toml"
+      - "deploy/read_project_version.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 

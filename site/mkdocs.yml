@@ -4,6 +4,8 @@ site_url: https://stighellemans.github.io/meddeid/
 repo_url: https://github.com/stighellemans/meddeid
 repo_name: stighellemans/meddeid
 edit_uri: edit/main/site/docs/
+hooks:
+  - scripts/release_metadata.py
 copyright: MedDeID contributors · Documentation licensed with the project
 
 theme:
